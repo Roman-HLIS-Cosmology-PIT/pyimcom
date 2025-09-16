@@ -14,7 +14,6 @@ run_imsubtract
 
 import numpy as np
 import sys
-#from astropy.wcs import WCS
 import os
 import re
 from astropy.io import fits
@@ -102,8 +101,19 @@ def get_wcs(cachefile):
     
 def get_wcs_from_infile(infile):
     """
-    #### I need to add the documentation for this
-    
+    Gets the "sub-WCS" from the FITS file. Using SlicedLowLevelWCS avoids extra axes
+    which create additional complications in the WCS. 
+
+    Parameters
+    ----------
+    infile : str
+        Name of the file.
+
+    Returns
+    -------
+    sub-WCS 
+        The World Coordinate System of the file with only the necessary axes.
+
     """
     g = infile[0].header
     block_wcs = SlicedLowLevelWCS(WCS(g), slices=[0,0,slice(0,g['NAXIS2']),slice(0,g['NAXIS1'])])
