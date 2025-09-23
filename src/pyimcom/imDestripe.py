@@ -1080,12 +1080,14 @@ def main():
             tol = state['tol']
             thresh = state['thresh']
             psi = state['psi']
+            norm_0 = state['norm_0']
+            cost_model = state['cost_model']
 
         else:
             # Initialize variables
             i = -1
             grad_prev = None  # No previous gradient initially
-            grad = NotImplementedError
+            grad = None
             direction = None  # No initial direction
             write_to_file('### Starting initial cost function')
             epsilon, psi = cost_function(p, f, thresh)
@@ -1117,7 +1119,7 @@ def main():
                 global current_norm
                 current_norm = np.linalg.norm(grad)
 
-                if i+1 == 0 and grad_prev is None:
+                if i == 0 and grad_prev is None:
                     write_to_file(f'Initial gradient: {grad}')
                     norm_0 = np.linalg.norm(grad)
                     write_to_file(f'Initial norm: {norm_0}')
@@ -1208,11 +1210,13 @@ def main():
                 'direction_prev': direction_prev,
                 'method': method,
                 'tol': tol,
-                'thresh': thresh
+                'thresh': thresh,
+                'norm_0': norm_0,
+                'cost_model': cost_model
             }
 
             if restart_file is None:
-                restart_file == os.path.join(outpath, 'cg_restart.pkl')
+                restart_file = os.path.join(outpath, 'cg_restart.pkl')
             with open(restart_file, 'wb') as f:
                 pickle.dump(crash_state, f)
             write_to_file(f"Exception occurred at iteration {i+1}: {e}. Crash state saved to {restart_file}")
