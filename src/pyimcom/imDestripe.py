@@ -61,6 +61,7 @@ cg_maxiter = CFG.cg_maxiter
 cg_tol = CFG.cg_tol
 cost_model = CFG.cost_model
 resid_model = CFG.resid_model
+restart_file = CFG.restart_file
 
 
 if use_model not in model_params.keys():
@@ -1116,7 +1117,7 @@ def main():
                 global current_norm
                 current_norm = np.linalg.norm(grad)
 
-                if i == 0 and grad_prev is None:
+                if i+1 == 0 and grad_prev is None:
                     write_to_file(f'Initial gradient: {grad}')
                     norm_0 = np.linalg.norm(grad)
                     write_to_file(f'Initial norm: {norm_0}')
@@ -1124,7 +1125,7 @@ def main():
                     tol = tol * norm_0
                     direction = -grad
 
-                elif i%10 == 0 :
+                elif (i+1)%10 == 0 :
                     beta = 0
                     write_to_file(f"Current Beta: {beta} (using method: {method})")
                     direction = -grad + beta * direction_prev
@@ -1225,7 +1226,7 @@ def main():
     try:
         p = conjugate_gradient(p0, Cost_models(cost_model).f, Cost_models(cost_model).f_prime,
                             cg_model, cg_tol, cg_maxiter, Cost_models(cost_model).thresh,
-                            restart_file = os.path.koin(outpath, 'cg_restart.pkl'))
+                            restart_file = restart_file)
         hdu = fits.PrimaryHDU(p.params)
         hdu.writeto(outpath + 'final_params.fits', overwrite=True)
         print(outpath + 'final_params.fits created \n')
