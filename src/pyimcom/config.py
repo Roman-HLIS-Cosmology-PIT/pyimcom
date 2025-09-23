@@ -319,6 +319,7 @@ class Config:
         "cost_model", 
         "ds_obsfile", 
         "ds_indata",
+        "ds_restart",
         "cost_prior", 
         "resid_model", 
         "hub_thresh", 
@@ -532,14 +533,7 @@ class Config:
         self.cost_model, self.cost_prior, self.hub_thresh = cfg_dict['DSCOST']
         self.ds_obsfile = cfg_dict.get('DSOBSFILE', None)
         self.ds_indata = cfg_dict.get('DSINDATA', None)
-
-        ### SECTION IX: DESTRIPING PARAMS ###
-        self.ds_model = cfg_dict.get('DSMODEL', False)
-        self.ds_outpath, self.ds_outstem = cfg_dict['DSOUT']
-        self.cg_model, self.cg_maxiter, self.cg_tol = cfg_dict['CGMODEL']
-        self.cost_model, self.cost_prior, self.hub_thresh = cfg_dict['DSCOST']
-        self.ds_obsfile = cfg_dict.get('DSOBSFILE', None)
-        self.ds_indata = cfg_dict.get('DSINDATA', None)
+        self.ds_restart = cfg_dict.get('DSRESTART', None)
 
         # Lagrange multiplier (kappa) information
         # list of kappa/C values, ascending order
