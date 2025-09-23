@@ -61,7 +61,7 @@ cg_maxiter = CFG.cg_maxiter
 cg_tol = CFG.cg_tol
 cost_model = CFG.cost_model
 resid_model = CFG.resid_model
-restart_file = CFG.restart_file
+restart_file = CFG.ds_restart
 
 
 if use_model not in model_params.keys():
