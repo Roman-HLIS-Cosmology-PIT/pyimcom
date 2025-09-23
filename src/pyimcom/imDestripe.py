@@ -403,7 +403,7 @@ class Sca_img:
         for k, sca_b in enumerate(all_scas):
             obsid_B, scaid_B = get_ids(sca_b)
 
-            if obsid_B != self.obsid and ov_mat[ind, k] != 0:  # Check if this sca_b overlaps sca_a
+            if obsid_B != self.obsid and ov_mat[ind, k] >= 0.1:  # Check if this sca_b overlaps sca_a by at least 10%
                 N_BinA += 1
                 I_B = Sca_img(obsid_B, scaid_B)  # Initialize image B
 
