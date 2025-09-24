@@ -695,14 +695,14 @@ def residual_function_single(k, sca_a, psi, f_prime, thresh=None):
 
     term_2_list = []
     neighbors = {k: [j for j in range(len(all_scas))
-                 if ov_mat[k,j] != 0 and get_ids(all_scas[j])[0] != get_ids(all_scas[k])[0] ]
+                 if ov_mat[k,j] >= 0.1 and get_ids(all_scas[j])[0] != get_ids(all_scas[k])[0] ]
              for k in range(len(all_scas))}
 
     for j in neighbors[k]:
         sca_b=all_scas[j]
         obsid_B, scaid_B = get_ids(sca_b)
 
-        if obsid_B != obsid_A and ov_mat[k, j] != 0:
+        if obsid_B != obsid_A and ov_mat[k, j] >= 0.1:
             I_B = Sca_img(obsid_B, scaid_B)
             gradient_original = np.zeros(I_B.shape)
 
@@ -1026,7 +1026,8 @@ def main():
         new_p.params = new_params
         new_epsilon, new_psi = cost_function(new_p, f, thresh)
         new_resids = grad_current + (alpha_new/alpha_max) * (trial_resids - grad_current)
-        print('Global elapsed t = {:8.1f}'.format((time.time()-t0_global)/60))
+        print('(Inside LS) Global elapsed t = {:8.1f}'.format((time.time()-t0_global)/60))
+        sys.stdout.flush()
 
         d_cost = np.sum(new_resids * direction)
 
@@ -1037,6 +1038,7 @@ def main():
         write_to_file(f"Working params: {new_p.params}")
         write_to_file(f"Current alpha: {alpha_new}")
         write_to_file(f"Time spent in this LS: {(time.time() - t0_ls) / 60} minutes.")
+        sys.stdout.flush()
 
         # Convergence and update criteria and checks
         save_fits(new_p.params, 'best_p', dir=test_image_dir, overwrite=True)
@@ -1060,6 +1062,7 @@ def main():
         write_to_file('### Starting conjugate gradient optimization')
         print('Global elapsed t = {:8.1f}'.format((time.time()-t0_global)/60))
         print(f'HL Threshold (None, if cost fn is not Huber Loss): {thresh}')
+        print(f'Restart?: {restart_file}\n')
 
         global test_image_dir
         test_image_dir = outpath + '/test_images/' + str(0) + '/'
@@ -1153,6 +1156,7 @@ def main():
                 # Perform linear search
                 t_start_LS = time.time()
                 write_to_file(f"Initiating linear search in direction: {direction}")
+                sys.stdout.flush()
                 if cost_model=='quadratic':
                     p_new, psi_new, grad_new, epsilon_new = linear_search_quadratic(p, direction, f, f_prime, grad, thresh)
                 else:
@@ -1163,6 +1167,7 @@ def main():
                 write_to_file(f'Total time spent in linear search: {ls_time}')
                 write_to_file(
                     f'Current norm: {current_norm}, Tol * Norm_0: {tol}, Difference (CN-TOL): {current_norm - tol}')
+                sys.stdout.flush()
                 # write_to_file(f'Current best params: {p_new.params}')
 
                 # Calculate additional metrics
