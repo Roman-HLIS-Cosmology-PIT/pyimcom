@@ -16,6 +16,7 @@ SysMatB
 
 """
 
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import fsolve
@@ -29,7 +30,7 @@ except ImportError:
 import galsim
 
 from .config import Settings as Stn
-from .config import format_axis
+from .config import format_axis, format_axis_pars
 
 try:
     from furry_parakeet.pyimcom_croutines import gridD5512C, iD5512C, iD5512C_sym
@@ -417,13 +418,14 @@ class OutPSF:
         hm = out_arr[0, PSFGrp.nc] / 2  # half maximum
 
         if visualize:
-            fig, ax = plt.subplots()
+            with mpl.rc_context(format_axis_pars):
+                fig, ax = plt.subplots()
 
-            ax.plot(out_arr[0, PSFGrp.nc : PSFGrp.nc + 25], "rx")
-            ax.axhline(hm, c="b", ls="--")
+                ax.plot(out_arr[0, PSFGrp.nc : PSFGrp.nc + 25], "rx")
+                ax.axhline(hm, c="b", ls="--")
 
-            format_axis(ax)
-            plt.show()
+                format_axis(ax)
+                plt.show()
 
         idx = np.searchsorted(-out_arr[0, PSFGrp.nc :], -hm)
         idx += PSFGrp.nc
@@ -636,15 +638,18 @@ class PSFGrp:
 
         """
 
-        fig, ax = plt.subplots(figsize=(4.8, 3.6))
+        with mpl.rc_context(format_axis_pars):
+            fig, ax = plt.subplots(figsize=(4.8, 3.6))
 
-        vmin = max(psf_.min(), psf_.max() / 1e6)
-        im = ax.imshow(np.log10(np.clip(psf_, a_min=vmin, a_max=None)), origin="lower", vmin=np.log10(vmin))
-        plt.colorbar(im, ax=ax)
-        ax.scatter(yxco[1, ::10, ::10].ravel() + xctr, yxco[0, ::10, ::10].ravel() + yctr, c="r", s=0.05)
+            vmin = max(psf_.min(), psf_.max() / 1e6)
+            im = ax.imshow(
+                np.log10(np.clip(psf_, a_min=vmin, a_max=None)), origin="lower", vmin=np.log10(vmin)
+            )
+            plt.colorbar(im, ax=ax)
+            ax.scatter(yxco[1, ::10, ::10].ravel() + xctr, yxco[0, ::10, ::10].ravel() + yctr, c="r", s=0.05)
 
-        format_axis(ax, False)
-        plt.show()
+            format_axis(ax, False)
+            plt.show()
 
     def _sample_psf(self, idx, psf, outpix2world2inpix=None, visualize=False):
         """
@@ -1223,55 +1228,19 @@ class PSFOvl:
     def visualize_psfovl(self) -> None:
         """Visualize the PSF overlap array."""
 
-        if self.grp2 is not None:  # cross-overlap
-            n_psf1, n_psf2 = self.ovl_arr.shape[:2]  # shortcuts
-            fig, axs = plt.subplots(n_psf1, n_psf2, figsize=(4.8 * min(n_psf2, 4), 3.6 * min(n_psf1, 4)))
+        with mpl.rc_context(format_axis_pars):
+            if self.grp2 is not None:  # cross-overlap
+                n_psf1, n_psf2 = self.ovl_arr.shape[:2]  # shortcuts
+                fig, axs = plt.subplots(n_psf1, n_psf2, figsize=(4.8 * min(n_psf2, 4), 3.6 * min(n_psf1, 4)))
 
-            for idx1 in range(n_psf1):
-                for idx2 in range(n_psf2):
-                    if n_psf1 > 1:
-                        ax = axs[idx1, idx2] if n_psf2 > 1 else axs[idx1]
-                    else:
-                        ax = axs[idx2] if n_psf2 > 1 else axs
+                for idx1 in range(n_psf1):
+                    for idx2 in range(n_psf2):
+                        if n_psf1 > 1:
+                            ax = axs[idx1, idx2] if n_psf2 > 1 else axs[idx1]
+                        else:
+                            ax = axs[idx2] if n_psf2 > 1 else axs
 
-                    ovl_ = self.ovl_arr[idx1, idx2]
-                    vmin = max(ovl_.min(), ovl_.max() / 1e6)
-                    im = ax.imshow(
-                        np.log10(np.clip(ovl_, a_min=vmin, a_max=None)), origin="lower", vmin=np.log10(vmin)
-                    )
-                    plt.colorbar(im, ax=ax)
-
-                    format_axis(ax, False)
-            plt.show()
-            del fig, axs
-
-        else:  # self-overlap
-            n_psf = self.grp1.n_psf  # shortcut
-
-            if n_psf == 1:
-                fig, ax = plt.subplots(figsize=(4.8, 3.6))
-
-                ovl_ = self.ovl_arr[0]
-                vmin = max(ovl_.min(), ovl_.max() / 1e6)
-                im = ax.imshow(
-                    np.log10(np.clip(ovl_, a_min=vmin, a_max=None)), origin="lower", vmin=np.log10(vmin)
-                )
-                plt.colorbar(im, ax=ax)
-
-                format_axis(ax, False)
-                plt.show()
-
-            else:
-                fig, axs = plt.subplots(n_psf, n_psf, figsize=(4.8 * min(n_psf, 4), 3.6 * min(n_psf, 4)))
-
-                for idx1 in range(n_psf):
-                    for idx2 in range(n_psf):
-                        ax = axs[idx1, idx2]
-                        if idx2 < idx1:
-                            ax.axis("off")
-                            continue
-
-                        ovl_ = self.ovl_arr[self._idx_square2triangle(idx1, idx2)]
+                        ovl_ = self.ovl_arr[idx1, idx2]
                         vmin = max(ovl_.min(), ovl_.max() / 1e6)
                         im = ax.imshow(
                             np.log10(np.clip(ovl_, a_min=vmin, a_max=None)),
@@ -1283,6 +1252,45 @@ class PSFOvl:
                         format_axis(ax, False)
                 plt.show()
                 del fig, axs
+
+            else:  # self-overlap
+                n_psf = self.grp1.n_psf  # shortcut
+
+                if n_psf == 1:
+                    fig, ax = plt.subplots(figsize=(4.8, 3.6))
+
+                    ovl_ = self.ovl_arr[0]
+                    vmin = max(ovl_.min(), ovl_.max() / 1e6)
+                    im = ax.imshow(
+                        np.log10(np.clip(ovl_, a_min=vmin, a_max=None)), origin="lower", vmin=np.log10(vmin)
+                    )
+                    plt.colorbar(im, ax=ax)
+
+                    format_axis(ax, False)
+                    plt.show()
+
+                else:
+                    fig, axs = plt.subplots(n_psf, n_psf, figsize=(4.8 * min(n_psf, 4), 3.6 * min(n_psf, 4)))
+
+                    for idx1 in range(n_psf):
+                        for idx2 in range(n_psf):
+                            ax = axs[idx1, idx2]
+                            if idx2 < idx1:
+                                ax.axis("off")
+                                continue
+
+                            ovl_ = self.ovl_arr[self._idx_square2triangle(idx1, idx2)]
+                            vmin = max(ovl_.min(), ovl_.max() / 1e6)
+                            im = ax.imshow(
+                                np.log10(np.clip(ovl_, a_min=vmin, a_max=None)),
+                                origin="lower",
+                                vmin=np.log10(vmin),
+                            )
+                            plt.colorbar(im, ax=ax)
+
+                            format_axis(ax, False)
+                    plt.show()
+                    del fig, axs
 
     def __call__(
         self,
@@ -1341,79 +1349,81 @@ class PSFOvl:
             The shape is (st1.pix_cumsum[-1], st2.pix_cumsum[-1]).
 
         """
+        with mpl.rc_context(format_axis_pars):
+            res = np.zeros((st1.pix_cumsum[-1], st2.pix_cumsum[-1]))
+            ddx = st1.x_val[:, None] - st2.x_val[None, :]
+            ddx /= PSFGrp.dscale
+            ddx += PSFGrp.nc
+            ddy = st1.y_val[:, None] - st2.y_val[None, :]
+            ddy /= PSFGrp.dscale
+            ddy += PSFGrp.nc
 
-        res = np.zeros((st1.pix_cumsum[-1], st2.pix_cumsum[-1]))
-        ddx = st1.x_val[:, None] - st2.x_val[None, :]
-        ddx /= PSFGrp.dscale
-        ddx += PSFGrp.nc
-        ddy = st1.y_val[:, None] - st2.y_val[None, :]
-        ddy /= PSFGrp.dscale
-        ddy += PSFGrp.nc
+            n_psf1, n_psf2 = self.ovl_arr.shape[:2]
+            if visualize:
+                fig, axs = plt.subplots(n_psf1, n_psf2, figsize=(4.8 * min(n_psf2, 4), 3.6 * min(n_psf1, 4)))
+            n_in = (n_psf1 * n_psf2) ** 0.5  # for flat_penalty
 
-        n_psf1, n_psf2 = self.ovl_arr.shape[:2]
-        if visualize:
-            fig, axs = plt.subplots(n_psf1, n_psf2, figsize=(4.8 * min(n_psf2, 4), 3.6 * min(n_psf1, 4)))
-        n_in = (n_psf1 * n_psf2) ** 0.5  # for flat_penalty
-
-        for j_im in range(st1.blk.n_inimage):
-            if st1.pix_count[j_im] == 0:
-                continue
-            for i_im in range(st2.blk.n_inimage):
-                if st2.pix_count[i_im] == 0:
+            for j_im in range(st1.blk.n_inimage):
+                if st1.pix_count[j_im] == 0:
                     continue
+                for i_im in range(st2.blk.n_inimage):
+                    if st2.pix_count[i_im] == 0:
+                        continue
 
-                slice_ = np.s_[
-                    st1.pix_cumsum[j_im] : st1.pix_cumsum[j_im + 1],
-                    st2.pix_cumsum[i_im] : st2.pix_cumsum[i_im + 1],
-                ]
+                    slice_ = np.s_[
+                        st1.pix_cumsum[j_im] : st1.pix_cumsum[j_im + 1],
+                        st2.pix_cumsum[i_im] : st2.pix_cumsum[i_im + 1],
+                    ]
 
-                if visualize:
-                    if n_psf1 > 1:
-                        if n_psf2 > 1:
-                            ax = axs[self.grp1.idx_blk2grp[j_im], self.grp2.idx_blk2grp[i_im]]
+                    if visualize:
+                        if n_psf1 > 1:
+                            if n_psf2 > 1:
+                                ax = axs[self.grp1.idx_blk2grp[j_im], self.grp2.idx_blk2grp[i_im]]
+                            else:
+                                ax = axs[self.grp1.idx_blk2grp[j_im]]
                         else:
-                            ax = axs[self.grp1.idx_blk2grp[j_im]]
-                    else:
-                        ax = axs[self.grp2.idx_blk2grp[i_im]] if n_psf2 > 1 else axs
+                            ax = axs[self.grp2.idx_blk2grp[i_im]] if n_psf2 > 1 else axs
 
-                    ovl_arr_ = self.ovl_arr[self.grp1.idx_blk2grp[j_im], self.grp2.idx_blk2grp[i_im]]
-                    vmin = max(ovl_arr_.min(), ovl_arr_.max() / 1e6)
-                    im = ax.imshow(
-                        np.log10(np.clip(ovl_arr_, a_min=vmin, a_max=None)),
-                        origin="lower",
-                        vmin=np.log10(vmin),
+                        ovl_arr_ = self.ovl_arr[self.grp1.idx_blk2grp[j_im], self.grp2.idx_blk2grp[i_im]]
+                        vmin = max(ovl_arr_.min(), ovl_arr_.max() / 1e6)
+                        im = ax.imshow(
+                            np.log10(np.clip(ovl_arr_, a_min=vmin, a_max=None)),
+                            origin="lower",
+                            vmin=np.log10(vmin),
+                        )
+                        plt.colorbar(im, ax=ax)
+                        ax.scatter(
+                            ddx[slice_][::2, ::2].ravel(), ddy[slice_][::2, ::2].ravel(), c="r", s=0.005
+                        )
+                        format_axis(ax, False)
+
+                    out_arr = np.zeros((1, st1.pix_count[j_im] * st2.pix_count[i_im]))
+                    iD5512C(
+                        np.pad(
+                            self.ovl_arr[self.grp1.idx_blk2grp[j_im], self.grp2.idx_blk2grp[i_im]], 6
+                        ).reshape((1, PSFGrp.nsamp + 12, PSFGrp.nsamp + 12)),
+                        ddx[slice_].ravel() + 6,
+                        ddy[slice_].ravel() + 6,
+                        out_arr,
                     )
-                    plt.colorbar(im, ax=ax)
-                    ax.scatter(ddx[slice_][::2, ::2].ravel(), ddy[slice_][::2, ::2].ravel(), c="r", s=0.005)
-                    format_axis(ax, False)
 
-                out_arr = np.zeros((1, st1.pix_count[j_im] * st2.pix_count[i_im]))
-                iD5512C(
-                    np.pad(self.ovl_arr[self.grp1.idx_blk2grp[j_im], self.grp2.idx_blk2grp[i_im]], 6).reshape(
-                        (1, PSFGrp.nsamp + 12, PSFGrp.nsamp + 12)
-                    ),
-                    ddx[slice_].ravel() + 6,
-                    ddy[slice_].ravel() + 6,
-                    out_arr,
-                )
+                    res[slice_] = out_arr.reshape((st1.pix_count[j_im], st2.pix_count[i_im]))
+                    del out_arr
 
-                res[slice_] = out_arr.reshape((st1.pix_count[j_im], st2.pix_count[i_im]))
-                del out_arr
+                    # flat penalty
+                    if PSFOvl.flat_penalty != 0.0:
+                        res[slice_] -= PSFOvl.flat_penalty / n_in
+                        if j_im == i_im:
+                            res[slice_] += PSFOvl.flat_penalty
+                    del slice_
 
-                # flat penalty
-                if PSFOvl.flat_penalty != 0.0:
-                    res[slice_] -= PSFOvl.flat_penalty / n_in
-                    if j_im == i_im:
-                        res[slice_] += PSFOvl.flat_penalty
-                del slice_
+            if visualize:
+                plt.show()
+                del fig, axs
 
-        if visualize:
-            plt.show()
-            del fig, axs
+            del ddx, ddy
 
-        del ddx, ddy
-
-        return res
+            return res
 
     def _call_io_cross(self, st1, st2, visualize=False):
         """
@@ -1438,79 +1448,82 @@ class PSFOvl:
 
         """
 
-        x_val_, y_val_ = st1.x_val, st1.y_val
-        pix_count_ = st1.pix_count
-        pix_cumsum_ = st1.pix_cumsum
-        n_outpix = np.prod(st2.yx_val.shape[-2:])
+        with mpl.rc_context(format_axis_pars):
+            x_val_, y_val_ = st1.x_val, st1.y_val
+            pix_count_ = st1.pix_count
+            pix_cumsum_ = st1.pix_cumsum
+            n_outpix = np.prod(st2.yx_val.shape[-2:])
 
-        selection = st2.selections[(st1.j_st - st2.j_st + 1) * 3 + (st1.i_st - st2.i_st + 1)]
-        if selection is None:
-            res = np.zeros((self.grp2.n_psf, n_outpix, st1.pix_cumsum[-1]))
-        else:
-            x_val_ = x_val_[selection]
-            y_val_ = y_val_[selection]
-            pix_cumsum_ = np.searchsorted(selection, st1.pix_cumsum)
-            pix_count_ = np.diff(pix_cumsum_)
-            res = np.zeros((self.grp2.n_psf, n_outpix, selection.shape[0]))
+            selection = st2.selections[(st1.j_st - st2.j_st + 1) * 3 + (st1.i_st - st2.i_st + 1)]
+            if selection is None:
+                res = np.zeros((self.grp2.n_psf, n_outpix, st1.pix_cumsum[-1]))
+            else:
+                x_val_ = x_val_[selection]
+                y_val_ = y_val_[selection]
+                pix_cumsum_ = np.searchsorted(selection, st1.pix_cumsum)
+                pix_count_ = np.diff(pix_cumsum_)
+                res = np.zeros((self.grp2.n_psf, n_outpix, selection.shape[0]))
 
-        ddx = x_val_[:, None] - st2.yx_val[None, 1, 0, :]
-        ddx /= PSFGrp.dscale
-        ddx += PSFGrp.nc
-        ddy = y_val_[:, None] - st2.yx_val[None, 0, :, 0]
-        ddy /= PSFGrp.dscale
-        ddy += PSFGrp.nc
+            ddx = x_val_[:, None] - st2.yx_val[None, 1, 0, :]
+            ddx /= PSFGrp.dscale
+            ddx += PSFGrp.nc
+            ddy = y_val_[:, None] - st2.yx_val[None, 0, :, 0]
+            ddy /= PSFGrp.dscale
+            ddy += PSFGrp.nc
 
-        if visualize:
-            n_psf1, n_psf2 = self.ovl_arr.shape[:2]
-            fig, axs = plt.subplots(n_psf1, n_psf2, figsize=(4.8 * min(n_psf2, 4), 3.6 * min(n_psf1, 4)))
+            if visualize:
+                n_psf1, n_psf2 = self.ovl_arr.shape[:2]
+                fig, axs = plt.subplots(n_psf1, n_psf2, figsize=(4.8 * min(n_psf2, 4), 3.6 * min(n_psf1, 4)))
 
-        for i_psf in range(self.grp2.n_psf):
-            for j_im in range(st1.blk.n_inimage):
-                if st1.pix_count[j_im] == 0:
-                    continue
+            for i_psf in range(self.grp2.n_psf):
+                for j_im in range(st1.blk.n_inimage):
+                    if st1.pix_count[j_im] == 0:
+                        continue
 
-                if visualize:
-                    if n_psf2 == 1:
-                        ax = axs[self.grp1.idx_blk2grp[j_im]] if n_psf1 > 1 else axs
-                    else:
-                        ax = axs[self.grp1.idx_blk2grp[j_im], i_psf] if n_psf1 > 1 else axs[i_psf]
+                    if visualize:
+                        if n_psf2 == 1:
+                            ax = axs[self.grp1.idx_blk2grp[j_im]] if n_psf1 > 1 else axs
+                        else:
+                            ax = axs[self.grp1.idx_blk2grp[j_im], i_psf] if n_psf1 > 1 else axs[i_psf]
 
-                    ovl_ = self.ovl_arr[self.grp1.idx_blk2grp[j_im], i_psf]
-                    vmin = max(ovl_.min(), ovl_.max() / 1e6)
-                    im = ax.imshow(
-                        np.log10(np.clip(ovl_, a_min=vmin, a_max=None)), origin="lower", vmin=np.log10(vmin)
+                        ovl_ = self.ovl_arr[self.grp1.idx_blk2grp[j_im], i_psf]
+                        vmin = max(ovl_.min(), ovl_.max() / 1e6)
+                        im = ax.imshow(
+                            np.log10(np.clip(ovl_, a_min=vmin, a_max=None)),
+                            origin="lower",
+                            vmin=np.log10(vmin),
+                        )
+                        plt.colorbar(im, ax=ax)
+
+                        n2f = self.grp2.blk.cfg.n2f
+                        ddx_ = st1.x_val[:, None] - st2.yx_val[1, :: (n2f - 1), :: (n2f - 1)].ravel()[None, :]
+                        ddx_ /= PSFGrp.dscale
+                        ddx_ += PSFGrp.nc
+                        ddy_ = st1.y_val[:, None] - st2.yx_val[0, :: (n2f - 1), :: (n2f - 1)].ravel()[None, :]
+                        ddy_ /= PSFGrp.dscale
+                        ddy_ += PSFGrp.nc
+                        ax.scatter(ddx_.ravel(), ddy_.ravel(), s=0.005, c="r")
+                        del ddx_, ddy_
+                        format_axis(ax, False)
+
+                    out_arr = np.zeros((pix_count_[j_im], n_outpix))
+                    gridD5512C(
+                        np.pad(self.ovl_arr[self.grp1.idx_blk2grp[j_im], i_psf], 6),
+                        ddx[pix_cumsum_[j_im] : pix_cumsum_[j_im + 1], :] + 6,
+                        ddy[pix_cumsum_[j_im] : pix_cumsum_[j_im + 1], :] + 6,
+                        out_arr,
                     )
-                    plt.colorbar(im, ax=ax)
+                    res[i_psf, :, pix_cumsum_[j_im] : pix_cumsum_[j_im + 1]] = out_arr.T
+                    del out_arr
 
-                    n2f = self.grp2.blk.cfg.n2f
-                    ddx_ = st1.x_val[:, None] - st2.yx_val[1, :: (n2f - 1), :: (n2f - 1)].ravel()[None, :]
-                    ddx_ /= PSFGrp.dscale
-                    ddx_ += PSFGrp.nc
-                    ddy_ = st1.y_val[:, None] - st2.yx_val[0, :: (n2f - 1), :: (n2f - 1)].ravel()[None, :]
-                    ddy_ /= PSFGrp.dscale
-                    ddy_ += PSFGrp.nc
-                    ax.scatter(ddx_.ravel(), ddy_.ravel(), s=0.005, c="r")
-                    del ddx_, ddy_
-                    format_axis(ax, False)
+            if visualize:
+                plt.show()
+                del fig, axs
 
-                out_arr = np.zeros((pix_count_[j_im], n_outpix))
-                gridD5512C(
-                    np.pad(self.ovl_arr[self.grp1.idx_blk2grp[j_im], i_psf], 6),
-                    ddx[pix_cumsum_[j_im] : pix_cumsum_[j_im + 1], :] + 6,
-                    ddy[pix_cumsum_[j_im] : pix_cumsum_[j_im + 1], :] + 6,
-                    out_arr,
-                )
-                res[i_psf, :, pix_cumsum_[j_im] : pix_cumsum_[j_im + 1]] = out_arr.T
-                del out_arr
+            del x_val_, y_val_, pix_count_, pix_cumsum_
+            del selection, ddx, ddy
 
-        if visualize:
-            plt.show()
-            del fig, axs
-
-        del x_val_, y_val_, pix_count_, pix_cumsum_
-        del selection, ddx, ddy
-
-        return res
+            return res
 
     def _call_ii_self(self, st1, st2, visualize=False):
         """
@@ -1537,107 +1550,115 @@ class PSFOvl:
             The shape is (st1.pix_cumsum[-1], st2.pix_cumsum[-1]).
 
         """
+        with mpl.rc_context(format_axis_pars):
+            same_inst = st2 is None
+            if same_inst:
+                st2 = st1
+            res = np.zeros((st1.pix_cumsum[-1], st2.pix_cumsum[-1]))
+            ddx = st1.x_val[:, None] - st2.x_val[None, :]
+            ddy = st1.y_val[:, None] - st2.y_val[None, :]
 
-        same_inst = st2 is None
-        if same_inst:
-            st2 = st1
-        res = np.zeros((st1.pix_cumsum[-1], st2.pix_cumsum[-1]))
-        ddx = st1.x_val[:, None] - st2.x_val[None, :]
-        ddy = st1.y_val[:, None] - st2.y_val[None, :]
+            # if visualize:
+            #     for arr in [ddx, ddy]:
+            #         plt.imshow(arr, origin='upper')
+            #         plt.colorbar()
+            #         plt.show()
 
-        # if visualize:
-        #     for arr in [ddx, ddy]:
-        #         plt.imshow(arr, origin='upper')
-        #         plt.colorbar()
-        #         plt.show()
+            ddx /= PSFGrp.dscale
+            ddx += PSFGrp.nc
+            ddy /= PSFGrp.dscale
+            ddy += PSFGrp.nc
 
-        ddx /= PSFGrp.dscale
-        ddx += PSFGrp.nc
-        ddy /= PSFGrp.dscale
-        ddy += PSFGrp.nc
+            if visualize:
+                n_psf = self.grp1.n_psf  # shortcut
+                fig, axs = plt.subplots(n_psf, n_psf, figsize=(4.8 * min(n_psf, 4), 3.6 * min(n_psf, 4)))
 
-        if visualize:
-            n_psf = self.grp1.n_psf  # shortcut
-            fig, axs = plt.subplots(n_psf, n_psf, figsize=(4.8 * min(n_psf, 4), 3.6 * min(n_psf, 4)))
-
-        for j_im in range(st1.blk.n_inimage):
-            if st1.pix_count[j_im] == 0:
-                continue
-            for i_im in range(0 if not same_inst else j_im, st2.blk.n_inimage):
-                if st2.pix_count[i_im] == 0:
+            for j_im in range(st1.blk.n_inimage):
+                if st1.pix_count[j_im] == 0:
                     continue
+                for i_im in range(0 if not same_inst else j_im, st2.blk.n_inimage):
+                    if st2.pix_count[i_im] == 0:
+                        continue
 
-                if j_im <= i_im:
-                    ovl_arr_ = self.ovl_arr[
-                        self._idx_square2triangle(self.grp1.idx_blk2grp[j_im], self.grp1.idx_blk2grp[i_im])
-                    ]
-                else:
-                    ovl_arr_ = np.flip(
-                        self.ovl_arr[
+                    if j_im <= i_im:
+                        ovl_arr_ = self.ovl_arr[
                             self._idx_square2triangle(
-                                self.grp1.idx_blk2grp[i_im], self.grp1.idx_blk2grp[j_im]
+                                self.grp1.idx_blk2grp[j_im], self.grp1.idx_blk2grp[i_im]
                             )
                         ]
-                    )
+                    else:
+                        ovl_arr_ = np.flip(
+                            self.ovl_arr[
+                                self._idx_square2triangle(
+                                    self.grp1.idx_blk2grp[i_im], self.grp1.idx_blk2grp[j_im]
+                                )
+                            ]
+                        )
 
-                slice_ = np.s_[
-                    st1.pix_cumsum[j_im] : st1.pix_cumsum[j_im + 1],
-                    st2.pix_cumsum[i_im] : st2.pix_cumsum[i_im + 1],
-                ]
-
-                if visualize and j_im <= i_im:
-                    ax = axs[self.grp1.idx_blk2grp[j_im], self.grp1.idx_blk2grp[i_im]] if n_psf > 1 else axs
-
-                    vmin = max(ovl_arr_.min(), ovl_arr_.max() / 1e6)
-                    im = ax.imshow(
-                        np.log10(np.clip(ovl_arr_, a_min=vmin, a_max=None)),
-                        origin="lower",
-                        vmin=np.log10(vmin),
-                    )
-                    plt.colorbar(im, ax=ax)
-                    ax.scatter(ddx[slice_][::2, ::2].ravel(), ddy[slice_][::2, ::2].ravel(), c="r", s=0.005)
-                    format_axis(ax, False)
-
-                out_arr = np.zeros((1, st1.pix_count[j_im] * st2.pix_count[i_im]))
-                interpolator = iD5512C_sym if same_inst and j_im == i_im else iD5512C
-                interpolator(
-                    np.pad(ovl_arr_, 6).reshape((1, PSFGrp.nsamp + 12, PSFGrp.nsamp + 12)),
-                    ddx[slice_].ravel() + 6,
-                    ddy[slice_].ravel() + 6,
-                    out_arr,
-                )
-
-                res[slice_] = out_arr.reshape((st1.pix_count[j_im], st2.pix_count[i_im]))
-
-                # flat penalty
-                if PSFOvl.flat_penalty != 0.0:
-                    res[slice_] -= PSFOvl.flat_penalty / self.grp1.n_psf
-                    if j_im == i_im:
-                        res[slice_] += PSFOvl.flat_penalty
-
-                if same_inst and j_im < i_im:
-                    res[
-                        st2.pix_cumsum[i_im] : st2.pix_cumsum[i_im + 1],
+                    slice_ = np.s_[
                         st1.pix_cumsum[j_im] : st1.pix_cumsum[j_im + 1],
-                    ] = res[slice_].T
-                del out_arr, slice_
+                        st2.pix_cumsum[i_im] : st2.pix_cumsum[i_im + 1],
+                    ]
 
-        if visualize:
-            if n_psf > 1:
-                for j_im in range(st1.blk.n_inimage):
-                    if st1.pix_count[j_im] == 0:
-                        continue
-                    for i_im in range(j_im):
-                        if st2.pix_count[i_im] == 0:
+                    if visualize and j_im <= i_im:
+                        ax = (
+                            axs[self.grp1.idx_blk2grp[j_im], self.grp1.idx_blk2grp[i_im]]
+                            if n_psf > 1
+                            else axs
+                        )
+
+                        vmin = max(ovl_arr_.min(), ovl_arr_.max() / 1e6)
+                        im = ax.imshow(
+                            np.log10(np.clip(ovl_arr_, a_min=vmin, a_max=None)),
+                            origin="lower",
+                            vmin=np.log10(vmin),
+                        )
+                        plt.colorbar(im, ax=ax)
+                        ax.scatter(
+                            ddx[slice_][::2, ::2].ravel(), ddy[slice_][::2, ::2].ravel(), c="r", s=0.005
+                        )
+                        format_axis(ax, False)
+
+                    out_arr = np.zeros((1, st1.pix_count[j_im] * st2.pix_count[i_im]))
+                    interpolator = iD5512C_sym if same_inst and j_im == i_im else iD5512C
+                    interpolator(
+                        np.pad(ovl_arr_, 6).reshape((1, PSFGrp.nsamp + 12, PSFGrp.nsamp + 12)),
+                        ddx[slice_].ravel() + 6,
+                        ddy[slice_].ravel() + 6,
+                        out_arr,
+                    )
+
+                    res[slice_] = out_arr.reshape((st1.pix_count[j_im], st2.pix_count[i_im]))
+
+                    # flat penalty
+                    if PSFOvl.flat_penalty != 0.0:
+                        res[slice_] -= PSFOvl.flat_penalty / self.grp1.n_psf
+                        if j_im == i_im:
+                            res[slice_] += PSFOvl.flat_penalty
+
+                    if same_inst and j_im < i_im:
+                        res[
+                            st2.pix_cumsum[i_im] : st2.pix_cumsum[i_im + 1],
+                            st1.pix_cumsum[j_im] : st1.pix_cumsum[j_im + 1],
+                        ] = res[slice_].T
+                    del out_arr, slice_
+
+            if visualize:
+                if n_psf > 1:
+                    for j_im in range(st1.blk.n_inimage):
+                        if st1.pix_count[j_im] == 0:
                             continue
-                        axs[self.grp1.idx_blk2grp[j_im], self.grp1.idx_blk2grp[i_im]].axis("off")
+                        for i_im in range(j_im):
+                            if st2.pix_count[i_im] == 0:
+                                continue
+                            axs[self.grp1.idx_blk2grp[j_im], self.grp1.idx_blk2grp[i_im]].axis("off")
 
-            plt.show()
-            del fig, axs
+                plt.show()
+                del fig, axs
 
-        del ddx, ddy
+            del ddx, ddy
 
-        return res
+            return res
 
     def clear(self, verbose: bool = False) -> None:
         """
