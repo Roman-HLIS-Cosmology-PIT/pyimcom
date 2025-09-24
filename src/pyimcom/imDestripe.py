@@ -1204,6 +1204,7 @@ def main():
             return p
         
         except Exception as e:
+            print(f"Exception occurred at iteration {i+1}: {e}. Crash state SHOULD save to {outpath}/{restart_file}")
             crash_state = {
                 'iteration': i,
                 'p': p,
