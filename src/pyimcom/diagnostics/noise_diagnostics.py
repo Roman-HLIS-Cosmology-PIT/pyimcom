@@ -22,30 +22,26 @@ We have changed the clipping to use the full unique region ``[bdpad:L+bdpad,bdpa
 
 """
 
+import json
 import os
+import re
 import subprocess
 import sys
+from collections import namedtuple
 from os.path import exists
 
 import matplotlib
-from astropy.io import fits
-
-matplotlib.use("Agg")
-import json
-import re
-from collections import namedtuple
-
 import matplotlib.colors as colors
 import matplotlib.pyplot as plt
 import numpy as np
+from astropy.io import fits
 from scipy import ndimage
 from skimage.filters import window
 
 from ..compress.compressutils import ReadFile
 from ..config import Settings
+from .context_figure import ReportFigContext
 from .report import ReportSection
-
-plt.switch_backend("agg")
 
 RomanFilters = ["W146", "F184", "H158", "J129", "Y106", "Z087", "R062", "PRSM", "DARK", "GRSM", "K213"]
 
@@ -629,7 +625,6 @@ class NoiseReport(ReportSection):
         """
         Makes a simple overview figure.
 
-
         Returns
         -------
         str
@@ -637,62 +632,63 @@ class NoiseReport(ReportSection):
 
         """
 
-        filter = Settings.RomanFilters[self.cfg.use_filter][0]
-        print(self.outslab)
+        with ReportFigContext(matplotlib, plt):
+            filter = Settings.RomanFilters[self.cfg.use_filter][0]
+            print(self.outslab)
 
-        matplotlib.rcParams.update({"font.size": 10})
-        F = plt.figure(figsize=(9, 5.5))
-        ntypes = ["white", "1/f", "lab"]
-        vmax = [0.01, 0.3, 0.05]
-        pos = ["Left", "Center", "Right"]
-        um = 0.5 / self.s_out
-        unit_ = ["arcsec$^2$", "arcsec$^2$", r"$\mu$Jy$^2$/arcsec$^2$"]
-        for k in range(3):
-            if self.outslab[k] is not None:
-                S = F.add_subplot(1, 3, k + 1)
-                S.set_title("Power spectrum: " + ntypes[k] + " noise\n" + unit_[k], usetex=True)
-                S.set_xlabel("u [cycles/arcsec]")
-                S.set_ylabel("v [cycles/arcsec]")
-                with fits.open(self.datastem + "_" + filter + self.suffix + "_ps_avg.fits") as f:
-                    im = S.imshow(
-                        f[0].data[self.outslab[k], :, :],
-                        cmap="gnuplot",
-                        aspect=1,
-                        interpolation="nearest",
-                        origin="lower",
-                        extent=(-um, um, -um, um),
-                        norm=colors.LogNorm(vmin=vmax[k] / 300.0, vmax=vmax[k] * 1.0000001, clip=True),
+            matplotlib.rcParams.update({"font.size": 10})
+            F = plt.figure(figsize=(9, 5.5))
+            ntypes = ["white", "1/f", "lab"]
+            vmax = [0.01, 0.3, 0.05]
+            pos = ["Left", "Center", "Right"]
+            um = 0.5 / self.s_out
+            unit_ = ["arcsec$^2$", "arcsec$^2$", r"$\mu$Jy$^2$/arcsec$^2$"]
+            for k in range(3):
+                if self.outslab[k] is not None:
+                    S = F.add_subplot(1, 3, k + 1)
+                    S.set_title("Power spectrum: " + ntypes[k] + " noise\n" + unit_[k], usetex=True)
+                    S.set_xlabel("u [cycles/arcsec]")
+                    S.set_ylabel("v [cycles/arcsec]")
+                    with fits.open(self.datastem + "_" + filter + self.suffix + "_ps_avg.fits") as f:
+                        im = S.imshow(
+                            f[0].data[self.outslab[k], :, :],
+                            cmap="gnuplot",
+                            aspect=1,
+                            interpolation="nearest",
+                            origin="lower",
+                            extent=(-um, um, -um, um),
+                            norm=colors.LogNorm(vmin=vmax[k] / 300.0, vmax=vmax[k] * 1.0000001, clip=True),
+                        )
+                    F.colorbar(im, location="bottom")
+            outfile = self.datastem + "_" + filter + self.suffix + "_3panel.pdf"
+            F.set_tight_layout(True)
+            F.savefig(outfile)
+            plt.close(F)
+
+            # the caption
+            self.tex += "\\begin{figure}\n"
+            self.tex += (
+                "\\includegraphics[width=6.5in]{"
+                + self.datastem_from_dir
+                + "_"
+                + filter
+                + self.suffix
+                + "_3panel.pdf}\n"
+            )
+            self.tex += "\\caption{\\label{fig:noise3panel}The 2D power spectra of the noise realizations.\n"
+            for k in range(3):
+                self.tex += r" {\em " + pos[k] + " panel} (" + ntypes[k] + " noise): "
+                if self.outslab[k] is not None:
+                    self.tex += (
+                        f"layer {self.noiselayers[self.NLK[self.outslab[k]]]:d} "
+                        f"(PyIMCOM) $\\rightarrow$ {self.outslab[k]:d} (PS table), name="
                     )
-                F.colorbar(im, location="bottom")
-        outfile = self.datastem + "_" + filter + self.suffix + "_3panel.pdf"
-        F.set_tight_layout(True)
-        F.savefig(outfile)
-        plt.close(F)
+                    self.tex += "{\\tt " + self.orignames[self.outslab[k]] + "}."
+                else:
+                    self.tex += "not run."
+                self.tex += " \n"
+            self.tex += "}\n\\end{figure}\n\n"
 
-        # the caption
-        self.tex += "\\begin{figure}\n"
-        self.tex += (
-            "\\includegraphics[width=6.5in]{"
-            + self.datastem_from_dir
-            + "_"
-            + filter
-            + self.suffix
-            + "_3panel.pdf}\n"
-        )
-        self.tex += "\\caption{\\label{fig:noise3panel}The 2D power spectra of the noise realizations.\n"
-        for k in range(3):
-            self.tex += r" {\em " + pos[k] + " panel} (" + ntypes[k] + " noise): "
-            if self.outslab[k] is not None:
-                self.tex += (
-                    f"layer {self.noiselayers[self.NLK[self.outslab[k]]]:d} "
-                    f"(PyIMCOM) $\\rightarrow$ {self.outslab[k]:d} (PS table), name="
-                )
-                self.tex += "{\\tt " + self.orignames[self.outslab[k]] + "}."
-            else:
-                self.tex += "not run."
-            self.tex += " \n"
-        self.tex += "}\n\\end{figure}\n\n"
+            self.tex += "The noise power spectra are shown in Fig.~\\ref{fig:noise3panel}.\n"
 
-        self.tex += "The noise power spectra are shown in Fig.~\\ref{fig:noise3panel}.\n"
-
-        return outfile
+            return outfile
