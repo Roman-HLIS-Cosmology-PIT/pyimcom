@@ -42,7 +42,7 @@ class ReportFigContext:
 
     def __enter__(self):
         self.env_backend = self.mpl.get_backend()
-        self.usetex = self.plt.rcParams["text.usetex"] if hasattr(self.plt.rcParams, "text.usetex") else None
+        self.usetex = self.plt.rcParams.get("text.usetex", None)
 
         self.mpl.use("Agg")
         self.plt.switch_backend("Agg")
