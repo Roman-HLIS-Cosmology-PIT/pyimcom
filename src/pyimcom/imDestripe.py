@@ -632,6 +632,28 @@ def get_ids(sca):
     scaid = m.group(2)
     return obsid, scaid
 
+def save_snapshot(p, grad, epsilon, psi, direction, grad_prev, direction_prev,
+                  method, tol, thresh, norm_0, cost_model, i, restart_file):
+    """Save restart state to pickle file."""
+    crash_state = {
+        'iteration': i,
+        'p': p,
+        'grad': grad,
+        'epsilon': epsilon,
+        'direction': direction,
+        'grad_prev': grad_prev,
+        'psi': psi,
+        'direction_prev': direction_prev,
+        'method': method,
+        'tol': tol,
+        'thresh': thresh,
+        'norm_0': norm_0,
+        'cost_model': cost_model
+    }
+    with open(restart_file, 'wb') as f:
+        pickle.dump(crash_state, f)
+    write_to_file(f"Checkpoint saved at iteration {i+1} -> {restart_file}")
+
 
 ############################ Main Sequence ############################
 
@@ -659,6 +681,7 @@ def residual_function_single(k, sca_a, psi, f_prime, thresh=None):
     # Go and get the WCS object for image A
     obsid_A, scaid_A = get_ids(sca_a)
     wcs_A = all_wcs[k]
+
     # filepath = outpath + f'interpolations/{obsid_A}_{scaid_A}_interp.fits'
     # lockfile = f"{filepath}.lock"
     # timeout=30
@@ -1046,7 +1069,8 @@ def main():
 
 
     
-    def conjugate_gradient(p, f, f_prime, method='FR', tol=1e-5, max_iter=100, thresh=None, restart_file=None):
+    def conjugate_gradient(p, f, f_prime, method='FR', tol=1e-5, max_iter=100, 
+                           thresh=None, restart_file=None, time_limit=None):
         """
         Algorithm to use conjugate gradient descent to optimize the parameters for destriping.
         Direction is updated using Fletcher-Reeves method
@@ -1104,130 +1128,117 @@ def main():
 
         sys.stdout.flush()
 
-        try:
-            for i in range(i+1, max_iter):
-                write_to_file(f"### CG Iteration: {i + 1}")
-                test_image_dir = outpath + '/test_images/' + str(i+1) + '/'
-                os.makedirs(test_image_dir, exist_ok=True)
-                t_start_CG_iter = time.time()
 
-                # Compute the gradient
-                if grad is None:
-                    grad = residual_function(psi, f_prime, thresh)
-                    write_to_file(f"Minutes spent in initial residual function: {(time.time() - t_start_CG_iter) / 60}")
-                    print('Global elapsed t = {:8.1f}'.format((time.time()-t0_global)/60))
-                    sys.stdout.flush()
+        for i in range(i+1, max_iter):
+            write_to_file(f"### CG Iteration: {i + 1}")
+            test_image_dir = outpath + '/test_images/' + str(i+1) + '/'
+            os.makedirs(test_image_dir, exist_ok=True)
+            t_start_CG_iter = time.time()
 
-                # Compute the norm of the gradient
-                global current_norm
-                current_norm = np.linalg.norm(grad)
-
-                if i == 0 and grad_prev is None:
-                    write_to_file(f'Initial gradient: {grad}')
-                    norm_0 = np.linalg.norm(grad)
-                    write_to_file(f'Initial norm: {norm_0}')
-                    write_to_file(f'Initial epsilon: {epsilon}')
-                    tol = tol * norm_0
-                    direction = -grad
-
-                elif (i+1)%10 == 0 :
-                    beta = 0
-                    write_to_file(f"Current Beta: {beta} (using method: {method})")
-                    direction = -grad + beta * direction_prev
-
-                else:
-                    # Calculate beta (direction scaling) depending on method
-                    if method=='FR': beta = np.sum(np.square(grad)) / np.sum(np.square(grad_prev))
-                    elif method=='PR': beta = max(0,np.sum(grad * (grad - grad_prev)) / (np.sum(np.square(grad_prev))))
-                    elif method== 'HS': beta = (np.sum(grad * (grad - grad_prev)) /
-                                                np.sum(-direction_prev * (grad - grad_prev)))
-                    elif method== 'DY': beta = np.sum(np.square(grad)) / np.sum(-direction_prev * (grad - grad_prev))
-                    else: raise ValueError(f"Unknown method for CG direction update: {method}"
-                                        f" (Options are: {CG_models})")
-
-                    write_to_file(f"Current Beta: {beta} (using method: {method})")
-
-                    direction = -grad + beta * direction_prev
-
-                if current_norm < tol:
-                    write_to_file(f"Convergence reached at iteration: {i + 1} via norm {current_norm} < tol {tol}")
-                    break
-
-                # Perform linear search
-                t_start_LS = time.time()
-                write_to_file(f"Initiating linear search in direction: {direction}")
-                sys.stdout.flush()
-                if cost_model=='quadratic':
-                    p_new, psi_new, grad_new, epsilon_new = linear_search_quadratic(p, direction, f, f_prime, grad, thresh)
-                else:
-                    p_new, psi_new, grad_new, epsilon_new = linear_search_general(p, direction, f, f_prime, epsilon, psi, grad, thresh)
-
-                print('Global elapsed t = {:8.1f}'.format((time.time()-t0_global)/60))
-                ls_time = (time.time() - t_start_LS) / 60
-                write_to_file(f'Total time spent in linear search: {ls_time}')
-                write_to_file(
-                    f'Current norm: {current_norm}, Tol * Norm_0: {tol}, Difference (CN-TOL): {current_norm - tol}')
-                sys.stdout.flush()
-                # write_to_file(f'Current best params: {p_new.params}')
-
-                # Calculate additional metrics
-                convergence_rate = (current_norm - np.linalg.norm(grad_new)) / current_norm
-                step_size = np.linalg.norm(p_new.params - p.params)
-                gradient_magnitude = np.linalg.norm(grad_new)
-                mse = np.mean(psi_new ** 2)
-                parameter_change = np.linalg.norm(p_new.params - p.params)
-
-                with open(log_file, 'a', newline='') as csvfile:
-                    writer = csv.writer(csvfile)
-                    writer.writerow([i + 1, current_norm, convergence_rate, step_size, gradient_magnitude,
-                                    np.sum(grad * direction), np.sum(psi),
-                                    (time.time() - t_start_CG_iter)/60, ls_time, mse, parameter_change])
-
-                # Update to current values
-                p = p_new
-                psi = psi_new
-                epsilon = epsilon_new
-                grad_prev = grad
-                grad = grad_new
-                direction_prev = direction
-
-                write_to_file(f'Total time spent in this CG iteration: {(time.time() - t_start_CG_iter) / 60} minutes.')
+            # Compute the gradient
+            if grad is None:
+                grad = residual_function(psi, f_prime, thresh)
+                write_to_file(f"Minutes spent in initial residual function: {(time.time() - t_start_CG_iter) / 60}")
                 print('Global elapsed t = {:8.1f}'.format((time.time()-t0_global)/60))
                 sys.stdout.flush()
 
-                if i == max_iter - 1:
-                    write_to_file(f'CG reached MAX ITERATIONS {max_iter} and DID NOT converge!!!!')
+            # Compute the norm of the gradient
+            global current_norm
+            current_norm = np.linalg.norm(grad)
 
-            write_to_file(f'Conjugate gradient complete. Finished in {i + 1} / {max_iter} iterations')
-            write_to_file(f'Final parameters: {p.params}')
-            write_to_file(f'Final norm: {current_norm}')
-            return p
+            if i == 0 and grad_prev is None:
+                write_to_file(f'Initial gradient: {grad}')
+                norm_0 = np.linalg.norm(grad)
+                write_to_file(f'Initial norm: {norm_0}')
+                write_to_file(f'Initial epsilon: {epsilon}')
+                tol = tol * norm_0
+                direction = -grad
+
+            elif (i+1)%10 == 0 :
+                beta = 0
+                write_to_file(f"Current Beta: {beta} (using method: {method})")
+                direction = -grad + beta * direction_prev
+
+            else:
+                # Calculate beta (direction scaling) depending on method
+                if method=='FR': beta = np.sum(np.square(grad)) / np.sum(np.square(grad_prev))
+                elif method=='PR': beta = max(0,np.sum(grad * (grad - grad_prev)) / (np.sum(np.square(grad_prev))))
+                elif method== 'HS': beta = (np.sum(grad * (grad - grad_prev)) /
+                                            np.sum(-direction_prev * (grad - grad_prev)))
+                elif method== 'DY': beta = np.sum(np.square(grad)) / np.sum(-direction_prev * (grad - grad_prev))
+                
+                else: raise ValueError(f"Unknown method for CG direction update: {method}"
+                                    f" (Options are: {CG_models})")
+
+                write_to_file(f"Current Beta: {beta} (using method: {method})")
+
+                direction = -grad + beta * direction_prev
+
+            if current_norm < tol:
+                write_to_file(f"Convergence reached at iteration: {i + 1} via norm {current_norm} < tol {tol}")
+                break
+
+            # Perform linear search
+            t_start_LS = time.time()
+            write_to_file(f"Initiating linear search in direction: {direction}")
+            sys.stdout.flush()
+            if cost_model=='quadratic':
+                p_new, psi_new, grad_new, epsilon_new = linear_search_quadratic(p, direction, f, f_prime, grad, thresh)
+            else:
+                p_new, psi_new, grad_new, epsilon_new = linear_search_general(p, direction, f, f_prime, epsilon, psi, grad, thresh)
+
+            print('Global elapsed t = {:8.1f}'.format((time.time()-t0_global)/60))
+            ls_time = (time.time() - t_start_LS) / 60
+            write_to_file(f'Total time spent in linear search: {ls_time}')
+            write_to_file(
+                f'Current norm: {current_norm}, Tol * Norm_0: {tol}, Difference (CN-TOL): {current_norm - tol}')
+            sys.stdout.flush()
+
+            # Calculate additional metrics
+            convergence_rate = (current_norm - np.linalg.norm(grad_new)) / current_norm
+            step_size = np.linalg.norm(p_new.params - p.params)
+            gradient_magnitude = np.linalg.norm(grad_new)
+            mse = np.mean(psi_new ** 2)
+            parameter_change = np.linalg.norm(p_new.params - p.params)
+
+            with open(log_file, 'a', newline='') as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow([i + 1, current_norm, convergence_rate, step_size, gradient_magnitude,
+                                np.sum(grad * direction), np.sum(psi),
+                                (time.time() - t_start_CG_iter)/60, ls_time, mse, parameter_change])
+
+            # Update to current values
+            p = p_new
+            psi = psi_new
+            epsilon = epsilon_new
+            grad_prev = grad
+            grad = grad_new
+            direction_prev = direction
+
+            write_to_file(f'Total time spent in this CG iteration: {(time.time() - t_start_CG_iter) / 60} minutes.')
+            print('Global elapsed t = {:8.1f}'.format((time.time()-t0_global)/60))
+            sys.stdout.flush()
+
+             # Save checkpoint if walltime exceeded
+            if time_limit is not None:
+                elapsed_minutes = (time.time() - t0_global) / 60
+                if elapsed_minutes >= time_limit:
+                    write_to_file(f"Walltime limit {time_limit} min reached. Exiting early!!!")
+                    if restart_file is None:
+                        restart_file = os.path.join(outpath, 'cg_restart.pkl')
+                    save_snapshot(p, grad, epsilon, psi, direction, grad_prev, direction_prev,
+                                method, tol, thresh, norm_0, cost_model, i, restart_file)
+                    return p
+
+            if i == max_iter - 1:
+                write_to_file(f'CG reached MAX ITERATIONS {max_iter} and DID NOT converge!!!!')
+
+        write_to_file(f'Conjugate gradient complete. Finished in {i + 1} / {max_iter} iterations')
+        write_to_file(f'Final parameters: {p.params}')
+        write_to_file(f'Final norm: {current_norm}')
+        return p
         
-        except Exception as e:
-            print(f"Exception occurred at iteration {i+1}: {e}. Crash state SHOULD save to {outpath}/{restart_file}")
-            crash_state = {
-                'iteration': i,
-                'p': p,
-                'grad': grad,
-                'epsilon': epsilon,
-                'direction': direction,
-                'grad_prev': grad_prev,
-                'psi': psi,
-                'direction_prev': direction_prev,
-                'method': method,
-                'tol': tol,
-                'thresh': thresh,
-                'norm_0': norm_0,
-                'cost_model': cost_model
-            }
-
-            if restart_file is None:
-                restart_file = os.path.join(outpath, 'cg_restart.pkl')
-            with open(restart_file, 'wb') as f:
-                pickle.dump(crash_state, f)
-            write_to_file(f"Exception occurred at iteration {i+1}: {e}. Crash state saved to {restart_file}")
-            traceback.print_exc()
-            raise
+    
 
     # Initialize parameters
     p0 = Parameters(use_model, 4088)
