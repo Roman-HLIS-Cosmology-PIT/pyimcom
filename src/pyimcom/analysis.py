@@ -45,7 +45,7 @@ class OutImage:
 
     Parameters
     ----------
-    fpath : str
+    fpath : str or str-like
         Path to the output FITS file.
     cfg : Config, optional
         Configuration used for this output image.
@@ -112,6 +112,7 @@ class OutImage:
         return hdu_names
 
     def __init__(self, fpath: str, cfg: Config = None, hdu_names: list[str] = None) -> None:
+        fpath = str(fpath)
         self.fpath = fpath
 
         # Get file indices.

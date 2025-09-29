@@ -6,6 +6,7 @@ This does 2 blocks.
 
 import contextlib
 import os
+import pathlib
 
 import asdf
 import gwcs
@@ -17,7 +18,9 @@ from astropy.io import fits
 from astropy.modeling import models
 from astropy.table import Table
 from gwcs import coordinate_frames as cf
+from pyimcom.analysis import OutImage
 from pyimcom.coadd import Block
+from pyimcom.compress.compressutils import ReadFile
 from pyimcom.config import Config
 from pyimcom.psfutil import OutPSF
 from pyimcom.routine import gridD5512C
@@ -531,7 +534,11 @@ def study_outputs(temp_dir):
         ys = f_inj["TRUTH14"].data["y"][0]
         print(ibx, iby, xs, ys)
 
-    with fits.open(temp_dir + f"/out/testout_F_{ibx:02d}_{iby:02d}.fits") as fblock:
+    # for this one, we're going to test ReadFile
+    # old code:
+    # with fits.open(temp_dir + f"/out/testout_F_{ibx:02d}_{iby:02d}.fits") as fblock:
+    pth = pathlib.Path(temp_dir + f"/out/testout_F_{ibx:02d}_{iby:02d}.fits")
+    with ReadFile(pth) as fblock:
         # output block size
         (ny, nx) = np.shape(fblock[0].data)[-2:]
         x, y = np.meshgrid(np.linspace(0, nx - 1, nx), np.linspace(0, ny - 1, ny))
@@ -546,6 +553,15 @@ def study_outputs(temp_dir):
 
         assert np.abs(SL1 - 1) < 5e-4
         assert VAR < 1e-5
+
+    # Test output reader
+    my_block = OutImage(pth)
+    sci_image = my_block.get_coadded_layer("SCI")
+    ci = np.argmax(sci_image)
+    sci_image.ravel()[ci]
+
+    assert np.shape(sci_image) == (100, 100)
+    assert np.abs(sci_image.ravel()[843] - 0.18244877) < 1e-4
 
 
 def test_PyIMCOM_run1(tmp_path):
