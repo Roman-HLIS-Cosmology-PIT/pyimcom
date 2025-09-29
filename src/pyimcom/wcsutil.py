@@ -513,10 +513,11 @@ class PyIMCOM_WCS:
         """
 
         if len(args)==2: return self._all_pix2world(np.array(args[0]),args[1])
-        o = self._all_pix2world(np.vstack((args[0],args[1])).T, args[2])
         if isinstance(args[0],np.ndarray):
-            return o[:,0], o[:,1]
+            o = self._all_pix2world(np.vstack((args[0].ravel(),args[1].ravel())).T, args[2])
+            return o[:,0].reshape(np.shape(args[0])), o[:,1].reshape(np.shape(args[1]))
         else:
+            o = self._all_pix2world(np.vstack((args[0],args[1])).T, args[2])
             return o[0,0], o[0,1]
 
     def _all_world2pix(self, pos, origin):
@@ -587,10 +588,11 @@ class PyIMCOM_WCS:
         """
 
         if len(args)==2: return self._all_world2pix(np.array(args[0]),args[1])
-        o = self._all_world2pix(np.vstack((args[0],args[1])).T, args[2])
         if isinstance(args[0],np.ndarray):
-            return o[:,0], o[:,1]
+            o = self._all_world2pix(np.vstack((args[0].ravel(),args[1].ravel())).T, args[2])
+            return o[:,0].reshape(np.shape(args[0])), o[:,1].reshape(np.shape(args[1]))
         else:
+            o = self._all_world2pix(np.vstack((args[0],args[1])).T, args[2])
             return o[0,0], o[0,1]
 
 def local_partial_pixel_derivatives2(inwcs,x,y):
