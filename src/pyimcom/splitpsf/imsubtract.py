@@ -12,6 +12,8 @@ run_imsubtract
 
 """
 
+print("Running from:", __file__)
+
 import numpy as np
 import sys
 import os
@@ -30,7 +32,11 @@ from astropy.wcs.wcsapi import SlicedLowLevelWCS
 # local imports
 from ..utils import compareutils
 from ..config import Config
+from ..config import Settings
 from ..wcsutil import PyIMCOM_WCS
+
+# import from furry_parakeet
+from furry_parakeet import pyimcom_croutines ## this should work once I install furry_parakeet as a python package?
 
 def pltshow(plt, display, pars={}):
     """
@@ -157,6 +163,8 @@ def run_imsubtract(config_file, display=None):
     blocksize_rad = n1*n2*dtheta_deg * (np.pi)/180 # convert to radians
     # print(ra, dec, lonpole, nblock, n1, n2, dtheta_deg)
 
+
+
     # separate the path from the inlayercache info 
     m = re.search(r'^(.*)\/(.*)', info)
     if m:
@@ -195,7 +203,7 @@ def run_imsubtract(config_file, display=None):
         sca_wcs = get_wcs(exp)
 
         # results from splitpsf
-        # read in the kernel
+        # read in the psf kernel
         hdul2 = fits.open('{}.psf/psf_{:d}.fits'.format(info,obsid))
         K = np.copy(hdul2[sca+hdul2[0].header['KERSKIP']].data)
         # get the number of pixels on the axis
@@ -205,7 +213,7 @@ def run_imsubtract(config_file, display=None):
         hdul2.close()
 
         #get the kernel size
-        s_in_rad = 0.11 * np.pi/(180*3600) # convert arcsec to radians
+        s_in_rad = 0.11 * np.pi/(180*3600) # convert arcsec to radians !! change to get from settings
         ker_size = axis_num/oversamp * s_in_rad 
         print("kernel size: ", ker_size)
 
@@ -275,6 +283,7 @@ def run_imsubtract(config_file, display=None):
             block_data = np.copy(hdul3[0].data)
             block_wcs = get_wcs_from_infile(hdul3) 
             hdul3.close()
+            # print("block wcs:", block_wcs)
 
             # determine the length of one axis of the block
             block_length = block_data.shape[-1] # length in output pixels
@@ -308,28 +317,57 @@ def run_imsubtract(config_file, display=None):
             ra_sca,dec_sca = block_wcs.pixel_to_world_values(x_out, y_out,0) 
             # print(ra_sca.shape, dec_sca.shape)
             print("ra, dec: ", ra_sca[0::2663,0::2663], dec_sca[0::2663,0::2663])
-            # convert into coordinates in the SCA
+
+            # convert into SCA coordinates 
             x_in, y_in = sca_wcs.all_world2pix(ra_sca, dec_sca, 0)
             print("x_in, y_in: ", x_in[0::2663,0::2663], y_in[0::2663,0::2663])
+
             # get the bounding box from the max and min values
             left = np.floor(np.min(x_in))
             right = np.ceil(np.max(x_in))
             bottom = np.floor(np.min(y_in))
             top = np.ceil(np.max(y_in))
+
+            # padding
+            I_pad = int(np.ceil(axis_num/2/oversamp))  
+            # add trimming for bounding box (do this with left, right, bottom, top)
+
             # create the bounding box mesh grid, with ovsamp
             # determine side lengths of the box
-            width = oversamp * (right - left) + 2
-            height = oversamp * (top - bottom) + 2
+            width = int(oversamp * (right - left + 1))
+            height = int(oversamp * (top - bottom + 1))
             # create arrays for meshgrid
-            x = np.linspace(left, right, width)
-            y = np.linspace(bottom, top, height)
+            x = np.linspace(left - 0.5 + 0.5/oversamp, right + 0.5 - 0.5/oversamp, width)
+            y = np.linspace(bottom - 0.5 + 0.5/oversamp, top + 0.5 + 0.5/oversamp, height)
             bb_x, bb_y = np.meshgrid(x, y)
+
+            # map bounding box from SCA to output block coordinates
+            ra_1, dec_1 = sca_wcs.pixel_to_world_values(bb_x, bb_y,0)
+            x_out, y_out = block_wcs.all_world2pix(ra_1, dec_1, 0) # make sure i dont want to overwrite past definitions
+
+            # add padding to the block (with window applied)
+            block_padded = np.pad(block, 5, mode = 'constant', constant_values = 0)[None,:,:]
+            x_out += 5
+            y_out += 5
+
+            # create interpolated version of block
+            H = np.zeros((1, np.size(x_out)))
+            pyimcom_croutines.iD5512C(block_padded, x_out.ravel(), y_out.ravel(), H) 
+            # reshape H 
+            H = H.reshape(x_out.shape)
+
+            # multiply by Jacobian
+
+
+
+
         
+
 
 if __name__ == '__main__':
     """Calling program is here.
 
-    python3 -m pyimcom.splitpsf.imsubtract <config> [<output images>]
+   python3 -m pyimcom.splitpsf.imsubtract  <config> [<output images>]
     (uses plt.show() if output stem not specified; output image directory is relative to cache file)
 
     """
