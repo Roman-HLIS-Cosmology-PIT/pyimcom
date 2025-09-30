@@ -1081,6 +1081,9 @@ def main():
                 Current Options: 'FR', 'PR', 'HS', 'DY' (Fletcher-Reeves, Polak-Ribiere, Hestenes-Stiefel, Dai-Yuan)
         :param tol: float, the value of the norm at which we say CG has converged
         :param max_iter: int, number of iterations at which to force CG to stop
+        :param thresh:
+        :param restart_file: 
+        :param time_limit: int, how much time to elapse before stopping (minutes)
         :return p: params object, the best fit parameters for destriping the SCA images
         """
         write_to_file('### Starting conjugate gradient optimization')
@@ -1247,7 +1250,7 @@ def main():
     try:
         p = conjugate_gradient(p0, Cost_models(cost_model).f, Cost_models(cost_model).f_prime,
                             cg_model, cg_tol, cg_maxiter, Cost_models(cost_model).thresh,
-                            restart_file = restart_file)
+                            restart_file = restart_file, time_limit=7200)
         hdu = fits.PrimaryHDU(p.params)
         hdu.writeto(outpath + 'final_params.fits', overwrite=True)
         print(outpath + 'final_params.fits created \n')
