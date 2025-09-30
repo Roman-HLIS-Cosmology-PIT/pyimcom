@@ -35,9 +35,9 @@ There are several options for reading PyIMCOM output files. From "lowest" to "hi
     # here fout is the file name that we want to read
     my_block = OutImage(fout)
     # extracts a layer: 'SCI' is the science image, or you can use other layer names
-    sci_image = im.get_coadded_layer('SCI')
+    sci_image = my_block.get_coadded_layer('SCI')
     # extracts a metadata map
-    fidelity_map = im.get_output_map('FIDELITY') # options are: 'FIDELITY', 'SIGMA', 'KAPPA', 'INTWTSUM', 'EFFCOVER'
+    fidelity_map = my_block.get_output_map('FIDELITY') # options are: 'FIDELITY', 'SIGMA', 'KAPPA', 'INTWTSUM', 'EFFCOVER'
 
 * The ``pyimcom.meta.distortimage.MetaMosaic`` class is the highest-level interface and constructs a sub-mosaic
   from the 3x3 set of blocks centered on the specified file. It can be subarrayed, sheared, masked, etc.::

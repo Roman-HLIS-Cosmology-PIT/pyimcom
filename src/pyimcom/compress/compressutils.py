@@ -359,7 +359,7 @@ def _parser(fname):
 
     Parameters
     ----------
-    fname : str
+    fname : str or str-like
         Regular file name (not including ^) or regular expression.
 
     Returns
@@ -368,6 +368,8 @@ def _parser(fname):
         The formatted file name.
 
     """
+
+    fname = str(fname)  # converts other objects, e.g., pathlib.Path, to a string
 
     # normal file name: nothing to be done
     if "^" not in fname:
@@ -396,7 +398,7 @@ def ReadFile(fname):
 
     Parameters
     ----------
-    fname : str
+    fname : str or str-like
         File name to read.
 
     Notes
