@@ -668,6 +668,59 @@ def local_partial_pixel_derivatives2(inwcs, x, y):
 
     return jac / degree  # output in degrees, not radians for consistency with astropy function
 
+def get_pix_area(inwcs, region=[0,4088,0,4088], pad=0, ovsamp=1):
+    """Calculate the effective pixel areas in the image
+
+    Parameters
+    ----------
+    inwcs : pyimcom.wcsutil.PyIMCOM_WCS
+        The WCS that we are using.
+    region: list
+        A list of [x0,x1,y0,y1] to indicate a subregion of the image to
+        calculate the pixel area for. Default: Full active region of SCA
+    pad: int
+        Number of pixels to pad on each side of the image for derivative calculation.
+    ovsamp : int
+        Oversampling factor to use in calculating the pixel area.
+    
+
+    Returns
+    -------
+    pix_area : Matrix of effecitive pixel areas.
+
+
+    Notes
+    -----
+
+
+    """
+    xmin, xmax, ymin, ymax = region
+    yrange=ymax - ymin
+    xrange=xmax - xmin
+    x_i, y_i = np.meshgrid(np.arange(xmin, xmax + 2*pad, 1), np.arange(xmin, xmax + 2*pad, 1), indexing='xy')
+
+    x_i -= pad / 2.
+    y_i -= pad / 2.
+    x_flat = x_i.flatten()
+    y_flat = y_i.flatten()
+    ra, dec = inwcs.all_pix2world(x_flat, y_flat, 0)
+
+    ra.reshape(( yrange + 2*pad, xrange + 2*pad))
+    dec.reshape(( yrange + 2*pad, xrange + 2*pad))
+
+    derivs = np.array(((ra[xmin-0.5+0.5/ovsamp:xmax-0.5-0.5/ovsamp, pad:] - ra[xmin-0.5+0.5/ovsamp:xmax-0.5-0.5/ovsamp, :-pad]) / 2,
+                        (ra[pad:, xmin-0.5+0.5/ovsamp:xmax-0.5-0.5/ovsamp] - ra[:-pad, xmin-0.5+0.5/ovsamp:xmax-0.5-0.5/ovsamp]) / 2,
+                        (dec[ymin-0.5+0.5/ovsamp:ymax-0.5-0.5/ovsamp, pad:] - dec[ymin-0.5+0.5/ovsamp:ymax-0.5-0.5/ovsamp, :-pad]) / 2, 
+                        (dec[pad:, ymin-0.5+0.5/ovsamp:ymax-0.5-0.5/ovsamp] - dec[:-pad, ymin-0.5+0.5/ovsamp:ymax-0.5-0.5/ovsamp]) / 2 )
+                        )
+    
+    derivs_px = np.reshape(np.transpose(derivs), (yrange ** 2, 2, 2))
+    det_mat = np.reshape(np.linalg.det(derivs_px), (yrange, xrange))
+
+    pix_areas = 1 / np.abs(det_mat) * np.cos(np.deg2rad(dec[pad:yrange-pad, pad:xrange-pad]))
+
+    return pix_areas
+
 
 def _stand_alone_test(infile):
     """
