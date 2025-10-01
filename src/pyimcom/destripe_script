@@ -1,12 +1,12 @@
 #!/bin/bash
-#SBATCH --ntasks-per-node=90
-#SBATCH --mem=420G
-#SBATCH --time=48:00:00
-#SBATCH --job-name=imdestripe_H_mosaicminitest
+#SBATCH --nodes=1
+#SBATCH --exclusive
+#SBATCH --time=140:00:00
+#SBATCH --job-name=imdestripe_H_mosaictest
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --mail-user=laliotis.2@osu.edu
-#SBATCH --output=/fs/scratch/PCON0003/klaliotis/imdestripe/mosiac_mini_test/imdestripe_test.out.%j
-#SBATCH --account=PCON0003
+#SBATCH --output=/fs/scratch/PCON0003/klaliotis/imdestripe/mosaic_test/imdestripe_test.out.%j
+#SBATCH --account=PAS2340
 
 #Set echo
 set -x
@@ -16,7 +16,7 @@ source /users/PCON0003/klaliotis/.conda/envs/
 source activate local
 
 # Explicitly set the number of OpenMP threads
-export OMP_NUM_THREADS=8
+export OMP_NUM_THREADS=2
 
 # Verify the environment variables
 echo "OMP_NUM_THREADS: $OMP_NUM_THREADS"

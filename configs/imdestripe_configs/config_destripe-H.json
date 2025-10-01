@@ -46,11 +46,11 @@
     "DSMODEL": "constant",
     "DSOBSFILE": "/fs/scratch/PCON0003/cond0007/anl-run-in-prod/simple/Roman_WAS_simple_model_",
     "DSINDATA": "/fs/scratch/PCON0003/cond0007/anl-run-in-prod/labnoise/slope_",
-    "DSOUT": ["/fs/scratch/PCON0003/klaliotis/imdestripe/mosaic_mini_test/",
+    "DSOUT": ["/fs/scratch/PCON0003/klaliotis/imdestripe/mosaic_test/",
         "_ds_out.txt"
     ],
     "CGMODEL": ["PR",
-        2,
+        11,
         1e-3
         ],
     "DSCOST": ["quadratic",
