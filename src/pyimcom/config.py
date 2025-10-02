@@ -293,6 +293,9 @@ class Config:
         "kappaC_arr",
         "uctarget",
         "sigmamax",  # SECTION VIII
+        "tileschm",
+        "rerun",
+        "mosaic",  # SECTION IX
     )
 
     def __init__(self, cfg_file: str = "", inmode=None) -> None:
@@ -480,6 +483,11 @@ class Config:
         # maximum allowed value of Sigma
         self.sigmamax = cfg_dict.get("SMAX", 0.5)
 
+        ### SECTION IX: PASS THROUGHS ###
+        self.tileschm = cfg_dict.get("TILESCHM", "Not_specified")
+        self.rerun = cfg_dict.get("RERUN", "Not_specified")
+        self.mosaic = cfg_dict.get("MOSAIC", -1)
+
         cfg_dict.clear()
         del cfg_dict
 
@@ -503,7 +511,7 @@ class Config:
         while True:
             try:
                 exec(code)
-            except Exception as error:
+            except ValueError as error:
                 print(error)
                 print("# Invalid input, please try again.", flush=True)
             else:
@@ -550,10 +558,10 @@ class Config:
 
         print("# PSF splitting", flush=True)
         self._get_attrs_wrapper(
-            "self.psfsplit_r1, self.psfsplit_r2, self.psfsplit_eps = input('PSFSPLIT (float float float) "
+            "self.psfsplit_r1, self.psfsplit_r2, self.psfsplit_epsilon = input('PSFSPLIT (float float float) "
             "[default: no split]: ').split(' ')"
             "\n"
-            "self.psfsplit = [self.psfsplit_r1, self.psfsplit_r2, self.psfsplit_eps] if self.psfsplit_r1 "
+            "self.psfsplit = [self.psfsplit_r1, self.psfsplit_r2, self.psfsplit_epsilon] if self.psfsplit_r1 "
             "else ''"
         )
 
@@ -637,14 +645,14 @@ class Config:
         self._get_attrs_wrapper(
             "FADE = input('FADE (int) [default: 3]: ')"
             "\n"
-            "self.fade_kernel = float(FADE) if FADE else 3"
+            "self.fade_kernel = int(FADE) if FADE else 3"
             "\n"
             "assert self.n2 > self.fade_kernel * 2, 'insufficient patch size'"
         )
 
         print("# number of IMCOM postage stamps to pad around each output region", flush=True)
         self._get_attrs_wrapper(
-            "PAD = input('PAD (int) [default: 0]: ')\nself.postage_pad = float(PAD) if PAD else 0"
+            "PAD = input('PAD (int) [default: 0]: ')\nself.postage_pad = int(PAD) if PAD else 0"
         )
 
         print(
@@ -942,6 +950,29 @@ class Config:
             "SMAX = input('SMAX (float) [default: 0.5]: ')\nself.sigmamax = float(SMAX) if SMAX else 0.5"
         )
 
+        print("### SECTION IX: PASS THROUGHS ###\n", flush=True)
+        # pass throughs: TILESCHM, RERUN, MOSAIC
+        print("# tiling scheme name", flush=True)
+        self._get_attrs_wrapper(
+            "TILESCHM = input('TILESCHM (str) [default: \"Not_specified\"]: ')"
+            "\n"
+            "self.tileschm = TILESCHM if TILESCHM else 'Not_specified'"
+        )
+
+        print("# rerun name", flush=True)
+        self._get_attrs_wrapper(
+            "RERUN = input('RERUN (str) [default: \"Not_specified\"]: ')"
+            "\n"
+            "self.rerun = RERUN if RERUN else 'Not_specified'"
+        )
+
+        print("# mosaic index", flush=True)
+        self._get_attrs_wrapper(
+            "MOSAIC = input('MOSAIC (int) [default: \"-1\"]: ')"
+            "\n"
+            "self.mosaic = int(MOSAIC) if MOSAIC else -1"
+        )
+
         print("# To save this configuration, call Config.to_file.\n", flush=True)
 
     def to_file(self, fname: str = "") -> None:
@@ -1025,6 +1056,11 @@ class Config:
         cfg_dict["KAPPAC"] = list(self.kappaC_arr)
         cfg_dict["UCMIN"] = self.uctarget
         cfg_dict["SMAX"] = self.sigmamax
+
+        ### SECTION IX: PASS THROUGHS ###
+        cfg_dict["TILESCHM"] = self.tileschm
+        cfg_dict["RERUN"] = self.rerun
+        cfg_dict["MOSAIC"] = self.mosaic
 
         if fname is not None:
             if fname == "":
