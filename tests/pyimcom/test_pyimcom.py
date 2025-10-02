@@ -563,6 +563,18 @@ def study_outputs(temp_dir):
     assert np.shape(sci_image) == (100, 100)
     assert np.abs(sci_image.ravel()[843] - 0.18244877) < 1e-4
 
+    ## Configuration test ##
+
+    with fits.open(temp_dir + "/out/testout_F_00_01.fits") as fblock:
+        hdr = fblock["CONFIG"].header
+        print(hdr)
+        assert hdr["TILESCHM"] == "Not_specified"
+        assert hdr["RERUN"] == "Not_specified"
+        assert hdr["MOSAIC"] == -1
+        assert hdr["FILTER"] == "F184"
+        assert hdr["BLOCKX"] == 0
+        assert hdr["BLOCKY"] == 1
+
 
 def test_PyIMCOM_run1(tmp_path):
     """
