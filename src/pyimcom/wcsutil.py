@@ -668,8 +668,10 @@ def local_partial_pixel_derivatives2(inwcs, x, y):
 
     return jac / degree  # output in degrees, not radians for consistency with astropy function
 
-def get_pix_area(inwcs, region=[0,4088,0,4088], pad=0, ovsamp=1):
-    """Calculate the effective pixel areas in the image
+
+def get_pix_area(inwcs, region=[0, Settings.sca_nside, 0, Settings.sca_nside], pad=1, ovsamp=1):
+    """
+    Calculate the effective pixel areas in the image.
 
     Parameters
     ----------
@@ -678,46 +680,80 @@ def get_pix_area(inwcs, region=[0,4088,0,4088], pad=0, ovsamp=1):
     region: list
         A list of [x0,x1,y0,y1] to indicate a subregion of the image to
         calculate the pixel area for. Default: Full active region of SCA
-    pad: int
-        Number of pixels to pad on each side of the image for derivative calculation.
-    ovsamp : int
+    pad: int, optional
+        Number of native pixels to pad on each side of the image for derivative calculation.
+    ovsamp : int, optional
         Oversampling factor to use in calculating the pixel area.
-    
 
     Returns
     -------
-    pix_area : Matrix of effecitive pixel areas.
-
+    pix_area : np.array of float
+        Matrix of effecitive pixel areas in sr; shape (ovsamp*(y1-y0), ovsamp*(x1-x0)).
 
     Notes
     -----
 
-
     """
-    xmin, xmax, ymin, ymax = region
-    yrange=ymax - ymin
-    xrange=xmax - xmin
-    x_i, y_i = np.meshgrid(np.arange(xmin, xmax + 2*pad, 1), np.arange(xmin, xmax + 2*pad, 1), indexing='xy')
 
-    x_i -= pad / 2.
-    y_i -= pad / 2.
+    # extract the SCA positions of the pixels (including fractional pixels for ovsamp)
+    xmin, xmax, ymin, ymax = region
+    yrange = ymax - ymin
+    xrange = xmax - xmin
+    x_i, y_i = np.meshgrid(
+        np.linspace(
+            xmin - 0.5 + 0.5 / ovsamp - pad, xmax - 0.5 - 0.5 / ovsamp + pad, ovsamp * (xmax - xmin + 2 * pad)
+        ),
+        np.linspace(
+            ymin - 0.5 + 0.5 / ovsamp - pad, ymax - 0.5 - 0.5 / ovsamp + pad, ovsamp * (ymax - ymin + 2 * pad)
+        ),
+        indexing="xy",
+    )
+
+    # get the WCS positions
     x_flat = x_i.flatten()
     y_flat = y_i.flatten()
     ra, dec = inwcs.all_pix2world(x_flat, y_flat, 0)
 
-    ra.reshape(( yrange + 2*pad, xrange + 2*pad))
-    dec.reshape(( yrange + 2*pad, xrange + 2*pad))
+    ra = ra.reshape((ovsamp * (yrange + 2 * pad), ovsamp * (xrange + 2 * pad)))
+    dec = dec.reshape((ovsamp * (yrange + 2 * pad), ovsamp * (xrange + 2 * pad)))
+    # note that the re-shaping won't be necessary when we pull in Emily's changes
 
-    derivs = np.array(((ra[xmin-0.5+0.5/ovsamp:xmax-0.5-0.5/ovsamp, pad:] - ra[xmin-0.5+0.5/ovsamp:xmax-0.5-0.5/ovsamp, :-pad]) / 2,
-                        (ra[pad:, xmin-0.5+0.5/ovsamp:xmax-0.5-0.5/ovsamp] - ra[:-pad, xmin-0.5+0.5/ovsamp:xmax-0.5-0.5/ovsamp]) / 2,
-                        (dec[ymin-0.5+0.5/ovsamp:ymax-0.5-0.5/ovsamp, pad:] - dec[ymin-0.5+0.5/ovsamp:ymax-0.5-0.5/ovsamp, :-pad]) / 2, 
-                        (dec[pad:, ymin-0.5+0.5/ovsamp:ymax-0.5-0.5/ovsamp] - dec[:-pad, ymin-0.5+0.5/ovsamp:ymax-0.5-0.5/ovsamp]) / 2 )
-                        )
-    
-    derivs_px = np.reshape(np.transpose(derivs), (yrange ** 2, 2, 2))
-    det_mat = np.reshape(np.linalg.det(derivs_px), (yrange, xrange))
+    derivs = (
+        np.array(
+            (
+                (
+                    ra[ovsamp * pad : -ovsamp * pad, 2 * ovsamp * pad :]
+                    - ra[ovsamp * pad : -ovsamp * pad, : -2 * ovsamp * pad]
+                )
+                / 2,
+                (
+                    ra[2 * ovsamp * pad :, ovsamp * pad : -ovsamp * pad]
+                    - ra[: -2 * ovsamp * pad, ovsamp * pad : -ovsamp * pad]
+                )
+                / 2,
+                (
+                    dec[ovsamp * pad : -ovsamp * pad, 2 * ovsamp * pad :]
+                    - dec[ovsamp * pad : -ovsamp * pad, : -2 * ovsamp * pad]
+                )
+                / 2,
+                (
+                    dec[2 * ovsamp * pad :, ovsamp * pad : -ovsamp * pad]
+                    - dec[: -2 * ovsamp * pad, ovsamp * pad : -ovsamp * pad]
+                )
+                / 2,
+            )
+        )
+        / pad
+    )
+    # at this point, derivs has shape (4, ovsamp*(ymax-ymin), ovsamp*(xmax-xmin))
+    # first axis corresponds to ordering dRA/dx, dRA/dy, dDec/dx, dDec/dy
 
-    pix_areas = 1 / np.abs(det_mat) * np.cos(np.deg2rad(dec[pad:yrange-pad, pad:xrange-pad]))
+    derivs_px = np.reshape(np.transpose(derivs, axes=(1, 2, 0)), (ovsamp**2 * xrange * yrange, 2, 2))
+    det_mat = np.reshape(np.linalg.det(derivs_px), (ovsamp * yrange, ovsamp * xrange))
+
+    pix_areas = np.abs(det_mat) * np.cos(
+        np.deg2rad(dec[ovsamp * pad : ovsamp * (yrange + pad), ovsamp * pad : ovsamp * (xrange + pad)])
+    )
 
     return pix_areas
 
