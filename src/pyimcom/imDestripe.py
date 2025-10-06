@@ -73,7 +73,6 @@ if cg_model not in CG_models:
 outfile = outpath + filter_ + CFG.ds_outstem # the file that the output prints etc are written to
 
 CFG()
-#CFG.to_file(outpath+'ds.cfg')
 
 t0 = time.time()
 
@@ -147,8 +146,6 @@ def save_fits(image, filename, dir=outpath, overwrite=True, s=False, header=None
                 raise RuntimeError(f"Failed to write {filepath} after {retries} attempts. Last error: {e}")
 
 
-
-# C.H. wanted to define this before any use of sca_img so moved it up.
 def apply_object_mask(image, mask=None, threshold_factor=2.5, inplace=False):
     """
     Apply a bright object mask to an image.
@@ -782,7 +779,7 @@ def cost_function_single(j, sca_a, p, f, thresh=None):
 
     return j, psi, local_epsilon
 
-# Optimization Functions
+
 
 def main():
 
@@ -1070,7 +1067,7 @@ def main():
 
     
     def conjugate_gradient(p, f, f_prime, method='FR', tol=1e-5, max_iter=100, 
-                           thresh=None, restart_file=None, time_limit=None):
+                           thresh=None, restart_file=None, time_limit=None, cost_model='quadratic'):
         """
         Algorithm to use conjugate gradient descent to optimize the parameters for destriping.
         Direction is updated using Fletcher-Reeves method
@@ -1245,12 +1242,13 @@ def main():
 
     # Initialize parameters
     p0 = Parameters(use_model, 4088)
+    cm = Cost_models(cost_model)
 
     # Do it
     try:
-        p = conjugate_gradient(p0, Cost_models(cost_model).f, Cost_models(cost_model).f_prime,
-                            cg_model, cg_tol, cg_maxiter, Cost_models(cost_model).thresh,
-                            restart_file = restart_file, time_limit=7200)
+        p = conjugate_gradient(p0, cm.f, cm.f_prime,
+                            cg_model, cg_tol, cg_maxiter, cm.thresh,
+                            restart_file = restart_file, time_limit=7200, cost_model=cost_model)
         hdu = fits.PrimaryHDU(p.params)
         hdu.writeto(outpath + 'final_params.fits', overwrite=True)
         print(outpath + 'final_params.fits created \n')
