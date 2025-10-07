@@ -688,7 +688,7 @@ def get_pix_area(inwcs, region=[0, Settings.sca_nside, 0, Settings.sca_nside], p
     Returns
     -------
     pix_area : np.array of float
-        Matrix of effecitive pixel areas in sr; shape (ovsamp*(y1-y0), ovsamp*(x1-x0)).
+        Matrix of effecitive pixel areas in square degrees; shape (ovsamp*(y1-y0), ovsamp*(x1-x0)).
 
     Notes
     -----
@@ -717,6 +717,20 @@ def get_pix_area(inwcs, region=[0, Settings.sca_nside, 0, Settings.sca_nside], p
     ra = ra.reshape((ovsamp * (yrange + 2 * pad), ovsamp * (xrange + 2 * pad)))
     dec = dec.reshape((ovsamp * (yrange + 2 * pad), ovsamp * (xrange + 2 * pad)))
     # note that the re-shaping won't be necessary when we pull in Emily's changes
+
+    # This rotates the footprint to a different part of the sky
+    # if it is too close to the Prime Meridian.
+    deg = np.pi / 180.0
+    if np.amax(ra) - np.amin(ra) > 45.0:
+        # Rotated coordinates
+        xx = -np.cos(dec * deg) * np.cos(ra * deg)
+        yy = np.sin(dec * deg)
+        zz = np.cos(dec * deg) * np.sin(ra * deg)
+
+        # Note that z is not near +/-1 if we get to this part of the code.
+        dec = np.arcsin(zz) / deg
+        ra = np.arctan2(-yy, -xx) / deg + 180.0
+        del xx, yy, zz  # we don't need the Cartesian coordinates anymore
 
     derivs = (
         np.array(
