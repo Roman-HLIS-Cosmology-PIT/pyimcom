@@ -43,27 +43,30 @@ def test_fits(tmp_path):
 
     print(w)
 
-    Omega = get_pix_area(w, region=[10, 50, 22, 40], pad=1, ovsamp=ovsamp)
+    Omega = get_pix_area(w, region=[10, 150, 22, 40], pad=1, ovsamp=ovsamp)
 
-    f = str(tmp_path) + "/Om.fits"  # noqa: F841
+    f = str(tmp_path) + "/Om.fits"
     # fits.PrimaryHDU(Omega).writeto(f, overwrite=True)
 
-    print(np.shape(Omega))
+    print(np.shape(Omega), np.amin(Omega), np.amax(Omega))
     print(Omega[::4, ::4])
 
-    assert np.min(Omega) > 0.0098 and np.max(Omega) < 0.0102
+    assert np.min(Omega) > 0.0097 and np.max(Omega) < 0.0102
 
     # now build the same thing rotated to a different place
     hdu.header["CRVAL1"] = 20.0
     hdu.header["CRVAL2"] = 89.0
 
-    f = str(tmp_path) + "/Om.fits"  # noqa: F841
+    f = str(tmp_path) + "/Om.fits"
     fits.PrimaryHDU(Omega).writeto(f, overwrite=True)
-    Omega_rotated = get_pix_area(w, region=[10, 50, 22, 40], pad=1, ovsamp=ovsamp)
+    f2 = str(tmp_path) + "/im-zeros.fits"
+    hdu.writeto(f2, overwrite=True)
+    wr = WCS(hdu.header)
+    Omega_rotated = get_pix_area(wr, region=[10, 150, 22, 40], pad=1, ovsamp=ovsamp)
 
     err = Omega_rotated / Omega - 1.0
     print(np.max(np.abs(err)))
-    assert np.max(np.amax(err)) < 1e-7
+    assert np.max(np.amax(err)) < 3e-6
 
 
 # test_fits("out") # <-- comment out
