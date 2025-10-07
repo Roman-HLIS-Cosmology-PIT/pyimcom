@@ -22,6 +22,7 @@ test1
 import re
 import sys
 import time
+from urllib.parse import urlparse
 
 import numpy as np
 from astropy.io import fits
@@ -423,13 +424,25 @@ def ReadFile(fname):
 
     fname = _parser(fname)  # if the file name is a regular expression.
 
-    # extra arguments for remote files.
-    extraargs = {}
-    if fname[:8] == "https://":
-        extraargs["use_fsspec"] = True
+    _o = urlparse(fname)
 
-    # if this file hasn't been compressed, just pass the handle:
-    f = fits.open(fname, **extraargs)
+    extraargs = {}
+    match _o.scheme:
+        case "" | "file":
+            pass
+        case "http" | "https":
+            extraargs["use_fsspec"] = True
+        case "s3":
+            extraargs["use_fsspec"] = True
+            extraargs["fsspec_kwargs"] = {"anon": True}
+            # extraargs["fsspec_kwargs"] = {"key": "YOUR-SECRET-KEY-ID", "secret": "YOUR-SECRET-KEY"}
+        case _:
+            raise ValueError(f"Scheme {_o.scheme} not supported")
+
+    _url = _o.geturl()
+
+    f = fits.open(_url, **extraargs)
+
     if "CPRESS" not in [hdu.name for hdu in f]:
         return f
     else:
