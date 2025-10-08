@@ -21,7 +21,7 @@ from astropy.table import Table
 from gwcs import coordinate_frames as cf
 from pyimcom.analysis import OutImage
 from pyimcom.coadd import Block
-from pyimcom.compress.compressutils import ReadFile
+from pyimcom.compress.compressutils import CompressedOutput, ReadFile
 from pyimcom.config import Config
 from pyimcom.psfutil import OutPSF
 from pyimcom.routine import gridD5512C
@@ -568,3 +568,197 @@ def test_PyIMCOM_run1(tmp_path, setup):
 
     assert np.shape(sci_image) == (100, 100)
     assert np.abs(sci_image.ravel()[843] - 0.18244877) < 1e-4
+
+
+def test_compress(tmp_path, setup):
+    """
+    Test compression of a file.
+
+    Parameters
+    ----------
+    argv : list of str
+        List of file names: [input_file, out_file_compressed, recovered_file, recompressed_file].
+
+    Returns
+    -------
+    None
+
+    """
+    _original_file = str(tmp_path / "out/testout_F_00_01.fits")
+    _compressed_file = str(tmp_path / "out/testout_F_00_01_compressed.fits")
+    _decompressed_file = str(tmp_path / "out/testout_F_00_01_decompressed.fits")
+    _recompressed_file = str(tmp_path / "out/testout_F_00_01_recompressed.fits")
+
+    with CompressedOutput(_original_file) as f:
+        print("ftype =", f.ftype)
+        print("gzip =", f.gzip)
+        print("cprstype =", f.cprstype)
+        print(f.hdul.info())
+        print(f.cfg.to_file(fname=None))
+
+        for j in range(1, len(f.cfg.extrainput)):
+            if (
+                f.cfg.extrainput[j][:6].lower() == "gsstar"
+                or f.cfg.extrainput[j][:5].lower() == "cstar"
+                or f.cfg.extrainput[j][:8].lower() == "gstrstar"
+                or f.cfg.extrainput[j][:8].lower() == "gsfdstar"
+            ):
+                f.compress_layer(
+                    j,
+                    scheme="I24B",
+                    pars={
+                        "VMIN": -1.0 / 64.0,
+                        "VMAX": 7.0 / 64.0,
+                        "BITKEEP": 20,
+                        "DIFF": True,
+                        "SOFTBIAS": -1,
+                    },
+                )
+            if f.cfg.extrainput[j][:5].lower() == "nstar":
+                f.compress_layer(
+                    j,
+                    scheme="I24B",
+                    pars={"VMIN": -1500.0, "VMAX": 10500.0, "BITKEEP": 20, "DIFF": True, "SOFTBIAS": -1},
+                )
+            if f.cfg.extrainput[j][:5].lower() == "gsext":
+                f.compress_layer(
+                    j,
+                    scheme="I24B",
+                    pars={
+                        "VMIN": -1.0 / 64.0,
+                        "VMAX": 7.0 / 64.0,
+                        "BITKEEP": 20,
+                        "DIFF": True,
+                        "SOFTBIAS": -1,
+                    },
+                )
+            if f.cfg.extrainput[j][:8].lower() == "labnoise":
+                f.compress_layer(
+                    j,
+                    scheme="I24B",
+                    pars={"VMIN": -5, "VMAX": 5, "BITKEEP": 16, "DIFF": True, "SOFTBIAS": -1},
+                )
+            if f.cfg.extrainput[j][:10].lower() == "whitenoise":
+                f.compress_layer(
+                    j,
+                    scheme="I24B",
+                    pars={"VMIN": -8, "VMAX": 8, "BITKEEP": 16, "DIFF": True, "SOFTBIAS": -1},
+                )
+            if f.cfg.extrainput[j][:7].lower() == "1fnoise":
+                f.compress_layer(
+                    j,
+                    scheme="I24B",
+                    pars={"VMIN": -32, "VMAX": 32, "BITKEEP": 16, "DIFF": True, "SOFTBIAS": -1},
+                )
+        f.to_file(_compressed_file, overwrite=True)
+
+    with CompressedOutput(_compressed_file) as g:
+        print(g.hdul.info())
+        g.decompress()
+        print(g.hdul.info())
+        # print(g.hdul['CPRESS'].data['text'])
+        g.to_file(_decompressed_file, overwrite=True)
+
+    with CompressedOutput(_decompressed_file) as h:
+        h.recompress()
+        h.to_file(_recompressed_file, overwrite=True)
+
+    with (
+        ReadFile(_original_file) as original,
+        ReadFile(_compressed_file) as compressed,
+        ReadFile(_decompressed_file) as decompressed,
+        ReadFile(_recompressed_file) as recompressed,
+    ):
+
+        for j in range(np.shape(original[0].data)[-3]):
+            np.testing.assert_allclose(compressed[0].data[0, j, :, :], original[0].data[0, j, :, :])
+            np.testing.assert_allclose(decompressed[0].data[0, j, :, :], original[0].data[0, j, :, :])
+            np.testing.assert_allclose(recompressed[0].data[0, j, :, :], original[0].data[0, j, :, :])
+
+
+# def test1(fname):
+#     """
+#     Test compression of a file.
+# 
+#     Parameters
+#     ----------
+#     fname : str
+#         The file to compress/decompress. Order of conversions is
+#         `fname` -> ... .cpr.fits.gz -> ... _recovered.fits.
+# 
+#     Returns
+#     -------
+#     None
+# 
+#     """
+# 
+#     fout = fname[:-5] + ".cpr.fits.gz"
+#     frec = fname[:-5] + "_recovered.fits"
+# 
+#     with CompressedOutput(fname) as f:
+#         for j in range(1, len(f.cfg.extrainput)):
+#             if (
+#                 f.cfg.extrainput[j][:6].lower() == "gsstar"
+#                 or f.cfg.extrainput[j][:5].lower() == "cstar"
+#                 or f.cfg.extrainput[j][:8].lower() == "gstrstar"
+#                 or f.cfg.extrainput[j][:8].lower() == "gsfdstar"
+#             ):
+#                 f.compress_layer(
+#                     j,
+#                     scheme="I24B",
+#                     pars={
+#                         "VMIN": -1.0 / 64.0,
+#                         "VMAX": 7.0 / 64.0,
+#                         "BITKEEP": 20,
+#                         "DIFF": True,
+#                         "SOFTBIAS": -1,
+#                     },
+#                 )
+#             if f.cfg.extrainput[j][:5].lower() == "nstar":
+#                 f.compress_layer(
+#                     j,
+#                     scheme="I24B",
+#                     pars={"VMIN": -1500.0, "VMAX": 10500.0, "BITKEEP": 20, "DIFF": True, "SOFTBIAS": -1},
+#                 )
+#             if f.cfg.extrainput[j][:5].lower() == "gsext":
+#                 f.compress_layer(
+#                     j,
+#                     scheme="I24B",
+#                     pars={
+#                         "VMIN": -1.0 / 64.0,
+#                         "VMAX": 7.0 / 64.0,
+#                         "BITKEEP": 20,
+#                         "DIFF": True,
+#                         "SOFTBIAS": -1,
+#                     },
+#                 )
+#             if f.cfg.extrainput[j][:8].lower() == "labnoise":
+#                 f.compress_layer(
+#                     j,
+#                     scheme="I24B",
+#                     pars={"VMIN": -5, "VMAX": 5, "BITKEEP": 16, "DIFF": True, "SOFTBIAS": -1},
+#                 )
+#             if f.cfg.extrainput[j][:10].lower() == "whitenoise":
+#                 f.compress_layer(
+#                     j,
+#                     scheme="I24B",
+#                     pars={"VMIN": -8, "VMAX": 8, "BITKEEP": 16, "DIFF": True, "SOFTBIAS": -1},
+#                 )
+#             if f.cfg.extrainput[j][:7].lower() == "1fnoise":
+#                 f.compress_layer(
+#                     j,
+#                     scheme="I24B",
+#                     pars={"VMIN": -32, "VMAX": 32, "BITKEEP": 16, "DIFF": True, "SOFTBIAS": -1},
+#                 )
+#         f.to_file(fout, overwrite=True)
+# 
+#     ReadFile(fout).writeto(frec, overwrite=True)
+# 
+#     with ReadFile(fname) as f1, ReadFile(frec) as f2:
+#         print("")
+#         for j in range(np.shape(f1[0].data)[-3]):
+#             print(
+#                 f"slice {j:3d} max {np.amax(np.abs(f1[0].data[0, j, :, :])):11.5E} "
+#                 f"maxerr {np.amax(np.abs(f1[0].data[0, j, :, :] - f2[0].data[0, j, :, :])):11.5E}"
+#             )
+# 
