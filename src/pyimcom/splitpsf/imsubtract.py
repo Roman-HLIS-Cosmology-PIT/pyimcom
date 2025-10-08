@@ -29,9 +29,10 @@ from furry_parakeet import (
     pyimcom_croutines,
 )
 from scipy.signal.windows import tukey
+from scipy.special import eval_legendre
 
 # local imports
-from ..config import Config
+from ..config import Config, Settings
 from ..utils import compareutils
 from ..wcsutil import PyIMCOM_WCS
 
@@ -170,6 +171,10 @@ def run_imsubtract(config_file, display=None):
     blocksize_rad = n1 * n2 * dtheta_deg * (np.pi) / 180  # convert to radians
     # print(ra, dec, lonpole, nblock, n1, n2, dtheta_deg)
 
+    # get information from Settings
+    pix_size = Settings.pixscale_native  # native pixel scale in arcsec
+    sca_nside = Settings.sca_nside  # length of sca side, in native pixels
+
     # separate the path from the inlayercache info
     m = re.search(r"^(.*)\/(.*)", info)
     if m:
@@ -212,14 +217,18 @@ def run_imsubtract(config_file, display=None):
         hdul2 = fits.open(f"{info}.psf/psf_{obsid:d}.fits")
         K = np.copy(hdul2[sca + hdul2[0].header["KERSKIP"]].data)
         # get the number of pixels on the axis
-        axis_num = K.shape[1]
+        axis_num = K.shape[1]  # kernel pixels
+        Ncoeff = K.shape[0]  # number of coefficients
+
         # get the oversampling factor
-        oversamp = hdul2[0].header["OVSAMP"]
+        oversamp = hdul2[0].header["OVSAMP"]  # number of kernel pixels / native pixels
         hdul2.close()
+        # SCA padding
+        I_pad = int(np.ceil(axis_num / 2 / oversamp))  # native pixels
 
         # get the kernel size
-        s_in_rad = 0.11 * np.pi / (180 * 3600)  # convert arcsec to radians !! change to get from settings
-        ker_size = axis_num / oversamp * s_in_rad
+        s_in_rad = pix_size * np.pi / (180 * 3600)  # convert arcsec to radians
+        ker_size = axis_num / oversamp * s_in_rad  # native pixels
         print("kernel size: ", ker_size)
 
         # define pad
@@ -260,8 +269,6 @@ def run_imsubtract(config_file, display=None):
         ) * coeff
         theta_block = theta / blocksize_rad
         print("theta in units of blocks: ", theta_block)
-        # sigma = (nblock*blocksize_rad)/np.sqrt(2)    # I don't think I need these for the grid method
-        # theta_max = theta * (1+(sigma**2)/4)
 
         # add theta to this set of coords
         block_coords = np.append(block_coords, theta)
@@ -282,6 +289,18 @@ def run_imsubtract(config_file, display=None):
         # print(SCA_coords, block_list)
         # print('>', blocksize_rad, xi, eta, v)
         print("list of blocks: \n", block_list)
+
+        # define the canvas to add interpolated blocks
+        # size is SCA+padding on both sides scaled back to kernel pixels
+        A = oversamp * (sca_nside + 2 * I_pad)
+        H_canvas = np.zeros((A, A))
+        # define other important quantities for convolution
+        Nl = int(np.floor(np.sqrt(Ncoeff + 0.5)))
+        KH = np.zeros(axis_num - A + 1, axis_num - A + 1)
+        x_canvas = np.linspace(
+            -I_pad - 0.5 + 0.5 / oversamp, sca_nside + I_pad - 0.5 + 0.5 / oversamp, oversamp * A
+        )
+        u_canvas = (x_canvas - (sca_nside - 1) / 2) / (sca_nside / 2)
 
         # loop over the blocks in the list
         count = 0  # noqa: F841
@@ -350,9 +369,12 @@ def run_imsubtract(config_file, display=None):
             bottom = np.floor(np.min(y_in))
             top = np.ceil(np.max(y_in))
 
-            # padding
-            # I_pad = int(np.ceil(axis_num/2/oversamp))
+            # trim bounding box to ensure not extending past SCA padding
             # add trimming for bounding box (do this with left, right, bottom, top)
+            left = np.max([left, -I_pad])
+            right = np.max([right, sca_nside - 1 + I_pad])
+            bottom = np.max([bottom, -I_pad])
+            top = np.max([top, sca_nside - 1 + I_pad])
 
             # create the bounding box mesh grid, with ovsamp
             # determine side lengths of the box
@@ -364,23 +386,49 @@ def run_imsubtract(config_file, display=None):
             bb_x, bb_y = np.meshgrid(x, y)
 
             # map bounding box from SCA to output block coordinates
-            ra_1, dec_1 = sca_wcs.pixel_to_world_values(bb_x, bb_y, 0)
-            x_out, y_out = block_wcs.all_world2pix(
-                ra_1, dec_1, 0
-            )  # make sure i dont want to overwrite past definitions
+            ra_map, dec_map = sca_wcs.pixel_to_world_values(bb_x, bb_y, 0)
+            x_bb, y_bb = block_wcs.all_world2pix(
+                ra_map, dec_map, 0
+            )  # dont want to overwrite past definitions # noqa: E501
 
             # add padding to the block (with window applied)
             block_padded = np.pad(block, 5, mode="constant", constant_values=0)[None, :, :]
-            x_out += 5
-            y_out += 5
+            x_bb += 5
+            y_bb += 5
 
             # create interpolated version of block
-            H = np.zeros((1, np.size(x_out)))
-            pyimcom_croutines.iD5512C(block_padded, x_out.ravel(), y_out.ravel(), H)
+            H = np.zeros((1, np.size(x_bb)))
+            pyimcom_croutines.iD5512C(block_padded, x_bb.ravel(), y_bb.ravel(), H)
             # reshape H
             H = H.reshape(x_out.shape)
 
-            # multiply by Jacobian
+            # multiply by Jacobian to H
+            # !! need tools from Katherine to apply the Jacobian
+
+            # add H to H_canvas
+            H_canvas[
+                oversamp * (left + I_pad) : oversamp * (right + 1 + I_pad),
+                oversamp * (bottom + I_pad) : oversamp * (top + 1 + I_pad),
+            ] = H
+
+        # apply convolution to canvas
+        for lu in range(Nl):
+            for lv in range(Nl):
+                KH[:, :] += np.convolve(
+                    K[lu + lv * Nl, :, :],
+                    H_canvas * eval_legendre(lu, u_canvas)[None, :] * eval_legendre(lv, u_canvas)[:, None],
+                    mode="valid",
+                )
+
+        # downsample back to native pixels
+        KH_native = KH / oversamp
+
+        # subtract from input image
+        I_sub = I_input - KH_native
+
+        # write output file for each exposure
+        hdu4 = fits.PrimaryHU(data=I_sub)
+        hdu4.writeto(f"{obsid}_{sca}_subI.fits")
 
 
 if __name__ == "__main__":
