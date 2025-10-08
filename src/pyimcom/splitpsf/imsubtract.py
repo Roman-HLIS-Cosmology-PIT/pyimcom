@@ -12,7 +12,6 @@ run_imsubtract
 
 """
 
-# from astropy.wcs import WCS
 import os
 import re
 import sys
@@ -22,15 +21,22 @@ import asdf
 import matplotlib
 import numpy as np
 from astropy.io import fits
-from scipy.signal.windows import tukey
+from astropy.wcs import WCS
+from astropy.wcs.wcsapi import SlicedLowLevelWCS
 
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
+# import from furry_parakeet
+from furry_parakeet import (
+    pyimcom_croutines,
+)
+from scipy.signal.windows import tukey
 
 # local imports
 from ..config import Config
 from ..utils import compareutils
 from ..wcsutil import PyIMCOM_WCS
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
 plt.switch_backend("agg")
 
@@ -105,6 +111,28 @@ def get_wcs(cachefile):
         return PyIMCOM_WCS(hdul["SCIWCS"].header)
 
 
+def get_wcs_from_infile(infile):
+    """
+    Gets the "sub-WCS" from the FITS file. Using SlicedLowLevelWCS avoids extra axes
+    which create additional complications in the WCS.
+
+    Parameters
+    ----------
+    infile : str
+        Name of the file.
+
+    Returns
+    -------
+    sub-WCS
+        The World Coordinate System of the file with only the necessary axes.
+
+    """
+    g = infile[0].header
+    block_wcs = SlicedLowLevelWCS(WCS(g), slices=[0, 0, slice(0, g["NAXIS2"]), slice(0, g["NAXIS1"])])
+
+    return block_wcs
+
+
 def run_imsubtract(config_file, display=None):
     """
     Main routine to run imsubtract.
@@ -177,7 +205,7 @@ def run_imsubtract(config_file, display=None):
             I_input = np.copy(hdul[0].data)  # this is I # noqa: F841
 
         # get wcs information from fits file (or asdf if indicated)
-        mywcs = get_wcs(exp)
+        sca_wcs = get_wcs(exp)
 
         # results from splitpsf
         # read in the kernel
@@ -190,14 +218,14 @@ def run_imsubtract(config_file, display=None):
         hdul2.close()
 
         # get the kernel size
-        s_in_rad = 0.11 * np.pi / (180 * 3600)  # convert arcsec to radians
+        s_in_rad = 0.11 * np.pi / (180 * 3600)  # convert arcsec to radians !! change to get from settings
         ker_size = axis_num / oversamp * s_in_rad
         print("kernel size: ", ker_size)
 
         # define pad
         pad = ker_size / 2  # at least half of the kernel size in native pixels
         # convert to x, y, z using wcs coords (center of SCA)
-        x, y, z, p = compareutils.getfootprint(mywcs, pad)
+        x, y, z, p = compareutils.getfootprint(sca_wcs, pad)
         v = np.array([x, y, z])
 
         # convert to x', y', z'
@@ -263,7 +291,9 @@ def run_imsubtract(config_file, display=None):
             # open the block info
             hdul3 = fits.open(block_path + f"_{ix:02d}_{iy:02d}.fits")
             block_data = np.copy(hdul3[0].data)
+            block_wcs = get_wcs_from_infile(hdul3)
             hdul3.close()
+            # print("block wcs:", block_wcs)
 
             # determine the length of one axis of the block
             block_length = block_data.shape[-1]  # length in output pixels
@@ -301,13 +331,62 @@ def run_imsubtract(config_file, display=None):
                 window[block_length - overlap] + window[block_length - overlap - 2],
             )
 
-            # find the 'Bounding Box'
+            # find the 'Bounding Box' in SCA coordinates
+            # create mesh grid for output block
+            block_arr = np.arange(block_length)
+            x_out, y_out = np.meshgrid(block_arr, block_arr)
+            # convert to ra and dec using block wcs
+            ra_sca, dec_sca = block_wcs.pixel_to_world_values(x_out, y_out, 0)
+            # print(ra_sca.shape, dec_sca.shape)
+            print("ra, dec: ", ra_sca[0::2663, 0::2663], dec_sca[0::2663, 0::2663])
+
+            # convert into SCA coordinates
+            x_in, y_in = sca_wcs.all_world2pix(ra_sca, dec_sca, 0)
+            print("x_in, y_in: ", x_in[0::2663, 0::2663], y_in[0::2663, 0::2663])
+
+            # get the bounding box from the max and min values
+            left = np.floor(np.min(x_in))
+            right = np.ceil(np.max(x_in))
+            bottom = np.floor(np.min(y_in))
+            top = np.ceil(np.max(y_in))
+
+            # padding
+            # I_pad = int(np.ceil(axis_num/2/oversamp))
+            # add trimming for bounding box (do this with left, right, bottom, top)
+
+            # create the bounding box mesh grid, with ovsamp
+            # determine side lengths of the box
+            width = int(oversamp * (right - left + 1))
+            height = int(oversamp * (top - bottom + 1))
+            # create arrays for meshgrid
+            x = np.linspace(left - 0.5 + 0.5 / oversamp, right + 0.5 - 0.5 / oversamp, width)
+            y = np.linspace(bottom - 0.5 + 0.5 / oversamp, top + 0.5 + 0.5 / oversamp, height)
+            bb_x, bb_y = np.meshgrid(x, y)
+
+            # map bounding box from SCA to output block coordinates
+            ra_1, dec_1 = sca_wcs.pixel_to_world_values(bb_x, bb_y, 0)
+            x_out, y_out = block_wcs.all_world2pix(
+                ra_1, dec_1, 0
+            )  # make sure i dont want to overwrite past definitions
+
+            # add padding to the block (with window applied)
+            block_padded = np.pad(block, 5, mode="constant", constant_values=0)[None, :, :]
+            x_out += 5
+            y_out += 5
+
+            # create interpolated version of block
+            H = np.zeros((1, np.size(x_out)))
+            pyimcom_croutines.iD5512C(block_padded, x_out.ravel(), y_out.ravel(), H)
+            # reshape H
+            H = H.reshape(x_out.shape)
+
+            # multiply by Jacobian
 
 
 if __name__ == "__main__":
     """Calling program is here.
 
-    python3 -m pyimcom.splitpsf.imsubtract <config> [<output images>]
+   python3 -m pyimcom.splitpsf.imsubtract  <config> [<output images>]
     (uses plt.show() if output stem not specified; output image directory is relative to cache file)
 
     """
