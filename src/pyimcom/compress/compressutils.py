@@ -450,25 +450,3 @@ def ReadFile(fname):
     x = CompressedOutput(fname, extraargs=extraargs)
     x.decompress()
     return fits.HDUList(x.hdul)
-
-
-# if __name__ == "__main__":
-#    """Command line test.
-#
-#   With 1 argument: makes compressed version of a file. .fits input only (no gz).
-#
-#   With 5 arguments: main program arguments are::
-#
-#     input_file out_file_compressed recovered recompressed ncycle
-#
-#   ncycle=1 is sufficient to test functionality, but can do more than once to
-#   test for memory leaks.
-#
-#   """
-#
-#    if len(sys.argv) == 2:
-#        test1(sys.argv[1])
-#
-#    if len(sys.argv) == 6:
-#        for _ in range(int(sys.argv[5])):
-#            test(sys.argv[:5])
