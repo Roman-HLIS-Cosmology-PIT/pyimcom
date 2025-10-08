@@ -663,17 +663,16 @@ def test_compress(tmp_path, setup):
         h.recompress()
         h.to_file(_recompressed_file, overwrite=True)
 
-    with (
-        ReadFile(_original_file) as original,
-        ReadFile(_compressed_file) as compressed,
-        ReadFile(_decompressed_file) as decompressed,
-        ReadFile(_recompressed_file) as recompressed,
-    ):
-
-        for j in range(np.shape(original[0].data)[-3]):
-            np.testing.assert_allclose(compressed[0].data[0, j, :, :], original[0].data[0, j, :, :])
-            np.testing.assert_allclose(decompressed[0].data[0, j, :, :], original[0].data[0, j, :, :])
-            np.testing.assert_allclose(recompressed[0].data[0, j, :, :], original[0].data[0, j, :, :])
+    with ReadFile(_original_file) as original:
+        for _processed_file in [_compressed_file, _decompressed_file, _recompressed_file]:
+            with ReadFile(_processed_file) as processed:
+                for j in range(np.shape(original[0].data)[-3]):
+                    VMIN =  float(processed[9].data[0][0].split(':')[-1])
+                    VMAX =  float(processed[9].data[1][0].split(':')[-1])
+                    BITKEEP = int(processed[9].data[2][0].split(':')[-1])
+                    atol = (VMAX - VMIN) / 2**BITKEEP
+                    rtol = 2**(-23)
+                    np.testing.assert_allclose(processed[0].data[0, j, :, :], original[0].data[0, j, :, :], rtol=rtol, atol=atol)
 
 
 # def test1(fname):
