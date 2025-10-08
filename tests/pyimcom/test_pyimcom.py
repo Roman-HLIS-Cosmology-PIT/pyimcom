@@ -4,7 +4,6 @@ Small-scale test of PyIMCOM, designed for fast test of core functionality.
 This does 2 blocks.
 """
 
-import contextlib
 import os
 import pathlib
 
@@ -495,6 +494,8 @@ def test_PyIMCOM_run1(tmp_path, setup):
     ----------
     tmp_path : str
         Directory in which to run the test.
+    setup : function
+        For pytest fixture.
 
     Returns
     -------
@@ -576,14 +577,17 @@ def test_compress(tmp_path, setup):
 
     Parameters
     ----------
-    argv : list of str
-        List of file names: [input_file, out_file_compressed, recovered_file, recompressed_file].
+    tmp_path : str
+        Directory in which to run the test.
+    setup : function
+        For pytest fixture.
 
     Returns
     -------
     None
 
     """
+
     _original_file = str(tmp_path / "out/testout_F_00_01.fits")
     _compressed_file = str(tmp_path / "out/testout_F_00_01_compressed.fits")
     _decompressed_file = str(tmp_path / "out/testout_F_00_01_decompressed.fits")
@@ -667,33 +671,35 @@ def test_compress(tmp_path, setup):
         for _processed_file in [_compressed_file, _decompressed_file, _recompressed_file]:
             with ReadFile(_processed_file) as processed:
                 for j in range(np.shape(original[0].data)[-3]):
-                    VMIN =  float(processed[9].data[0][0].split(':')[-1])
-                    VMAX =  float(processed[9].data[1][0].split(':')[-1])
-                    BITKEEP = int(processed[9].data[2][0].split(':')[-1])
+                    VMIN = float(processed[9].data[0][0].split(":")[-1])
+                    VMAX = float(processed[9].data[1][0].split(":")[-1])
+                    BITKEEP = int(processed[9].data[2][0].split(":")[-1])
                     atol = (VMAX - VMIN) / 2**BITKEEP
-                    rtol = 2**(-23)
-                    np.testing.assert_allclose(processed[0].data[0, j, :, :], original[0].data[0, j, :, :], rtol=rtol, atol=atol)
+                    rtol = 2 ** (-23)
+                    np.testing.assert_allclose(
+                        processed[0].data[0, j, :, :], original[0].data[0, j, :, :], rtol=rtol, atol=atol
+                    )
 
 
 # def test1(fname):
 #     """
 #     Test compression of a file.
-# 
+#
 #     Parameters
 #     ----------
 #     fname : str
 #         The file to compress/decompress. Order of conversions is
 #         `fname` -> ... .cpr.fits.gz -> ... _recovered.fits.
-# 
+#
 #     Returns
 #     -------
 #     None
-# 
+#
 #     """
-# 
+#
 #     fout = fname[:-5] + ".cpr.fits.gz"
 #     frec = fname[:-5] + "_recovered.fits"
-# 
+#
 #     with CompressedOutput(fname) as f:
 #         for j in range(1, len(f.cfg.extrainput)):
 #             if (
@@ -750,9 +756,9 @@ def test_compress(tmp_path, setup):
 #                     pars={"VMIN": -32, "VMAX": 32, "BITKEEP": 16, "DIFF": True, "SOFTBIAS": -1},
 #                 )
 #         f.to_file(fout, overwrite=True)
-# 
+#
 #     ReadFile(fout).writeto(frec, overwrite=True)
-# 
+#
 #     with ReadFile(fname) as f1, ReadFile(frec) as f2:
 #         print("")
 #         for j in range(np.shape(f1[0].data)[-3]):
@@ -760,4 +766,4 @@ def test_compress(tmp_path, setup):
 #                 f"slice {j:3d} max {np.amax(np.abs(f1[0].data[0, j, :, :])):11.5E} "
 #                 f"maxerr {np.amax(np.abs(f1[0].data[0, j, :, :] - f2[0].data[0, j, :, :])):11.5E}"
 #             )
-# 
+#
