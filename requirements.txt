@@ -13,3 +13,5 @@ treecorr
 scikit-image
 pytz
 fsspec
+requests
+aiohttp
