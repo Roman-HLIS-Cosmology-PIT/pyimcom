@@ -27,6 +27,11 @@ from pyimcom.routine import gridD5512C
 from pyimcom.truthcats import gen_truthcats_from_cfg
 from scipy.signal import convolve
 
+
+EXAMPLE_FILE = (
+    "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/compressiontest_F_02_11.fits"
+)
+
 # constants
 degree = np.pi / 180.0
 nside = 4088
@@ -571,7 +576,7 @@ def test_PyIMCOM_run1(tmp_path, setup):
     assert np.abs(sci_image.ravel()[843] - 0.18244877) < 1e-4
 
 
-def test_compress(tmp_path, setup):
+def test_compress(tmp_path):
     """
     Test compression of a file.
 
@@ -579,8 +584,6 @@ def test_compress(tmp_path, setup):
     ----------
     tmp_path : str
         Directory in which to run the test.
-    setup : function
-        For pytest fixture.
 
     Returns
     -------
@@ -588,10 +591,13 @@ def test_compress(tmp_path, setup):
 
     """
 
-    _original_file = str(tmp_path / "out/testout_F_00_01.fits")
-    _compressed_file = str(tmp_path / "out/testout_F_00_01_compressed.fits")
-    _decompressed_file = str(tmp_path / "out/testout_F_00_01_decompressed.fits")
-    _recompressed_file = str(tmp_path / "out/testout_F_00_01_recompressed.fits")
+    (tmp_path / "compression_test").mkdir(parents=True, exist_ok=True)
+
+    # _original_file = str(tmp_path / "out/testout_F_00_01.fits")
+    _original_file = EXAMPLE_FILE
+    _compressed_file = str(tmp_path / "compression_test/compressiontest_F_02_11_compressed.fits")
+    _decompressed_file = str(tmp_path / "compression_test/compressiontest_F_00_01_decompressed.fits")
+    _recompressed_file = str(tmp_path / "compression_test/compressiontest_F_00_01_recompressed.fits")
 
     with CompressedOutput(_original_file) as f:
         print("ftype =", f.ftype)
@@ -668,7 +674,10 @@ def test_compress(tmp_path, setup):
         h.to_file(_recompressed_file, overwrite=True)
 
     with ReadFile(_original_file) as original:
-        for _processed_file in [_compressed_file, _decompressed_file, _recompressed_file]:
+        for _step, _processed_file in zip(
+            ["compressed", "decompressed", "recompressed"],
+            [_compressed_file, _decompressed_file, _recompressed_file],
+        ):
             with ReadFile(_processed_file) as processed:
                 for j in range(np.shape(original[0].data)[-3]):
                     VMIN = float(processed[9].data[0][0].split(":")[-1])
@@ -677,7 +686,11 @@ def test_compress(tmp_path, setup):
                     atol = (VMAX - VMIN) / 2**BITKEEP
                     rtol = 2 ** (-23)
                     np.testing.assert_allclose(
-                        processed[0].data[0, j, :, :], original[0].data[0, j, :, :], rtol=rtol, atol=atol
+                        processed[0].data[0, j, :, :],
+                        original[0].data[0, j, :, :],
+                        rtol=rtol,
+                        atol=atol,
+                        err_msg=f"Compression test failed for {_step}",
                     )
 
 
