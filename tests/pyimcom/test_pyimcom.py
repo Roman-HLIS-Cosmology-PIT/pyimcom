@@ -27,7 +27,6 @@ from pyimcom.routine import gridD5512C
 from pyimcom.truthcats import gen_truthcats_from_cfg
 from scipy.signal import convolve
 
-
 EXAMPLE_FILE = (
     "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/compressiontest_F_02_11.fits"
 )
@@ -596,8 +595,8 @@ def test_compress(tmp_path):
     # _original_file = str(tmp_path / "out/testout_F_00_01.fits")
     _original_file = EXAMPLE_FILE
     _compressed_file = str(tmp_path / "compression_test/compressiontest_F_02_11_compressed.fits")
-    _decompressed_file = str(tmp_path / "compression_test/compressiontest_F_00_01_decompressed.fits")
-    _recompressed_file = str(tmp_path / "compression_test/compressiontest_F_00_01_recompressed.fits")
+    _decompressed_file = str(tmp_path / "compression_test/compressiontest_F_02_11_decompressed.fits")
+    _recompressed_file = str(tmp_path / "compression_test/compressiontest_F_02_11_recompressed.fits")
 
     with CompressedOutput(_original_file) as f:
         print("ftype =", f.ftype)
@@ -666,7 +665,7 @@ def test_compress(tmp_path):
         print(g.hdul.info())
         g.decompress()
         print(g.hdul.info())
-        # print(g.hdul['CPRESS'].data['text'])
+        # print(g.hdul["CPRESS"].data["text"])
         g.to_file(_decompressed_file, overwrite=True)
 
     with CompressedOutput(_decompressed_file) as h:
@@ -677,14 +676,22 @@ def test_compress(tmp_path):
         for _step, _processed_file in zip(
             ["compressed", "decompressed", "recompressed"],
             [_compressed_file, _decompressed_file, _recompressed_file],
+            strict=False,
         ):
             with ReadFile(_processed_file) as processed:
+                # Now check each layer
                 for j in range(np.shape(original[0].data)[-3]):
-                    VMIN = float(processed[9].data[0][0].split(":")[-1])
-                    VMAX = float(processed[9].data[1][0].split(":")[-1])
-                    BITKEEP = int(processed[9].data[2][0].split(":")[-1])
-                    atol = (VMAX - VMIN) / 2**BITKEEP
-                    rtol = 2 ** (-23)
+                    cprs_dict = CompressedOutput.get_compression_dict(processed, j)
+
+                    atol = rtol = 1.0e-7  # defaults
+                    # overwrite if needed
+                    if "SCHEME" in cprs_dict and cprs_dict["SCHEME"][:3] == "I24":
+                        atol = (float(cprs_dict["VMAX"]) - float(cprs_dict["VMIN"])) / 2 ** int(
+                            cprs_dict["BITKEEP"]
+                        )
+                        rtol = 2 ** (-23)
+                    print(f"{_step}: testing layer {j} with atol={atol} and rtol={rtol}")
+
                     np.testing.assert_allclose(
                         processed[0].data[0, j, :, :],
                         original[0].data[0, j, :, :],
