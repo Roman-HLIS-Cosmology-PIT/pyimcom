@@ -64,6 +64,8 @@ class CompressedOutput:
         Constructor.
     compress_2d_image
         Wrapper for 2d image compression (staticmethod).
+    get_compression_dict
+        Extract compression scheme for a PyIMCOM layer as a dictionary.
     decompress_2d_image
         Wrapper for 2d image decompression (staticmethod).
     compress_layer
@@ -139,6 +141,43 @@ class CompressedOutput:
 
         # unrecognized scheme or NULL
         return np.copy(im), None
+
+    @classmethod
+    def get_compression_dict(cls, hdulist, ilayer):
+        """Extract compression scheme for a PyIMCOM layer as a dictionary.
+
+        Parameters
+        ----------
+        hdulist : astropy.io.fits.HDUList
+            The FITS file as an HDUList.
+        ilayer : int
+            The layer number to extract.
+
+        Returns
+        -------
+        dict
+            The compression scheme parameter dictionary. Note that all values are
+            returned as strings, the calling routine must typecast them as appropriate.
+
+            If the layer was not
+            compressed, returns an empty list, ``{}``.
+
+        """
+
+        # extract the compression data if that HDU is present
+        try:
+            cprs = [x.strip().split(":") for x in hdulist["CPRESS"].data["text"]]
+        except KeyError:
+            return {}  # stop here for uncompressed files
+
+        cprs_thislayer = [item for item in cprs if int(item[0], 16) == ilayer]
+        return dict(
+            zip(
+                [item[1].strip() for item in cprs_thislayer],
+                [item[2].strip() for item in cprs_thislayer],
+                strict=False,
+            )
+        )
 
     @staticmethod
     def decompress_2d_image(im, scheme, pars, overflow=None):
