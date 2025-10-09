@@ -12,3 +12,4 @@ matplotlib
 treecorr
 scikit-image
 pytz
+fsspec
