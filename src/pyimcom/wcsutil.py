@@ -671,6 +671,109 @@ def local_partial_pixel_derivatives2(inwcs, x, y):
     return jac / degree  # output in degrees, not radians for consistency with astropy function
 
 
+def get_pix_area(inwcs, region=[0, Settings.sca_nside, 0, Settings.sca_nside], pad=1, ovsamp=1):
+    """
+    Calculate the effective pixel areas in the image.
+
+    Parameters
+    ----------
+    inwcs : pyimcom.wcsutil.PyIMCOM_WCS
+        The WCS that we are using.
+    region: list
+        A list of [x0,x1,y0,y1] to indicate a subregion of the image to
+        calculate the pixel area for. Default: Full active region of SCA
+    pad: int, optional
+        Number of native pixels to pad on each side of the image for derivative calculation.
+    ovsamp : int, optional
+        Oversampling factor to use in calculating the pixel area.
+
+    Returns
+    -------
+    pix_area : np.array of float
+        Matrix of effecitive pixel areas in square degrees; shape (ovsamp*(y1-y0), ovsamp*(x1-x0)).
+
+    Notes
+    -----
+
+    """
+
+    # extract the SCA positions of the pixels (including fractional pixels for ovsamp)
+    xmin, xmax, ymin, ymax = region
+    yrange = ymax - ymin
+    xrange = xmax - xmin
+    x_i, y_i = np.meshgrid(
+        np.linspace(
+            xmin - 0.5 + 0.5 / ovsamp - pad, xmax - 0.5 - 0.5 / ovsamp + pad, ovsamp * (xmax - xmin + 2 * pad)
+        ),
+        np.linspace(
+            ymin - 0.5 + 0.5 / ovsamp - pad, ymax - 0.5 - 0.5 / ovsamp + pad, ovsamp * (ymax - ymin + 2 * pad)
+        ),
+        indexing="xy",
+    )
+
+    # get the WCS positions
+    x_flat = x_i.flatten()
+    y_flat = y_i.flatten()
+    ra, dec = inwcs.all_pix2world(x_flat, y_flat, 0)
+
+    ra = ra.reshape((ovsamp * (yrange + 2 * pad), ovsamp * (xrange + 2 * pad)))
+    dec = dec.reshape((ovsamp * (yrange + 2 * pad), ovsamp * (xrange + 2 * pad)))
+    # note that the re-shaping won't be necessary when we pull in Emily's changes
+
+    # This rotates the footprint to a different part of the sky
+    # if it is too close to the Prime Meridian.
+    deg = np.pi / 180.0
+    if np.amax(ra) - np.amin(ra) > 45.0:
+        # Rotated coordinates
+        xx = -np.cos(dec * deg) * np.cos(ra * deg)
+        yy = np.sin(dec * deg)
+        zz = np.cos(dec * deg) * np.sin(ra * deg)
+
+        # Note that z is not near +/-1 if we get to this part of the code.
+        dec = np.arcsin(zz) / deg
+        ra = np.arctan2(-yy, -xx) / deg + 180.0
+        del xx, yy, zz  # we don't need the Cartesian coordinates anymore
+
+    derivs = (
+        np.array(
+            (
+                (
+                    ra[ovsamp * pad : -ovsamp * pad, 2 * ovsamp * pad :]
+                    - ra[ovsamp * pad : -ovsamp * pad, : -2 * ovsamp * pad]
+                )
+                / 2,
+                (
+                    ra[2 * ovsamp * pad :, ovsamp * pad : -ovsamp * pad]
+                    - ra[: -2 * ovsamp * pad, ovsamp * pad : -ovsamp * pad]
+                )
+                / 2,
+                (
+                    dec[ovsamp * pad : -ovsamp * pad, 2 * ovsamp * pad :]
+                    - dec[ovsamp * pad : -ovsamp * pad, : -2 * ovsamp * pad]
+                )
+                / 2,
+                (
+                    dec[2 * ovsamp * pad :, ovsamp * pad : -ovsamp * pad]
+                    - dec[: -2 * ovsamp * pad, ovsamp * pad : -ovsamp * pad]
+                )
+                / 2,
+            )
+        )
+        / pad
+    )
+    # at this point, derivs has shape (4, ovsamp*(ymax-ymin), ovsamp*(xmax-xmin))
+    # first axis corresponds to ordering dRA/dx, dRA/dy, dDec/dx, dDec/dy
+
+    derivs_px = np.reshape(np.transpose(derivs, axes=(1, 2, 0)), (ovsamp**2 * xrange * yrange, 2, 2))
+    det_mat = np.reshape(np.linalg.det(derivs_px), (ovsamp * yrange, ovsamp * xrange))
+
+    pix_areas = np.abs(det_mat) * np.cos(
+        np.deg2rad(dec[ovsamp * pad : ovsamp * (yrange + pad), ovsamp * pad : ovsamp * (xrange + pad)])
+    )
+
+    return pix_areas
+
+
 def _stand_alone_test(infile):
     """
     Simple tests of the above routines.

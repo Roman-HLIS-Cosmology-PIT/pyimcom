@@ -23,28 +23,9 @@ import json
 from importlib.resources import files
 from time import perf_counter
 
-import matplotlib as mpl
 import numpy as np
 from astropy import units as u
 from astropy.io import fits
-from matplotlib import rcParams
-
-rcParams.update(
-    {
-        "font.family": "serif",
-        "mathtext.fontset": "dejavuserif",
-        "font.size": 12,
-        "text.latex.preamble": r"\usepackage{amsmath}",
-        "xtick.major.pad": 2,
-        "ytick.major.pad": 2,
-        "xtick.major.size": 6,
-        "ytick.major.size": 6,
-        "xtick.minor.size": 3,
-        "ytick.minor.size": 3,
-        "axes.linewidth": 2,
-        "axes.labelpad": 1,
-    }
-)
 
 
 class Timer:
@@ -1062,7 +1043,26 @@ class Config:
             return res
 
 
-def format_axis(ax: "mpl.axes._axes.Axes", grid_on: bool = True) -> None:
+# Parameters for format_axis.
+# Can be imported for context via
+# with mpl.rc_context(config.format_axis_pars):
+format_axis_pars = {
+    "font.family": "serif",
+    "mathtext.fontset": "dejavuserif",
+    "font.size": 12,
+    "text.latex.preamble": r"\usepackage{amsmath}",
+    "xtick.major.pad": 2,
+    "ytick.major.pad": 2,
+    "xtick.major.size": 6,
+    "ytick.major.size": 6,
+    "xtick.minor.size": 3,
+    "ytick.minor.size": 3,
+    "axes.linewidth": 2,
+    "axes.labelpad": 1,
+}
+
+
+def format_axis(ax, grid_on=True):
     """
     Format a panel (an axis) of a figure.
 
