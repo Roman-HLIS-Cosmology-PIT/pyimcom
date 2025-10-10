@@ -34,7 +34,10 @@ from scipy.special import eval_legendre
 # local imports
 from ..config import Config, Settings
 from ..utils import compareutils
-from ..wcsutil import PyIMCOM_WCS
+from ..wcsutil import (
+    PyIMCOM_WCS,
+    get_pix_area,  # currently not in imsubtract branch
+)
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -296,7 +299,7 @@ def run_imsubtract(config_file, display=None):
         H_canvas = np.zeros((A, A))
         # define other important quantities for convolution
         Nl = int(np.floor(np.sqrt(Ncoeff + 0.5)))
-        KH = np.zeros(axis_num - A + 1, axis_num - A + 1)
+        KH = np.zeros(A - axis_num + 1, A - axis_num + 1)
         x_canvas = np.linspace(
             -I_pad - 0.5 + 0.5 / oversamp, sca_nside + I_pad - 0.5 + 0.5 / oversamp, oversamp * A
         )
@@ -400,16 +403,19 @@ def run_imsubtract(config_file, display=None):
             H = np.zeros((1, np.size(x_bb)))
             pyimcom_croutines.iD5512C(block_padded, x_bb.ravel(), y_bb.ravel(), H)
             # reshape H
-            H = H.reshape(x_out.shape)
+            H = H.reshape(x_bb.shape)
 
             # multiply by Jacobian to H
-            # !! need tools from Katherine to apply the Jacobian
+            # get native pixel size
+            native_pix = get_pix_area(sca_wcs, region=[left, right + 1, bottom, top + 1], ovsamp=oversamp)
+
+            H *= native_pix / (pix_size * 180 / np.pi) ** 2
 
             # add H to H_canvas
             H_canvas[
-                oversamp * (left + I_pad) : oversamp * (right + 1 + I_pad),
                 oversamp * (bottom + I_pad) : oversamp * (top + 1 + I_pad),
-            ] = H
+                oversamp * (left + I_pad) : oversamp * (right + 1 + I_pad),
+            ] += H
 
         # apply convolution to canvas
         for lu in range(Nl):
