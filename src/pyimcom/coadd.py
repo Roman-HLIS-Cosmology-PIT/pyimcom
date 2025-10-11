@@ -1638,6 +1638,8 @@ class Block:
 
         # block information
         ibx, iby = divmod(self.this_sub, self.cfg.nblock)
+        self.ibx = ibx  # save this information
+        self.iby = iby
         print(
             f"sub-block {self.this_sub:4d} <{ibx:2d},{iby:2d}> of "
             f"{self.cfg.nblock:2d}x{self.cfg.nblock:2d}={self.cfg.nblock**2:2d}"
@@ -2137,6 +2139,12 @@ class Block:
             [fits.Column(name="text", array=self.cfg.to_file(None).splitlines(), format="A512", ascii=True)]
         )
         config_hdu.header["EXTNAME"] = "CONFIG"
+        config_hdu.header["TILESCHM"] = (self.cfg.tileschm, "Tiling scheme name")
+        config_hdu.header["RERUN"] = (self.cfg.rerun, "Rerun name")
+        config_hdu.header["MOSAIC"] = (self.cfg.mosaic, "Mosaic number")
+        config_hdu.header["FILTER"] = (Stn.RomanFilters[self.cfg.use_filter], "Filter code")
+        config_hdu.header["BLOCKX"] = self.ibx
+        config_hdu.header["BLOCKY"] = self.iby
         if is_final:
             for package in ["numpy", "scipy", "astropy", "fitsio", "asdf"]:
                 keyword = "V" + package.upper()[:7]
