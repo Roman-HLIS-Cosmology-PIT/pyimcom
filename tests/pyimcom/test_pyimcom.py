@@ -4,13 +4,13 @@ Small-scale test of PyIMCOM, designed for fast test of core functionality.
 This does 2 blocks.
 """
 
-import contextlib
 import os
 import pathlib
 
 import asdf
 import gwcs
 import numpy as np
+import pytest
 from astropy import coordinates as coord
 from astropy import units as u
 from astropy import wcs
@@ -20,12 +20,16 @@ from astropy.table import Table
 from gwcs import coordinate_frames as cf
 from pyimcom.analysis import OutImage
 from pyimcom.coadd import Block
-from pyimcom.compress.compressutils import ReadFile
+from pyimcom.compress.compressutils import CompressedOutput, ReadFile
 from pyimcom.config import Config
 from pyimcom.psfutil import OutPSF
 from pyimcom.routine import gridD5512C
 from pyimcom.truthcats import gen_truthcats_from_cfg
 from scipy.signal import convolve
+
+EXAMPLE_FILE = (
+    "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/compressiontest_F_02_11.fits"
+)
 
 # constants
 degree = np.pi / 180.0
@@ -291,13 +295,14 @@ def make_simple_wcs(ra, dec, pa, sca):
     return outwcs
 
 
-def run_setup(temp_dir):
+@pytest.fixture
+def setup(tmp_path):
     """
     Generates sample input files for a pyimcom run.
 
     Parameters
     ----------
-    temp_dir : str
+    tmp_path : str
         Directory in which to run the test.
 
     Returns
@@ -307,8 +312,8 @@ def run_setup(temp_dir):
     """
 
     # first, get the configuration file.
-    with open(temp_dir + "/cfg.txt", "w") as f:
-        f.write(myCfg_format.replace("$TMPDIR", temp_dir))
+    with open(tmp_path / "cfg.txt", "w") as f:
+        f.write(myCfg_format.replace("$TMPDIR", str(tmp_path)))
 
     # now make the observation file
     obs = []
@@ -327,12 +332,11 @@ def run_setup(temp_dir):
         obs, formats="float64,float64,float64,float64,float64,S4", names="date,exptime,ra,dec,pa,filter"
     )
     fits.HDUList([fits.PrimaryHDU(), fits.BinTableHDU(data=Table(data))]).writeto(
-        temp_dir + "/obs.fits", overwrite=True
+        tmp_path / "obs.fits", overwrite=True
     )
 
     # now make the PSFs
-    with contextlib.suppress(FileNotFoundError):
-        os.mkdir(temp_dir + "/psf")
+    (tmp_path / "psf").mkdir(parents=True, exist_ok=True)
     ov = 6  # oversampling factor needs to be even here
     psf = []
     for i in range(len(obs)):
@@ -342,7 +346,7 @@ def run_setup(temp_dir):
         imfits = [fits.PrimaryHDU()]
         for _ in range(18):
             imfits.append(fits.ImageHDU(psf_cube))
-        fits.HDUList(imfits).writeto(temp_dir + f"/psf/psf_polyfit_{i:d}.fits", overwrite=True)
+        fits.HDUList(imfits).writeto(tmp_path / f"psf/psf_polyfit_{i:d}.fits", overwrite=True)
     ns_psf = np.shape(psf[-1])[0]
     ctr_psf = (ns_psf - 1) / 2.0
 
@@ -357,8 +361,7 @@ def run_setup(temp_dir):
     tk[-3] -= 1.0 / 24.0
 
     # draw the images
-    with contextlib.suppress(FileNotFoundError):
-        os.mkdir(temp_dir + "/in")
+    (tmp_path / "in").mkdir(parents=True, exist_ok=True)
     olog = ""
     for iobs in range(len(obs)):
         filt = data["filter"][iobs].decode("ascii")
@@ -431,19 +434,19 @@ def run_setup(temp_dir):
 
                     # write to file. these are minimal fields that are needed.
                     asdf.AsdfFile({"roman": {"data": im, "meta": {"wcs": sca_gwcs}}}).write_to(
-                        temp_dir + f"/in/sim_L2_{filt:s}_{iobs:d}_{sca:d}.asdf"
+                        tmp_path / f"in/sim_L2_{filt:s}_{iobs:d}_{sca:d}.asdf"
                     )
 
                     # Also can write a FITS version to make sure we can ...
                     # hope this is useful to look at if something goes wrong
                     # fits.PrimaryHDU(im, header=this_wcs.to_header()).writeto(
-                    #     temp_dir + f"/in/sim_L2_{filt:s}_{iobs:d}_{sca:d}_asfits.fits", overwrite=True
+                    #     tmp_path / f"in/sim_L2_{filt:s}_{iobs:d}_{sca:d}_asfits.fits", overwrite=True
                     # )
 
                     # now make the masks
                     mask = np.zeros((nside, nside), dtype=np.uint8)
                     fits.HDUList([fits.PrimaryHDU(), fits.ImageHDU(mask, name="MASK")]).writeto(
-                        temp_dir + f"/in/sim_L2_{filt:s}_{iobs:d}_{sca:d}_mask.fits", overwrite=True
+                        tmp_path / f"in/sim_L2_{filt:s}_{iobs:d}_{sca:d}_mask.fits", overwrite=True
                     )
 
             # corners -- for testing
@@ -462,13 +465,12 @@ def run_setup(temp_dir):
             if iobs == 2:
                 assert np.hypot(rapos - 59.733417024909365, decpos + 2.982181679089024) < 0.01
 
-    with open(temp_dir + "/wcslog.txt", "w") as f:
+    with open(tmp_path / "wcslog.txt", "w") as f:
         f.write(olog)
 
     # now make the cache directory
-    cachedir = temp_dir + "/cache"
-    with contextlib.suppress(FileNotFoundError):
-        os.mkdir(cachedir)
+    cachedir = tmp_path / "cache"
+    cachedir.mkdir(parents=True, exist_ok=True)
     # clear old cache if it is there
     files = os.listdir(cachedir)
     for file in files:
@@ -477,18 +479,27 @@ def run_setup(temp_dir):
             os.remove(os.path.join(cachedir, file))
 
     # ... and the output directory
-    with contextlib.suppress(FileNotFoundError):
-        os.mkdir(temp_dir + "/out")
+    (tmp_path / "out").mkdir(parents=True, exist_ok=True)
+
+    # this part runs all 4 blocks ... they're pretty small!
+    cfg = Config(tmp_path / "cfg.txt")
+    print(cfg.to_file(None))
+    # This has 4 blocks, but we only run 2 here to speed things up.
+    for iblk in range(2):
+        Block(cfg=cfg, this_sub=iblk)
+    gen_truthcats_from_cfg(cfg)
 
 
-def study_outputs(temp_dir):
+def test_PyIMCOM_run1(tmp_path, setup):
     """
     Examine PyIMCOM outputs.
 
     Parameters
     ----------
-    temp_dir : str
+    tmp_path : str
         Directory in which to run the test.
+    setup : function
+        For pytest fixture.
 
     Returns
     -------
@@ -498,7 +509,7 @@ def study_outputs(temp_dir):
 
     ## Science star portion ##
 
-    with fits.open(temp_dir + "/out/testout_F_00_01.fits") as fblock:
+    with fits.open(tmp_path / "out/testout_F_00_01.fits") as fblock:
         # position of "science" star
         w = wcs.WCS(fblock[0].header)
         # there are 2 extra axes if you pull the WCS this way
@@ -524,7 +535,7 @@ def study_outputs(temp_dir):
 
     ## Injected star portion ##
 
-    with fits.open(temp_dir + "/out/testout_F_TruthCat.fits") as f_inj:
+    with fits.open(tmp_path / "out/testout_F_TruthCat.fits") as f_inj:
         print(f_inj.info())
         # get the first star in the table --- in this case, it's the only one
         print(f_inj["TRUTH14"].data[0])
@@ -536,8 +547,8 @@ def study_outputs(temp_dir):
 
     # for this one, we're going to test ReadFile
     # old code:
-    # with fits.open(temp_dir + f"/out/testout_F_{ibx:02d}_{iby:02d}.fits") as fblock:
-    pth = pathlib.Path(temp_dir + f"/out/testout_F_{ibx:02d}_{iby:02d}.fits")
+    # with fits.open(tmp_path / f"out/testout_F_{ibx:02d}_{iby:02d}.fits") as fblock:
+    pth = pathlib.Path(tmp_path / f"out/testout_F_{ibx:02d}_{iby:02d}.fits")
     with ReadFile(pth) as fblock:
         # output block size
         (ny, nx) = np.shape(fblock[0].data)[-2:]
@@ -576,13 +587,13 @@ def study_outputs(temp_dir):
         assert hdr["BLOCKY"] == 1
 
 
-def test_PyIMCOM_run1(tmp_path):
+def test_compress(tmp_path):
     """
-    Test function for a small pyimcom run.
+    Test compression of a file.
 
     Parameters
     ----------
-    tmp_path : str or pathlib.Path
+    tmp_path : str
         Directory in which to run the test.
 
     Returns
@@ -591,19 +602,200 @@ def test_PyIMCOM_run1(tmp_path):
 
     """
 
-    temp_dir = str(tmp_path)
-    print("using", temp_dir)
+    (tmp_path / "compression_test").mkdir(parents=True, exist_ok=True)
 
-    # put together the input files
-    run_setup(temp_dir)
+    # _original_file = str(tmp_path / "out/testout_F_00_01.fits")
+    _original_file = EXAMPLE_FILE
+    _compressed_file = str(tmp_path / "compression_test/compressiontest_F_02_11_compressed.fits")
+    _decompressed_file = str(tmp_path / "compression_test/compressiontest_F_02_11_decompressed.fits")
+    _recompressed_file = str(tmp_path / "compression_test/compressiontest_F_02_11_recompressed.fits")
 
-    # this part runs all 4 blocks ... they're pretty small!
-    cfg = Config(temp_dir + "/cfg.txt")
-    print(cfg.to_file(None))
-    # This has 4 blocks, but we only run 2 here to speed things up.
-    for iblk in range(2):
-        Block(cfg=cfg, this_sub=iblk)
-    gen_truthcats_from_cfg(cfg)
+    with CompressedOutput(_original_file) as f:
+        print("ftype =", f.ftype)
+        print("gzip =", f.gzip)
+        print("cprstype =", f.cprstype)
+        print(f.hdul.info())
+        print(f.cfg.to_file(fname=None))
 
-    # now see if the outputs are right
-    study_outputs(temp_dir)
+        for j in range(1, len(f.cfg.extrainput)):
+            if (
+                f.cfg.extrainput[j][:6].lower() == "gsstar"
+                or f.cfg.extrainput[j][:5].lower() == "cstar"
+                or f.cfg.extrainput[j][:8].lower() == "gstrstar"
+                or f.cfg.extrainput[j][:8].lower() == "gsfdstar"
+            ):
+                f.compress_layer(
+                    j,
+                    scheme="I24B",
+                    pars={
+                        "VMIN": -1.0 / 64.0,
+                        "VMAX": 7.0 / 64.0,
+                        "BITKEEP": 20,
+                        "DIFF": True,
+                        "SOFTBIAS": -1,
+                    },
+                )
+            if f.cfg.extrainput[j][:5].lower() == "nstar":
+                f.compress_layer(
+                    j,
+                    scheme="I24B",
+                    pars={"VMIN": -1500.0, "VMAX": 10500.0, "BITKEEP": 20, "DIFF": True, "SOFTBIAS": -1},
+                )
+            if f.cfg.extrainput[j][:5].lower() == "gsext":
+                f.compress_layer(
+                    j,
+                    scheme="I24B",
+                    pars={
+                        "VMIN": -1.0 / 64.0,
+                        "VMAX": 7.0 / 64.0,
+                        "BITKEEP": 20,
+                        "DIFF": True,
+                        "SOFTBIAS": -1,
+                    },
+                )
+            if f.cfg.extrainput[j][:8].lower() == "labnoise":
+                f.compress_layer(
+                    j,
+                    scheme="I24B",
+                    pars={"VMIN": -5, "VMAX": 5, "BITKEEP": 16, "DIFF": True, "SOFTBIAS": -1},
+                )
+            if f.cfg.extrainput[j][:10].lower() == "whitenoise":
+                f.compress_layer(
+                    j,
+                    scheme="I24B",
+                    pars={"VMIN": -8, "VMAX": 8, "BITKEEP": 16, "DIFF": True, "SOFTBIAS": -1},
+                )
+            if f.cfg.extrainput[j][:7].lower() == "1fnoise":
+                f.compress_layer(
+                    j,
+                    scheme="I24B",
+                    pars={"VMIN": -32, "VMAX": 32, "BITKEEP": 16, "DIFF": True, "SOFTBIAS": -1},
+                )
+        f.to_file(_compressed_file, overwrite=True)
+
+    with CompressedOutput(_compressed_file) as g:
+        print(g.hdul.info())
+        g.decompress()
+        print(g.hdul.info())
+        # print(g.hdul["CPRESS"].data["text"])
+        g.to_file(_decompressed_file, overwrite=True)
+
+    with CompressedOutput(_decompressed_file) as h:
+        h.recompress()
+        h.to_file(_recompressed_file, overwrite=True)
+
+    with ReadFile(_original_file) as original:
+        for _step, _processed_file in zip(
+            ["compressed", "decompressed", "recompressed"],
+            [_compressed_file, _decompressed_file, _recompressed_file],
+            strict=False,
+        ):
+            with ReadFile(_processed_file) as processed:
+                # Now check each layer
+                for j in range(np.shape(original[0].data)[-3]):
+                    cprs_dict = CompressedOutput.get_compression_dict(processed, j)
+
+                    atol = rtol = 1.0e-7  # defaults
+                    # overwrite if needed
+                    if "SCHEME" in cprs_dict and cprs_dict["SCHEME"][:3] == "I24":
+                        atol = (float(cprs_dict["VMAX"]) - float(cprs_dict["VMIN"])) / 2 ** int(
+                            cprs_dict["BITKEEP"]
+                        )
+                        rtol = 2 ** (-23)
+                    print(f"{_step}: testing layer {j} with atol={atol} and rtol={rtol}")
+
+                    np.testing.assert_allclose(
+                        processed[0].data[0, j, :, :],
+                        original[0].data[0, j, :, :],
+                        rtol=rtol,
+                        atol=atol,
+                        err_msg=f"Compression test failed for {_step}",
+                    )
+
+
+# def test1(fname):
+#     """
+#     Test compression of a file.
+#
+#     Parameters
+#     ----------
+#     fname : str
+#         The file to compress/decompress. Order of conversions is
+#         `fname` -> ... .cpr.fits.gz -> ... _recovered.fits.
+#
+#     Returns
+#     -------
+#     None
+#
+#     """
+#
+#     fout = fname[:-5] + ".cpr.fits.gz"
+#     frec = fname[:-5] + "_recovered.fits"
+#
+#     with CompressedOutput(fname) as f:
+#         for j in range(1, len(f.cfg.extrainput)):
+#             if (
+#                 f.cfg.extrainput[j][:6].lower() == "gsstar"
+#                 or f.cfg.extrainput[j][:5].lower() == "cstar"
+#                 or f.cfg.extrainput[j][:8].lower() == "gstrstar"
+#                 or f.cfg.extrainput[j][:8].lower() == "gsfdstar"
+#             ):
+#                 f.compress_layer(
+#                     j,
+#                     scheme="I24B",
+#                     pars={
+#                         "VMIN": -1.0 / 64.0,
+#                         "VMAX": 7.0 / 64.0,
+#                         "BITKEEP": 20,
+#                         "DIFF": True,
+#                         "SOFTBIAS": -1,
+#                     },
+#                 )
+#             if f.cfg.extrainput[j][:5].lower() == "nstar":
+#                 f.compress_layer(
+#                     j,
+#                     scheme="I24B",
+#                     pars={"VMIN": -1500.0, "VMAX": 10500.0, "BITKEEP": 20, "DIFF": True, "SOFTBIAS": -1},
+#                 )
+#             if f.cfg.extrainput[j][:5].lower() == "gsext":
+#                 f.compress_layer(
+#                     j,
+#                     scheme="I24B",
+#                     pars={
+#                         "VMIN": -1.0 / 64.0,
+#                         "VMAX": 7.0 / 64.0,
+#                         "BITKEEP": 20,
+#                         "DIFF": True,
+#                         "SOFTBIAS": -1,
+#                     },
+#                 )
+#             if f.cfg.extrainput[j][:8].lower() == "labnoise":
+#                 f.compress_layer(
+#                     j,
+#                     scheme="I24B",
+#                     pars={"VMIN": -5, "VMAX": 5, "BITKEEP": 16, "DIFF": True, "SOFTBIAS": -1},
+#                 )
+#             if f.cfg.extrainput[j][:10].lower() == "whitenoise":
+#                 f.compress_layer(
+#                     j,
+#                     scheme="I24B",
+#                     pars={"VMIN": -8, "VMAX": 8, "BITKEEP": 16, "DIFF": True, "SOFTBIAS": -1},
+#                 )
+#             if f.cfg.extrainput[j][:7].lower() == "1fnoise":
+#                 f.compress_layer(
+#                     j,
+#                     scheme="I24B",
+#                     pars={"VMIN": -32, "VMAX": 32, "BITKEEP": 16, "DIFF": True, "SOFTBIAS": -1},
+#                 )
+#         f.to_file(fout, overwrite=True)
+#
+#     ReadFile(fout).writeto(frec, overwrite=True)
+#
+#     with ReadFile(fname) as f1, ReadFile(frec) as f2:
+#         print("")
+#         for j in range(np.shape(f1[0].data)[-3]):
+#             print(
+#                 f"slice {j:3d} max {np.amax(np.abs(f1[0].data[0, j, :, :])):11.5E} "
+#                 f"maxerr {np.amax(np.abs(f1[0].data[0, j, :, :] - f2[0].data[0, j, :, :])):11.5E}"
+#             )
+#

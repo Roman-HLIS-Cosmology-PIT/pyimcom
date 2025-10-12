@@ -12,3 +12,7 @@ matplotlib
 treecorr
 scikit-image
 pytz
+fsspec
+requests
+s3fs
+aiohttp

@@ -122,3 +122,13 @@ These steps are controlled by the following keywords. The default is given, unle
    * - ``REORDER``
      - True
      - Pack bits (instead of bytes) in order from least significant to most significant. This is recommended for most uses.
+
+Tools
+*****
+
+A useful utility for exploring compressed files is ``CompressedOutput.get_compression_dict``. You can call it as::
+
+   with CompressedOutput(fname) as f:
+        cprs_dict = CompressedOutput.get_compression_dict(f, ilayer)
+
+and this will give the compression scheme in dictionary form used for layer ``ilayer`` (an uncompressed layer returns the empty dictionary ``{}``). Note that the values in this form are strings because the function does not know the expected type; the calling routine must typecast them if needed.
