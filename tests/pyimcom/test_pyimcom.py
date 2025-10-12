@@ -576,7 +576,7 @@ def test_PyIMCOM_run1(tmp_path, setup):
 
     ## Configuration test ##
 
-    with fits.open(temp_dir + "/out/testout_F_00_01.fits") as fblock:
+    with fits.open(tmp_path / "out/testout_F_00_01.fits") as fblock:
         hdr = fblock["CONFIG"].header
         print(hdr)
         assert hdr["TILESCHM"] == "Not_specified"
