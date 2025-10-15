@@ -36,7 +36,7 @@ from ..config import Config, Settings
 from ..utils import compareutils
 from ..wcsutil import (
     PyIMCOM_WCS,
-    get_pix_area,  # currently not in imsubtract branch
+    get_pix_area,
 )
 
 matplotlib.use("Agg")
@@ -211,7 +211,8 @@ def run_imsubtract(config_file, display=None):
         with fits.open(exp) as hdul:
             # read in the input image, I
             I_input = np.copy(hdul[0].data)  # this is I # noqa: F841
-
+        # find number of layers
+        nlayer = np.shape(I_input)[-3]  # noqa: F841
         # get wcs information from fits file (or asdf if indicated)
         sca_wcs = get_wcs(exp)
 
@@ -234,6 +235,7 @@ def run_imsubtract(config_file, display=None):
         ker_size = axis_num / oversamp * s_in_rad  # native pixels
         print("kernel size: ", ker_size)
 
+        # start coordinate transformations
         # define pad
         pad = ker_size / 2  # at least half of the kernel size in native pixels
         # convert to x, y, z using wcs coords (center of SCA)
@@ -296,6 +298,8 @@ def run_imsubtract(config_file, display=None):
         # define the canvas to add interpolated blocks
         # size is SCA+padding on both sides scaled back to kernel pixels
         A = oversamp * (sca_nside + 2 * I_pad)
+
+        # add for loop over layers (nlayers)
         H_canvas = np.zeros((A, A))
         # define other important quantities for convolution
         Nl = int(np.floor(np.sqrt(Ncoeff + 0.5)))
@@ -432,8 +436,12 @@ def run_imsubtract(config_file, display=None):
         # subtract from input image
         I_sub = I_input - KH_native
 
+        # I_input[0,ilayer,:,:] -= KH_native
+        #   (But rename I_input) # use less memory
+
+        # save outside of the layer for loop
         # write output file for each exposure
-        hdu4 = fits.PrimaryHU(data=I_sub)
+        hdu4 = fits.PrimaryHU(data=I_sub)  # I_sub is whatever new I_input name
         hdu4.writeto(f"{obsid}_{sca}_subI.fits")
 
 
