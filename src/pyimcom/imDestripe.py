@@ -111,29 +111,57 @@ class Cost_models:
 class Sca_img:
     """
     Class defining an SCA image object.
-    Arguments:
-        scaid: Str, the SCA id
-        obsid: Str, the observation id
-        interpolated: Bool; True if you want the interpolated version of this SCA and not the original. Default:False
-        add_noise: Bool; True if you want to add read noise to the SCA image
-        add_objmask: Bool; True if you want to apply the permanent pixel mask and a bright object mask
-    Attributes:
-        image: 2D np array, the SCA image (4088x4088)
-        shape: Tuple, the shape of the image
-        w: WCS object, the astropy.wcs object associated with this SCA
-        obsid: Str, observation ID of this SCA image
-        scaid: Str, SCA ID (position on focal plane) of this SCA image
-        mask: 2D np array, the full pixel mask that is used on this image. Is correct only after calling apply_permanent_mask
-        g_eff : 2D np array, effective gain in each pixel of the image
-        params_subtracted: Bool, True if parameters have been subtracted from this image.
-    Methods:
-        apply_noise: apply the appropriate lab noise frame to the SCA image
-        apply_permanent_mask: apply the SCA permanent pixel mask to the image
-        apply_all_mask: apply the full SCA mask to the image
-        subtract_parameters: Subtract a given set of parameters from self.image; updates self.image, self.params_subtracted
+
+    Parameters
+    --------
+        scaid:  Str, the SCA id
+        obsid : Str, the observation id
+        cfg : Config object, built from the configuration file
+        interpolated : Bool
+            True if you want the interpolated version of this SCA and not the original. Default False
+        add_noise : Bool
+            True if you want to add read noise to the SCA image. Default True
+        add_objmask : Bool
+            True if you want to apply the permanent pixel mask and a bright object mask. Default True
+   
+   Attributes
+    --------
+        image : 2D np array, the SCA image (4088x4088)
+        shape : Tuple
+            the shape of the image
+        w : WCS object
+            the astropy.wcs object associated with this SCA
+        obsid : Str
+            observation ID of this SCA image
+        scaid : Str
+            SCA ID (position on focal plane) of this SCA image
+        mask : 2D np array
+            The full pixel mask that is used on this image. Is correct only after calling apply_permanent_mask
+        g_eff : 2D np array
+            Effective gain in each pixel of the image
+        params_subtracted : Bool
+            True if parameters have been subtracted from this image.
+        cfg : Config object
+            the configuration object passed in at initialization
+
+    Methods
+    --------
+        apply_noise 
+            Apply the appropriate lab noise frame to the SCA image
+        apply_permanent_mask
+            Apply the SCA permanent pixel mask to the image
+        apply_all_mask
+            Apply the full SCA mask to the image
+        subtract_parameters
+            Subtract a given set of parameters from self.image; updates self.image, self.params_subtracted
+        get_coordinates
+            Create an array of ra, dec coords for the image
+        make_interpolated
+            Construct a version of this SCA interpolated from other, overlapping ones.
+            Writes the interpolated image out to the disk, to be read/used later
     """
 
-    def __init__(self, obsid, scaid, interpolated=False, add_noise=True, add_objmask=True, cfg=None):
+    def __init__(self, obsid, scaid, cfg, interpolated=False, add_noise=True, add_objmask=True):
 
         if interpolated:
             file = fits.open(cfg.ds_outpath + 'interpolations/' + obsid + '_' + scaid + '_interp.fits', memmap=True)
