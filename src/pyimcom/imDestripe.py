@@ -9,6 +9,53 @@ Parameters
         Class holding the destriping parameters for a given mosaic
 Cost_models
         Class holding the cost function models. Currently only quadratic is supported
+
+Functions
+---------
+write_to_file
+    Function to write some text to an output file
+save_fits
+    Save a 2D image to a FITS file with locking, retries, and atomic rename.
+apply_object_mask
+    Apply a bright object mask to an image.
+quadratic
+    Quadratic cost function f(x) = x^2
+absolute
+    Absolute cost function f(x) = |x|
+huber_loss
+    Huber loss cost function
+quad_prime
+    Derivative of quadratic cost function f'(x) = 2x
+abs_prime   
+    Derivative of absolute cost function f'(x) = sign(x)
+huber_prime
+    Derivative of Huber loss cost function
+get_scas
+    Function to get a list of all SCA images and their WCSs for this mosaic
+interpolate_image_bilinear
+    Interpolate values from a "reference" SCA image onto a "target" SCA coordinate grid
+transpose_interpolate
+    Interpolate backwards from image_A to image_B space.
+transpose_par
+    Sum up the values of an image across rows
+get_effective_gain
+    retrieve the effective gain and n_eff of the image. valid only for already-interpolated images
+get_ids
+    Take an SCA label and parse it out to get the Obsid and SCA id strings.
+save_snapshot
+    Save restart state to pickle file.
+residual_function
+    Calculate the residual image, = grad(epsilon)
+residual_function_single
+    Helper function to calculate residuals for a single SCA
+cost_function_single
+    Helper function to calculate cost for a single SCA
+linear_search_general
+    Perform a linear search to find the optimal step size alpha along a given direction
+linear_search_quadratic
+    Calculate optimal step size alpha along a given direction, for quadratic cost function
+conjugate_gradient
+    Perform the conjugate gradient algorithm to minimize the cost function
 """
 
 import os
@@ -23,8 +70,7 @@ import numpy as np
 from astropy.io import fits
 from astropy import wcs
 import pickle
-import traceback
-from memory_profiler import profile, memory_usage
+from memory_profiler import memory_usage
 from utils import compareutils
 from config import Settings as Stn, Config
 import re
@@ -33,11 +79,8 @@ import copy
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from filelock import Timeout, FileLock
 from scipy.ndimage import binary_dilation
-import os
 import uuid
-import time
 import random
-from astropy.io import fits
 from filelock import FileLock, Timeout
 try:
     import furry_parakeet.pyimcom_croutines as pyimcom_croutines
