@@ -30,53 +30,7 @@ except ImportError:
     import pyimcom_croutines
 
 
-TIME = False
-testing=True
-use_cg_float=np.float64
-use_output_float=np.float32
-
-global outfile
-global outpath
-
-filters = ['Y106', 'J129', 'H158', 'F184', 'K213']
-areas = [7006, 7111, 7340, 4840, 4654]  # cm^2
-model_params = {'constant': 1, 'linear': 2}
-CG_models = {'FR', 'PR', 'HS', 'DY'}
-
-s_in = 0.11  # arcsec^2
-t_exp = 154  # sec
-
-# Import config file
-CFG = Config(cfg_file='/fs/scratch/PCON0003/klaliotis/pyimcom/configs/imdestripe_configs/config_destripe-H-restart.json')
-filter_ = filters[CFG.use_filter]
-A_eff = areas[CFG.use_filter]
-obsfile = CFG.ds_obsfile #location and stem of input images. overwritten by temp input dir
-outpath =  CFG.ds_outpath #path to put outputs, /fs/scratch/PCON0003/klaliotis/imdestripe/
-tempdir = os.getenv('TMPDIR') + '/'
-labnoise_prefix = CFG.ds_indata #path to lab noise frames,  /fs/scratch/PCON0003/cond0007/anl-run-in-prod/labnoise/slope_
-use_model = CFG.ds_model
-permanent_mask = CFG.permanent_mask
-cg_model = CFG.cg_model
-cg_maxiter = CFG.cg_maxiter
-cg_tol = CFG.cg_tol
-cost_model = CFG.cost_model
-resid_model = CFG.resid_model
-restart_file = CFG.ds_restart
-
-
-if use_model not in model_params.keys():
-    raise ValueError(f"Model {use_model} not in model_params dictionary.")
-if CFG.cost_prior != 0:
-    cost_prior = CFG.cost_prior
-if cg_model not in CG_models:
-    raise ValueError(f"CG model {cg_model} not in CG_models dictionary.")
-outfile = outpath + filter_ + CFG.ds_outstem # the file that the output prints etc are written to
-
-CFG()
-
-t0 = time.time()
-
-def write_to_file(text, filename=outfile):
+def write_to_file(text, filename='destripe_out.txt'):
     """
     Function to write some text to an output file
     :param text: Str, what to print
@@ -100,7 +54,7 @@ import random
 from astropy.io import fits
 from filelock import FileLock, Timeout
 
-def save_fits(image, filename, dir=outpath, overwrite=True, s=False, header=None, retries=3):
+def save_fits(image, filename, dir=None, overwrite=True, s=False, header=None, retries=3):
     """
     Save a 2D image to a FITS file with locking, retries, and atomic rename.
     Parameters
@@ -202,20 +156,20 @@ class Cost_models:
     Class holding the cost function models. This is a dictionary of functions
     """
 
-    def __init__(self, model):
+    def __init__(self, cfg):
 
         models = {"quadratic": (quadratic, quad_prime), "absolute": (absolute, abs_prime),
                   "huber_loss": (huber_loss, huber_prime)}
 
-        self.model = model
+        self.model = cfg.cg_model
 
-        if model=='huber_loss':
-            self.thresh = CFG.hub_thresh
+        if self.model=='huber_loss':
+            self.thresh = cfg.hub_thresh
             write_to_file(f"Cost model is Huber Loss with threshold: {self.thresh}")
         else:
             self.thresh=None
 
-        self.f, self.f_prime = models[model]
+        self.f, self.f_prime = models[self.model]
 
 
 class Sca_img:
@@ -243,15 +197,15 @@ class Sca_img:
         subtract_parameters: Subtract a given set of parameters from self.image; updates self.image, self.params_subtracted
     """
 
-    def __init__(self, obsid, scaid, interpolated=False, add_noise=True, add_objmask=True):
+    def __init__(self, obsid, scaid, interpolated=False, add_noise=True, add_objmask=True, cfg=None):
 
         if interpolated:
-            file = fits.open(outpath + 'interpolations/' + obsid + '_' + scaid + '_interp.fits', memmap=True)
+            file = fits.open(cfg.ds_outpath + 'interpolations/' + obsid + '_' + scaid + '_interp.fits', memmap=True)
             image_hdu = 'PRIMARY'
         else:
-            file = fits.open(obsfile + filter_ + '_' + obsid + '_' + scaid + '.fits', memmap=True)
+            file = fits.open(cfg.ds_obsfile + filters[cfg.use_filter] + '_' + obsid + '_' + scaid + '.fits', memmap=True)
             image_hdu = 'SCI'
-        self.image = np.copy(file[image_hdu].data).astype(use_cg_float)
+        self.image = np.copy(file[image_hdu].data).astype(np.float64)
 
         self.shape = np.shape(self.image)
         self.w = wcs.WCS(file[image_hdu].header)
@@ -262,6 +216,7 @@ class Sca_img:
         self.scaid = scaid
         self.mask = np.ones(self.shape, dtype=bool)
         self.params_subtracted = False
+        self.cfg=cfg
 
         # Calculate effecive gain
         if not os.path.isfile(tempdir + obsid + '_' + scaid + '_geff.dat'):
@@ -275,9 +230,8 @@ class Sca_img:
                                (dec[1:-1, 2:] - dec[1:-1, :-2]) / 2, (dec[2:, 1:-1] - dec[:-2, 1:-1]) / 2))
             derivs_px = np.reshape(np.transpose(derivs), (4088 ** 2, 2, 2))
             det_mat = np.reshape(np.linalg.det(derivs_px), (4088, 4088))
-            g_eff[:, :] = 1 / (np.abs(det_mat) * np.cos(np.deg2rad(dec[1:4089, 1:4089])) * t_exp * A_eff)
+            g_eff[:, :] = 1 / (np.abs(det_mat) * np.cos(np.deg2rad(dec[1:4089, 1:4089])) * t_exp * areas[cfg.use_filter])
             g_eff.flush()
-            #write_to_file(f'G_eff calc duration: {time.time() - g0}')
             del g_eff
 
         self.g_eff = np.memmap(tempdir + obsid + '_' + scaid + '_geff.dat', dtype='float64', mode='r',
@@ -291,9 +245,9 @@ class Sca_img:
             self.apply_permanent_mask()
             self.mask *= np.logical_not(
                 object_mask)  # self.mask = True for good pixels, so set object_mask'ed pixels to False
-            if not os.path.exists(outpath + self.obsid + '_' + self.scaid + '_mask.fits'):
+            if not os.path.exists(cfg.ds_outpath + self.obsid + '_' + self.scaid + '_mask.fits'):
                 mask_img= self.mask.astype('uint8')
-                save_fits(mask_img, self.obsid + '_' + self.scaid + '_mask', dir=outpath+'masks/', overwrite=True)
+                save_fits(mask_img, self.obsid + '_' + self.scaid + '_mask', dir=cfg.ds_outpath+'masks/', overwrite=True)
 
   
     def apply_noise(self):
@@ -302,7 +256,7 @@ class Sca_img:
         :param save_fig: Default None. If passed as "obsid_scaid", write out a fits file of SCA image+noise
         :return None
         """
-        noiseframe = np.copy(fits.open(labnoise_prefix + self.obsid + '_' + self.scaid + '.fits')[
+        noiseframe = np.copy(fits.open(self.cfg.ds_indata + self.obsid + '_' + self.scaid + '.fits')[
                                  'PRIMARY'].data) * 1.458 * 50  # times gain and N_frames
         self.image += noiseframe[4:4092, 4:4092]
         filename = self.obsid + '_' + self.scaid + '_noise'
@@ -316,7 +270,7 @@ class Sca_img:
         Apply permanent pixel mask. Updates self.image and self.mask
         :return:
         """
-        pm = fits.open(permanent_mask)[0].data[int(self.scaid) - 1].astype(bool)
+        pm = fits.open(self.cfg.permanent_mask)[0].data[int(self.scaid) - 1].astype(bool)
         self.image *= pm
         self.mask *= pm
 
@@ -326,7 +280,7 @@ class Sca_img:
         Apply permanent pixel mask. Updates self.image and self.mask
         :return:
         """
-        pm = fits.open(permanent_mask)[0].data[int(self.scaid) - 1]
+        pm = fits.open(self.cfg.permanent_mask)[0].data[int(self.scaid) - 1]
         pm_array = np.copy(pm)
         return pm_array
 
@@ -372,7 +326,7 @@ class Sca_img:
         return ra, dec
 
 
-    def make_interpolated(self, ind, params=None, N_eff_min=0.5):
+    def make_interpolated(self, ind, scalist, ov_mat, params=None, N_eff_min=0.5):
         """
         Construct a version of this SCA interpolated from other, overlapping ones.
         Writes the interpolated image out to the disk, to be read/used later
@@ -399,7 +353,7 @@ class Sca_img:
 
         N_BinA = 0
 
-        for k, sca_b in enumerate(all_scas):
+        for k, sca_b in enumerate(scalist):
             obsid_B, scaid_B = get_ids(sca_b)
 
             if obsid_B != self.obsid and ov_mat[ind, k] >= 0.1:  # Check if this sca_b overlaps sca_a by at least 10%
@@ -436,7 +390,7 @@ class Sca_img:
         header = self.w.to_header(relax=True)
         this_interp = np.divide(this_interp, self.g_eff)
 
-        save_fits(this_interp, self.obsid + '_' + self.scaid + '_interp', outpath + 'interpolations/', header=header)
+        save_fits(this_interp, self.obsid + '_' + self.scaid + '_interp', dir=self.cfg.ds_outpath + 'interpolations/', header=header)
         t_elapsed_a = time.time() - t_a_start
 
         if make_Neff: N_eff.flush()
@@ -463,29 +417,25 @@ class Parameters:
         add option for additional parameters
     """
 
-    def __init__(self, model, n_rows):
-        self.model = model
+    def __init__(self, cfg, n_rows, scalist=[]):
+        model_params = {'constant': 1, 'linear': 2}
+        if cfg.ds_model not in model_params.keys():
+            raise ValueError(f"Model {cfg.ds_model} not in model_params dictionary.")
+        self.model = cfg.ds_model
         self.n_rows = n_rows
-        self.params_per_row = model_params[model]
-        self.params = np.zeros((len(all_scas), self.n_rows * self.params_per_row)) #default here is float64
+        self.params_per_row = model_params[self.model]
+        self.params = np.zeros((len(scalist), self.n_rows * self.params_per_row))
         self.current_shape = '2D'
+        self.scalist = scalist
+
 
     def params_2_images(self):
         """
         Reshape flattened parameters into 2D array with 1 row per sca and n_rows (in image) * params_per_row entries
         :return: None
         """
-        self.params = np.reshape(self.params, (len(all_scas), self.n_rows * self.params_per_row))
+        self.params = np.reshape(self.params, (len(self.scalist), self.n_rows * self.params_per_row))
         self.current_shape = '2D'
-
-    # def flatten_params(self):
-    #     """
-    #     Reshape 2D params array into flat
-    #     :return: None
-    #     """
-    #     self.params = np.ravel(self.params)
-    #     self.current_shape = '1D'
-
 
     def forward_par(self, sca_i):
         """
@@ -630,7 +580,7 @@ def get_ids(sca):
     return obsid, scaid
 
 def save_snapshot(p, grad, epsilon, psi, direction, grad_prev, direction_prev,
-                  method, tol, thresh, norm_0, cost_model, i, restart_file):
+                  cg_model, tol, thresh, norm_0, cost_model, i, restart_file):
     """Save restart state to pickle file."""
     crash_state = {
         'iteration': i,
@@ -641,7 +591,7 @@ def save_snapshot(p, grad, epsilon, psi, direction, grad_prev, direction_prev,
         'grad_prev': grad_prev,
         'psi': psi,
         'direction_prev': direction_prev,
-        'method': method,
+        'cg_model': cg_model,
         'tol': tol,
         'thresh': thresh,
         'norm_0': norm_0,
@@ -651,51 +601,49 @@ def save_snapshot(p, grad, epsilon, psi, direction, grad_prev, direction_prev,
         pickle.dump(crash_state, f)
     write_to_file(f"Checkpoint saved at iteration {i+1} -> {restart_file}")
 
+def residual_function(psi, f_prime, scalist, wcslist, ov_mat, thresh, workers, extrareturn=False, ds_model='FR'):
+        """
+        Calculate the residual image, = grad(epsilon)
+        :param psi: 3D np array, the image difference array (I_A - J_A) (N_SCA, 4088, 4088)
+        :param f_prime: function, the derivative of the cost function f
+                in the future this should be set by default based on what you pass for f
+        :param extrareturn: Bool (default False); if True, return residual terms 1 and 2 separately
+                in addition to full residuals. returns resids, resids1, resids2
+        :return resids: 2D np array, with one row per SCA and one col per parameter
+        """
+        resids = Parameters(ds_model, 4088).params
+        if extrareturn:
+            resids1 = np.zeros_like(resids)
+            resids2 = np.zeros_like(resids)
+        write_to_file('Residual calculation started')
+        t_r_0 = time.time()
 
-############################ Main Sequence ############################
+        with ProcessPoolExecutor(max_workers=workers) as executor:
+            futures = [executor.submit(residual_function_single, k, sca_a, wcslist[k], psi, f_prime, scalist, ov_mat, thresh) for k, sca_a in
+                       enumerate(scalist)]
 
-all_scas, all_wcs = get_scas(filter_, obsfile)
-write_to_file(f"{len(all_scas)} SCAs in this mosaic")
+        for future in as_completed(futures):
+            k, term_1, term_2_list = future.result()
+            resids[k, :] -= term_1
+            if extrareturn:
+                resids1[k, :] -= term_1
 
-if testing:
-    if os.path.isfile(outpath + 'ovmat.npy'):
-        ov_mat = np.load(outpath + 'ovmat.npy')
-    else:
-        ovmat_t0 = time.time()
-        write_to_file('Overlap matrix computing start')
-        ov_mat = compareutils.get_overlap_matrix(all_wcs, verbose=True)
-        np.save(outpath + 'ovmat.npy', ov_mat)
-        write_to_file(f"Overlap matrix complete. Duration: {(time.time() - ovmat_t0) / 60} Minutes")
-        write_to_file(f"Overlap matrix saved to: {outpath}ovmat.npy")
-else:
-    ovmat_t0 = time.time()
-    write_to_file('Overlap matrix computing start')
-    ov_mat = compareutils.get_overlap_matrix(all_wcs,
-                                             verbose=True)  # an N_wcs x N_wcs matrix containing fractional overlap
-    write_to_file(f"Overlap matrix complete. Duration: {(time.time() - ovmat_t0) / 60} Minutes")
+            # Process term_2 contributions
+            for j, term_2 in term_2_list:
+                resids[j, :] += term_2
+                if extrareturn:
+                    resids2[j, :] += term_2
 
-def residual_function_single(k, sca_a, psi, f_prime, thresh=None):
+        write_to_file(f'Residuals calculation finished in {(time.time() - t_r_0) / 60} minutes.')
+        write_to_file(f"Average time making resids per sca: {(time.time() - t_r_0) / len(scalist)} seconds")
+        if extrareturn: return resids, resids1, resids2
+        return resids
+
+def residual_function_single(k, sca_a, wcs_a, psi, f_prime, scalist, ov_mat, thresh):
     # Go and get the WCS object for image A
     obsid_A, scaid_A = get_ids(sca_a)
-    wcs_A = all_wcs[k]
-
-    # filepath = outpath + f'interpolations/{obsid_A}_{scaid_A}_interp.fits'
-    # lockfile = f"{filepath}.lock"
-    # timeout=30
-    # try:
-    #     with FileLock(lockfile, timeout=timeout):
-    #         with fits.open(filepath, memmap=True) as file:
-    #             wcs_A = wcs.WCS(file[0].header)
-    #             file.close()
-    # except Timeout:
-    #     print(f"RF Exception Timeout: Could not acquire lock on {filepath} within {timeout} seconds.")
-    # except FileNotFoundError:
-    #     print(f"RF Exception File not found: {filepath}")
-    # except Exception as e:
-    #     print(f"RF Exception Other error: {e}")
 
     # Calculate and then transpose the gradient of I_A-J_A
-    if TIME: T = time.time()
     gradient_interpolated = f_prime(psi[k, :, :], thresh) if thresh is not None else f_prime(psi[k,:,:])
 
     term_1 = transpose_par(gradient_interpolated)
@@ -711,37 +659,28 @@ def residual_function_single(k, sca_a, psi, f_prime, thresh=None):
         (g_eff_A[valid_mask] * n_eff_A[valid_mask]))
     gradient_interpolated[~valid_mask] = 0
 
-    if TIME: write_to_file(f"Time re-normalizing SCA A for transpose interp: {time.time() - T} seconds")
-
     term_2_list = []
-    neighbors = {k: [j for j in range(len(all_scas))
-                 if ov_mat[k,j] >= 0.1 and get_ids(all_scas[j])[0] != get_ids(all_scas[k])[0] ]
-             for k in range(len(all_scas))}
+    neighbors = {k: [j for j in range(len(scalist))
+                 if ov_mat[k,j] >= 0.1 and get_ids(scalist[j])[0] != get_ids(scalist[k])[0] ]
+             for k in range(len(scalist))}
 
     for j in neighbors[k]:
-        sca_b=all_scas[j]
+        sca_b=scalist[j]
         obsid_B, scaid_B = get_ids(sca_b)
 
         if obsid_B != obsid_A and ov_mat[k, j] >= 0.1:
             I_B = Sca_img(obsid_B, scaid_B)
             gradient_original = np.zeros(I_B.shape)
 
-            if TIME: T = time.time()
-            transpose_interpolate(gradient_interpolated, wcs_A, I_B, gradient_original)
-            if TIME: write_to_file(f"Time in transpose interpolation: {time.time() - T} seconds")
+            transpose_interpolate(gradient_interpolated, wcs_a, I_B, gradient_original)
             gradient_original *= I_B.g_eff
 
             term_2 = transpose_par(gradient_original)
             term_2_list.append((j, term_2))
 
-            # if obsid_A == '670' and scaid_A == '10':
-            #     write_to_file('670_10 sample stats:')
-            #     write_to_file(f'Terms 1 and 2 means: {np.mean(term_1)}, {np.mean(term_2)}')
-            #     write_to_file(f'G_eff_a, G_eff_b means: {np.mean(g_eff_A)}, {np.mean(I_B.g_eff)}')
-
     return k, term_1, term_2_list
 
-def cost_function_single(j, sca_a, p, f, thresh=None):
+def cost_function_single(j, sca_a, p, f, scalist, ov_mat, thresh):
     m = re.search(r'_(\d+)_(\d+)', sca_a)
     obsid_A, scaid_A = m.group(1), m.group(2)
 
@@ -753,9 +692,7 @@ def cost_function_single(j, sca_a, p, f, thresh=None):
         hdu = fits.PrimaryHDU(I_A.image)
         hdu.writeto(test_image_dir + '670_10_I_A_sub_masked.fits', overwrite=True)
 
-    if TIME: t = time.time()
-    J_A_image, J_A_mask = I_A.make_interpolated(j, params=p)
-    if TIME: write_to_file(f"Time making {sca_a} J_A: {time.time() - t} seconds")
+    J_A_image, J_A_mask = I_A.make_interpolated(j, scalist, ov_mat, params=p)
 
     J_A_mask *= I_A.mask
 
@@ -779,14 +716,7 @@ def cost_function_single(j, sca_a, p, f, thresh=None):
 
     return j, psi, local_epsilon
 
-
-
-def main():
-
-    workers = os.cpu_count() // int(os.environ['OMP_NUM_THREADS']) if 'OMP_NUM_THREADS' in os.environ else 12
-    write_to_file(f"## Using {workers} workers for parallel processing.")
-
-    def cost_function(p, f, thresh=None):
+def cost_function(p, f, thresh, workers, scalist, ov_mat):
         """
         Calculate the cost function with the current de-striping parameters.
         :param p: parameters object, the current parameters for de-striping
@@ -796,12 +726,12 @@ def main():
         """
         write_to_file('Initializing cost function')
         t0_cost = time.time()
-        psi = np.memmap(tempdir+'psi_all.dat', dtype=use_output_float, mode='w+', shape=(len(all_scas), 4088, 4088))
+        psi = np.memmap(tempdir+'psi_all.dat', dtype=use_output_float, mode='w+', shape=(len(scalist), 4088, 4088))
         psi.fill(0)
         epsilon = 0
 
         with ProcessPoolExecutor(max_workers=workers) as executor:
-            futures = [executor.submit(cost_function_single, j, sca_a, p, f, thresh) for j, sca_a in enumerate(all_scas)]
+            futures = [executor.submit(cost_function_single, j, sca_a, p, f, scalist, ov_mat, thresh) for j, sca_a in enumerate(scalist)]
 
         for future in as_completed(futures):
             j, psi_j, local_eps = future.result()
@@ -809,220 +739,41 @@ def main():
             epsilon += local_eps
 
         write_to_file(f'Ending cost function. Time elapsed: {(time.time() - t0_cost) / 60} minutes')
-        write_to_file(f'Average time per cost function iteration: {(time.time() - t0_cost) / len(all_scas)} seconds')
+        write_to_file(f'Average time per cost function iteration: {(time.time() - t0_cost) / len(scalist)} seconds')
         return epsilon, psi
 
-    def residual_function(psi, f_prime, thresh=None, extrareturn=False):
-        """
-        Calculate the residual image, = grad(epsilon)
-        :param psi: 3D np array, the image difference array (I_A - J_A) (N_SCA, 4088, 4088)
-        :param f_prime: function, the derivative of the cost function f
-                in the future this should be set by default based on what you pass for f
-        :param extrareturn: Bool (default False); if True, return residual terms 1 and 2 separately
-                in addition to full residuals. returns resids, resids1, resids2
-        :return resids: 2D np array, with one row per SCA and one col per parameter
-        """
-        resids = Parameters(use_model, 4088).params
-        if extrareturn:
-            resids1 = np.zeros_like(resids)
-            resids2 = np.zeros_like(resids)
-        write_to_file('Residual calculation started')
-        t_r_0 = time.time()
-
-        with ProcessPoolExecutor(max_workers=workers) as executor:
-            futures = [executor.submit(residual_function_single, k, sca_a, psi, f_prime, thresh) for k, sca_a in
-                       enumerate(all_scas)]
-
-        for future in as_completed(futures):
-            k, term_1, term_2_list = future.result()
-            resids[k, :] -= term_1
-            if extrareturn:
-                resids1[k, :] -= term_1
-
-            # Process term_2 contributions
-            for j, term_2 in term_2_list:
-                resids[j, :] += term_2
-                if extrareturn:
-                    resids2[j, :] += term_2
-
-        write_to_file(f'Residuals calculation finished in {(time.time() - t_r_0) / 60} minutes.')
-        write_to_file(f"Average time making resids per sca: {(time.time() - t_r_0) / len(all_scas)} seconds")
-        if extrareturn: return resids, resids1, resids2
-        return resids
-
     
-    def linear_search_general(p, direction, f, f_prime, epsilon_current, psi_current, grad_current, thresh=None, n_iter=100, tol=10 ** -4):
-        """
-        Linear search via combination bisection and secant methods for parameters that minimize the function
-         d_epsilon/d_alpha in the given direction . Note alpha = depth of step in direction
-        :param p: params object, the current de-striping parameters
-        :param direction: 2D np array, direction of conjugate gradient search
-        :param f: function, cost function form
-        :param f_prime: function, derivative of cost function form
-        :param grad_current: 2D np array, current gradient AKA current residuals
-        :param n_iter: int, number of iterations at which to stop searching
-        :param tol: float, absolute value of d_cost at which to converge
-        :return best_p: parameters object, containing the best parameters found via search
-        :return best_psi: 3D numpy array, the difference images made from images with the best_p params subtracted off
-        """
-        best_epsilon, best_psi = epsilon_current, psi_current
-        best_p = copy.deepcopy(p)
+def linear_search_general(p, direction, f, f_prime, cost_model, epsilon_current, psi_current, grad_current, thresh, workers, scalist, wcslist, ov_mat,
+                          n_iter=100, tol=10 ** -4, ds_model='FR'):
+    """
+    Linear search via combination bisection and secant methods for parameters that minimize the function
+        d_epsilon/d_alpha in the given direction . Note alpha = depth of step in direction
+    :param p: params object, the current de-striping parameters
+    :param direction: 2D np array, direction of conjugate gradient search
+    :param f: function, cost function form
+    :param f_prime: function, derivative of cost function form
+    :param grad_current: 2D np array, current gradient AKA current residuals
+    :param n_iter: int, number of iterations at which to stop searching
+    :param tol: float, absolute value of d_cost at which to converge
+    :return best_p: parameters object, containing the best parameters found via search
+    :return best_psi: 3D numpy array, the difference images made from images with the best_p params subtracted off
+    """
+    best_epsilon, best_psi = epsilon_current, psi_current
+    best_p = copy.deepcopy(p)
 
-        # Simple linear search
-        working_p = copy.deepcopy(p)
-        max_p = copy.deepcopy(p)
-        min_p = copy.deepcopy(p)
+    # Simple linear search
+    working_p = copy.deepcopy(p)
+    max_p = copy.deepcopy(p)
+    min_p = copy.deepcopy(p)
 
-        convergence_crit = 99.
-        method = 'bisection'
+    convergence_crit = 99.
+    method = 'bisection'
 
-        eta = 0.1
-        d_cost_init = np.sum(grad_current * direction)
-        d_cost_tol = np.abs(d_cost_init * 1*10**-3)
+    eta = 0.1
+    d_cost_init = np.sum(grad_current * direction)
+    d_cost_tol = np.abs(d_cost_init * 1*10**-3)
 
-        if cost_model=='quadratic':
-            alpha_test = -eta * (np.sum(grad_current*direction))/(np.sum(direction*direction)+1e-12)
-            if alpha_test <= 0:
-                # Not a descent direction — fallback
-                alpha_min = -0.9
-                alpha_max = 1.0
-            else:
-                # Curvature-based search window
-                alpha_min = alpha_test * 1e-4
-                alpha_max = alpha_test * 10
-
-        elif cost_model=='huber_loss':
-            alpha_test = 1.
-            alpha_min = 1e-4
-            alpha_max = 10
-
-        # Calculate f(alpha_max) and f(alpha_min), which need to be defined for secant update
-        write_to_file('### Calculating min and max epsilon and cost')
-        max_params = p.params + alpha_max * direction
-        max_p.params = max_params
-        max_epsilon, max_psi = cost_function(max_p, f, thresh)
-        max_resids = residual_function(max_psi, f_prime, thresh)
-        del max_psi
-        d_cost_max = np.sum(max_resids * direction)
-
-        min_params = p.params + alpha_min * direction
-        min_p.params = min_params
-        min_epsilon, min_psi = cost_function(min_p, f, thresh)
-        min_resids = residual_function(min_psi, f_prime, thresh)
-        del min_psi
-        d_cost_min = np.sum(min_resids * direction)
-
-        conv_params = []
-
-        for k in range(1, n_iter):
-            t0_ls_iter = time.time()
-
-            if k == 1:
-                write_to_file('### Beginning linear search')
-                write_to_file(f"LS Direction: {direction}")
-                hdu = fits.PrimaryHDU(direction)
-                hdu.writeto(test_image_dir + 'LSdirection.fits', overwrite=True)
-                write_to_file(f"Initial params: {p.params}")
-                write_to_file(f"Initial epsilon: {best_epsilon}")
-                write_to_file(f"Initial d_cost: {d_cost_init}, d_cost tol: {d_cost_tol}")
-                write_to_file(f"Initial alpha range (min, test, max): ({alpha_min}, {alpha_test}, {alpha_max})")
-
-            if k == n_iter - 1:
-                write_to_file(
-                    'WARNING: Linear search did not converge!! This is going to break because best_p is not assigned.')
-
-            if k!=1:
-                alpha_test = alpha_min - (
-                            d_cost_min * (alpha_max - alpha_min) / (d_cost_max - d_cost_min))  # secant update
-                write_to_file(f"Secant update: alpha_test={alpha_test}")
-                method = 'secant'
-                if np.isnan(alpha_test):
-                    write_to_file('Secant update fail-- bisecting instead')
-                    alpha_test = .5 * (alpha_min + alpha_max)  # bisection update
-                    write_to_file(f"Bisection update: alpha_test={alpha_test}")
-                    method = 'bisection'
-            elif k==1:
-                alpha_test = .5 * (alpha_min + alpha_max)  # bisection update
-                write_to_file(f"Bisection update: alpha_test={alpha_test}")
-
-            working_params = p.params + alpha_test * direction
-            working_p.params = working_params
-
-            working_epsilon, working_psi = cost_function(working_p, f, thresh)
-            print('Global elapsed t = {:8.1f}'.format((time.time()-t0_global)/60))
-            working_resids = residual_function(working_psi, f_prime, thresh)
-            print('Global elapsed t = {:8.1f}'.format((time.time()-t0_global)/60))
-            d_cost = np.sum(working_resids * direction)
-            convergence_crit = (alpha_max - alpha_min)
-            conv_params.append([working_epsilon, alpha_test, d_cost])
-
-            if k % 10 == 0:
-                hdu = fits.PrimaryHDU(working_resids)
-                hdu.writeto(test_image_dir + 'LS_Residuals_' + str(k) + '.fits', overwrite=True)
-
-            write_to_file(f"Ending LS iteration {k}")
-            write_to_file(f"Current d_cost = {d_cost}, epsilon = {working_epsilon}")
-            write_to_file(f"Working resids: {working_resids}")
-            write_to_file(f"Working params: {working_p.params}")
-            write_to_file(f"Current alpha range (min, test, max): {alpha_min, alpha_test, alpha_max}")
-            write_to_file(f"Current delta alpha: {convergence_crit}")
-            write_to_file(f"Time spent in this LS iteration: {(time.time() - t0_ls_iter) / 60} minutes.")
-
-            # Convergence and update criteria and checks
-            if ((working_epsilon < best_epsilon + tol * alpha_test * d_cost) and (np.abs(alpha_test)>=1e-6)):
-                best_epsilon = working_epsilon
-                best_p = copy.deepcopy(working_p)
-                best_psi = working_psi
-                best_resids = residual_function(working_psi, f_prime, thresh) # get the real residuals, not an approx
-                write_to_file(f"Linear search convergence in {k} iterations")
-                save_fits(best_p.params, 'best_p', dir=test_image_dir, overwrite=True)
-                save_fits(np.array(conv_params), 'conv_params', dir=test_image_dir, overwrite=True)
-                return best_p, best_psi ,best_resids, best_epsilon
-
-            # Updates for next iteration, if convergence isn't yet reached
-            if d_cost > tol and method == 'bisection':
-                alpha_max = alpha_test
-                d_cost_max = d_cost
-            elif d_cost < -tol and method == 'bisection':
-                alpha_min = alpha_test
-                d_cost_min = d_cost
-            elif d_cost * d_cost_min < 0 and method == 'secant':
-                alpha_max = alpha_test
-                d_cost_max = d_cost
-            elif d_cost * d_cost_max < 0 and method == 'secant':
-                alpha_min = alpha_test
-                d_cost_min = d_cost
-
-        return best_p, best_psi
-    
-    def linear_search_quadratic(p, direction, f, f_prime, grad_current, thresh=None):
-        """
-        For the quadratic cost function, direct calculation of alpha that minimizes the function
-         d_epsilon/d_alpha in the given direction . Note alpha = depth of step in direction
-        Finds the best alpha, computes the new parameters and diff image, and prints the new cost and convergence criteria
-        :param p: params object, the current de-striping parameters
-        :param direction: 2D np array, direction of conjugate gradient search
-        :param f: function, cost function form
-        :param f_prime: function, derivative of cost function form
-        :param grad_current: 2D np array, current gradient AKA current residuals
-
-        :return best_p: parameters object, containing the best parameters found via search
-        :return best_psi: 3D numpy array, the difference images made from images with the best_p params subtracted off
-        """
-        t0_ls = time.time()
-
-        # best_epsilon, best_psi = cost_function(p, f, thresh)
-        # best_p = copy.deepcopy(p)
-
-        # Simple linear search
-        new_p = copy.deepcopy(p)
-        trial_p = copy.deepcopy(p)
-
-        eta = 0.1
-        d_cost_init = np.sum(grad_current * direction)
-        d_cost_tol = np.abs(d_cost_init * 1*10**-3)
-
-    
+    if cost_model=='quadratic':
         alpha_test = -eta * (np.sum(grad_current*direction))/(np.sum(direction*direction)+1e-12)
         if alpha_test <= 0:
             # Not a descent direction — fallback
@@ -1033,222 +784,417 @@ def main():
             alpha_min = alpha_test * 1e-4
             alpha_max = alpha_test * 10
 
-        # Calculate 
-        trial_params = p.params + alpha_max * direction
-        trial_p.params = trial_params
-        trial_epsilon, trial_psi = cost_function(trial_p, f, thresh)
-        trial_resids = residual_function(trial_psi, f_prime, thresh)
-        del trial_psi, trial_epsilon
+    elif cost_model=='huber_loss':
+        alpha_test = 1.
+        alpha_min = 1e-4
+        alpha_max = 10
 
-        alpha_new = alpha_max * (-np.sum(direction * grad_current)) / (np.sum(direction * (trial_resids-grad_current))+1e-12)
+    # Calculate f(alpha_max) and f(alpha_min), which need to be defined for secant update
+    write_to_file('### Calculating min and max epsilon and cost')
+    max_params = p.params + alpha_max * direction
+    max_p.params = max_params
+    max_epsilon, max_psi = cost_function(max_p, f, thresh, workers, scalist, ov_mat)
+    max_resids = residual_function(max_psi, f_prime, scalist, wcslist, ov_mat, thresh, workers, ds_model=ds_model)
+    del max_psi
+    d_cost_max = np.sum(max_resids * direction)
 
-        new_params = p.params + alpha_new * direction
-        new_p.params = new_params
-        new_epsilon, new_psi = cost_function(new_p, f, thresh)
-        new_resids = grad_current + (alpha_new/alpha_max) * (trial_resids - grad_current)
-        print('(Inside LS) Global elapsed t = {:8.1f}'.format((time.time()-t0_global)/60))
-        sys.stdout.flush()
+    min_params = p.params + alpha_min * direction
+    min_p.params = min_params
+    min_epsilon, min_psi = cost_function(min_p, f, thresh, workers, scalist, ov_mat)
+    min_resids = residual_function(min_psi, f_prime, scalist, wcslist, ov_mat, thresh, workers, ds_model=ds_model)
+    del min_psi
+    d_cost_min = np.sum(min_resids * direction)
 
-        d_cost = np.sum(new_resids * direction)
+    conv_params = []
 
-        write_to_file(f"Ending LS")
-        write_to_file(f"Current d_cost = {d_cost}")
-        write_to_file(f"Current epsilon = {new_epsilon}")
-        write_to_file(f"Working resids: {new_resids}")
-        write_to_file(f"Working params: {new_p.params}")
-        write_to_file(f"Current alpha: {alpha_new}")
-        write_to_file(f"Time spent in this LS: {(time.time() - t0_ls) / 60} minutes.")
-        sys.stdout.flush()
+    for k in range(1, n_iter):
+        t0_ls_iter = time.time()
+
+        if k == 1:
+            write_to_file('### Beginning linear search')
+            write_to_file(f"LS Direction: {direction}")
+            hdu = fits.PrimaryHDU(direction)
+            hdu.writeto(test_image_dir + 'LSdirection.fits', overwrite=True)
+            write_to_file(f"Initial params: {p.params}")
+            write_to_file(f"Initial epsilon: {best_epsilon}")
+            write_to_file(f"Initial d_cost: {d_cost_init}, d_cost tol: {d_cost_tol}")
+            write_to_file(f"Initial alpha range (min, test, max): ({alpha_min}, {alpha_test}, {alpha_max})")
+
+        if k == n_iter - 1:
+            write_to_file(
+                'WARNING: Linear search did not converge!! This is going to break because best_p is not assigned.')
+
+        if k!=1:
+            alpha_test = alpha_min - (
+                        d_cost_min * (alpha_max - alpha_min) / (d_cost_max - d_cost_min))  # secant update
+            write_to_file(f"Secant update: alpha_test={alpha_test}")
+            method = 'secant'
+            if np.isnan(alpha_test):
+                write_to_file('Secant update fail-- bisecting instead')
+                alpha_test = .5 * (alpha_min + alpha_max)  # bisection update
+                write_to_file(f"Bisection update: alpha_test={alpha_test}")
+                method = 'bisection'
+        elif k==1:
+            alpha_test = .5 * (alpha_min + alpha_max)  # bisection update
+            write_to_file(f"Bisection update: alpha_test={alpha_test}")
+
+        working_params = p.params + alpha_test * direction
+        working_p.params = working_params
+
+        working_epsilon, working_psi = cost_function(working_p, f, thresh, workers, scalist, ov_mat)
+        print('Global elapsed t = {:8.1f}'.format((time.time()-t0_global)/60))
+        working_resids = residual_function(working_psi, f_prime, scalist, wcslist, ov_mat, thresh, workers, ds_model=ds_model)
+        print('Global elapsed t = {:8.1f}'.format((time.time()-t0_global)/60))
+        d_cost = np.sum(working_resids * direction)
+        convergence_crit = (alpha_max - alpha_min)
+        conv_params.append([working_epsilon, alpha_test, d_cost])
+
+        if k % 10 == 0:
+            hdu = fits.PrimaryHDU(working_resids)
+            hdu.writeto(test_image_dir + 'LS_Residuals_' + str(k) + '.fits', overwrite=True)
+
+        write_to_file(f"Ending LS iteration {k}")
+        write_to_file(f"Current d_cost = {d_cost}, epsilon = {working_epsilon}")
+        write_to_file(f"Working resids: {working_resids}")
+        write_to_file(f"Working params: {working_p.params}")
+        write_to_file(f"Current alpha range (min, test, max): {alpha_min, alpha_test, alpha_max}")
+        write_to_file(f"Current delta alpha: {convergence_crit}")
+        write_to_file(f"Time spent in this LS iteration: {(time.time() - t0_ls_iter) / 60} minutes.")
 
         # Convergence and update criteria and checks
-        save_fits(new_p.params, 'best_p', dir=test_image_dir, overwrite=True)
-        return new_p, new_psi , new_resids, new_epsilon
+        if ((working_epsilon < best_epsilon + tol * alpha_test * d_cost) and (np.abs(alpha_test)>=1e-6)):
+            best_epsilon = working_epsilon
+            best_p = copy.deepcopy(working_p)
+            best_psi = working_psi
+            best_resids = working_resids
+            write_to_file(f"Linear search convergence in {k} iterations")
+            save_fits(best_p.params, 'best_p', dir=test_image_dir, overwrite=True)
+            save_fits(np.array(conv_params), 'conv_params', dir=test_image_dir, overwrite=True)
+            return best_p, best_psi ,best_resids, best_epsilon
+
+        # Updates for next iteration, if convergence isn't yet reached
+        if d_cost > tol and method == 'bisection':
+            alpha_max = alpha_test
+            d_cost_max = d_cost
+        elif d_cost < -tol and method == 'bisection':
+            alpha_min = alpha_test
+            d_cost_min = d_cost
+        elif d_cost * d_cost_min < 0 and method == 'secant':
+            alpha_max = alpha_test
+            d_cost_max = d_cost
+        elif d_cost * d_cost_max < 0 and method == 'secant':
+            alpha_min = alpha_test
+            d_cost_min = d_cost
+
+    return best_p, best_psi
+
+def linear_search_quadratic(p, direction, f, f_prime, grad_current, thresh, workers, scalist, wcslist, ov_mat, ds_model='FR'):
+    """
+    For the quadratic cost function, direct calculation of alpha that minimizes the function
+        d_epsilon/d_alpha in the given direction . Note alpha = depth of step in direction
+    Finds the best alpha, computes the new parameters and diff image, and prints the new cost and convergence criteria
+    :param p: params object, the current de-striping parameters
+    :param direction: 2D np array, direction of conjugate gradient search
+    :param f: function, cost function form
+    :param f_prime: function, derivative of cost function form
+    :param grad_current: 2D np array, current gradient AKA current residuals
+
+    :return best_p: parameters object, containing the best parameters found via search
+    :return best_psi: 3D numpy array, the difference images made from images with the best_p params subtracted off
+    """
+    t0_ls = time.time()
+
+    # Simple linear search
+    new_p = copy.deepcopy(p)
+    trial_p = copy.deepcopy(p)
+
+    eta = 0.1
+    d_cost_init = np.sum(grad_current * direction)
+    d_cost_tol = np.abs(d_cost_init * 1*10**-3)
 
 
-    
-    def conjugate_gradient(p, f, f_prime, method='FR', tol=1e-5, max_iter=100, 
-                           thresh=None, restart_file=None, time_limit=None, cost_model='quadratic'):
-        """
-        Algorithm to use conjugate gradient descent to optimize the parameters for destriping.
-        Direction is updated using Fletcher-Reeves method
-        :param p: parameters object, containing initial parameters guess
-        :param f: function, functional form to use for cost function
-        :param f_prime: function, the derivative of f. KL: eventually f should dictate f prime
-        :param method: str, the method to use for CG direction update. Default: 'FR'
-                Current Options: 'FR', 'PR', 'HS', 'DY' (Fletcher-Reeves, Polak-Ribiere, Hestenes-Stiefel, Dai-Yuan)
-        :param tol: float, the value of the norm at which we say CG has converged
-        :param max_iter: int, number of iterations at which to force CG to stop
-        :param thresh:
-        :param restart_file: 
-        :param time_limit: int, how much time to elapse before stopping (minutes)
-        :return p: params object, the best fit parameters for destriping the SCA images
-        """
-        write_to_file('### Starting conjugate gradient optimization')
+    alpha_test = -eta * (np.sum(grad_current*direction))/(np.sum(direction*direction)+1e-12)
+    if alpha_test <= 0:
+        # Not a descent direction — fallback
+        alpha_min = -0.9
+        alpha_max = 1.0
+    else:
+        # Curvature-based search window
+        alpha_min = alpha_test * 1e-4
+        alpha_max = alpha_test * 10
+
+    # Calculate 
+    trial_params = p.params + alpha_max * direction
+    trial_p.params = trial_params
+    trial_epsilon, trial_psi = cost_function(trial_p, f, thresh, workers, scalist, ov_mat)
+    trial_resids = residual_function(trial_psi, f_prime,  scalist, wcslist, ov_mat, thresh, workers, ds_model=ds_model)
+    del trial_psi, trial_epsilon
+
+    alpha_new = alpha_max * (-np.sum(direction * grad_current)) / (np.sum(direction * (trial_resids-grad_current))+1e-12)
+
+    new_params = p.params + alpha_new * direction
+    new_p.params = new_params
+    new_epsilon, new_psi = cost_function(new_p, f,thresh, workers, scalist, ov_mat)
+    new_resids = grad_current + (alpha_new/alpha_max) * (trial_resids - grad_current)
+    print('(Inside LS) Global elapsed t = {:8.1f}'.format((time.time()-t0_global)/60))
+    sys.stdout.flush()
+
+    d_cost = np.sum(new_resids * direction)
+
+    write_to_file(f"Ending LS")
+    write_to_file(f"Current d_cost = {d_cost}")
+    write_to_file(f"Current epsilon = {new_epsilon}")
+    write_to_file(f"Working resids: {new_resids}")
+    write_to_file(f"Working params: {new_p.params}")
+    write_to_file(f"Current alpha: {alpha_new}")
+    write_to_file(f"Time spent in this LS: {(time.time() - t0_ls) / 60} minutes.")
+    sys.stdout.flush()
+
+    # Convergence and update criteria and checks
+    save_fits(new_p.params, 'best_p', dir=test_image_dir, overwrite=True)
+    return new_p, new_psi , new_resids, new_epsilon
+
+
+
+def conjugate_gradient(p, f, f_prime, thresh, workers, scalist, wcslist, ov_mat,
+                       restart_file=None, time_limit=None, cfg=None, of='destripe_out.txt'):
+    """
+    Algorithm to use conjugate gradient descent to optimize the parameters for destriping.
+    Direction is updated using Fletcher-Reeves method
+    :param p: parameters object, containing initial parameters guess
+    :param f: function, functional form to use for cost function
+    :param f_prime: function, the derivative of f. KL: eventually f should dictate f prime
+    :param thresh:
+    :param restart_file: 
+    :param time_limit: int, how much time to elapse before stopping (minutes)
+    :param cfg: config object, containing all config parameters
+    :param of: Str, output file to write log messages to
+    :return p: params object, the best fit parameters for destriping the SCA images
+    """
+    write_to_file('### Starting conjugate gradient optimization')
+    print('Global elapsed t = {:8.1f}'.format((time.time()-t0_global)/60))
+    print(f'HL Threshold (None, if cost fn is not Huber Loss): {thresh}')
+    print(f'Restart?: {cfg.ds_restart}\n')
+
+    global test_image_dir
+    test_image_dir = cfg.ds_outpath + '/test_images/' + str(0) + '/'
+    log_file = os.path.join(cfg.ds_outpath, 'cg_log.csv')
+
+    if cfg.ds_restart is not None:
+        with open(cfg.ds_restart, 'rb') as f_in:
+            state=pickle.load(f_in)
+        write_to_file(f"Restarting CG from snapshot {cfg.ds_restart} at iteration {state['iteration']+1}")
+        i = state['iteration']
+        p = state['p']
+        grad = state['grad']
+        epsilon = state['epsilon']
+        direction = state['direction']
+        grad_prev = state['grad_prev']
+        direction_prev = state['direction_prev']
+        cg_model = state['cg_model']
+        tol = state['tol']
+        thresh = state['thresh']
+        psi = state['psi']
+        norm_0 = state['norm_0']
+        cost_model = state['cost_model']
+
+    else:
+        # Initialize variables
+        cg_model = cfg.cg_model
+        cost_model = cfg.cost_model
+        tol = cfg.cg_tol
+        i = -1
+        grad_prev = None  # No previous gradient initially
+        grad = None
+        direction = None  # No initial direction
+        write_to_file('### Starting initial cost function', of)
+        epsilon, psi = cost_function(p, f, thresh, workers, scalist, ov_mat)
         print('Global elapsed t = {:8.1f}'.format((time.time()-t0_global)/60))
-        print(f'HL Threshold (None, if cost fn is not Huber Loss): {thresh}')
-        print(f'Restart?: {restart_file}\n')
 
-        global test_image_dir
-        test_image_dir = outpath + '/test_images/' + str(0) + '/'
-        log_file = os.path.join(outpath, 'cg_log.csv')
+        with open(log_file, 'w', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(['Iteration', 'Current Norm', 'Convergence Rate', 'Step Size', 'Gradient Magnitude',
+                            'Final d_cost', 'Final Epsilon', 'Time (min)', 'LS time (min)',
+                            'MSE', 'Parameter Change'])
 
-        if restart_file is not None:
-            with open(restart_file, 'rb') as f_in:
-                state=pickle.load(f_in)
-            write_to_file(f"Restarting CG from snapshot {restart_file} at iteration {state['iteration']+1}")
-            i = state['iteration']
-            p = state['p']
-            grad = state['grad']
-            epsilon = state['epsilon']
-            direction = state['direction']
-            grad_prev = state['grad_prev']
-            direction_prev = state['direction_prev']
-            method = state['method']
-            tol = state['tol']
-            thresh = state['thresh']
-            psi = state['psi']
-            norm_0 = state['norm_0']
-            cost_model = state['cost_model']
+    sys.stdout.flush()
+
+
+    for i in range(i+1, cfg.cg_maxiter):
+        write_to_file(f"### CG Iteration: {i + 1}", of)
+        test_image_dir = cfg.ds_outpath + '/test_images/' + str(i+1) + '/'
+        os.makedirs(test_image_dir, exist_ok=True)
+        t_start_CG_iter = time.time()
+
+        # Compute the gradient
+        if grad is None:
+            grad = residual_function(psi, f_prime, scalist, wcslist, ov_mat, thresh, workers, ds_model=cfg.ds_model)
+            write_to_file(f"Minutes spent in initial residual function: {(time.time() - t_start_CG_iter) / 60}", of)
+            print('Global elapsed t = {:8.1f}'.format((time.time()-t0_global)/60))
+            sys.stdout.flush()
+
+        # Compute the norm of the gradient
+        global current_norm
+        current_norm = np.linalg.norm(grad)
+
+        if i == 0 and grad_prev is None:
+            write_to_file(f'Initial gradient: {grad}', of)
+            norm_0 = np.linalg.norm(grad)
+            write_to_file(f'Initial norm: {norm_0}', of)
+            write_to_file(f'Initial epsilon: {epsilon}', of)
+            tol = tol * norm_0
+            direction = -grad
+
+        elif (i+1)%10 == 0 :
+            beta = 0
+            write_to_file(f"Current Beta: {beta} (using method: {cg_model})", of)
+            direction = -grad + beta * direction_prev
 
         else:
-            # Initialize variables
-            i = -1
-            grad_prev = None  # No previous gradient initially
-            grad = None
-            direction = None  # No initial direction
-            write_to_file('### Starting initial cost function')
-            epsilon, psi = cost_function(p, f, thresh)
-            print('Global elapsed t = {:8.1f}'.format((time.time()-t0_global)/60))
+            # Calculate beta (direction scaling) depending on cg_model
+            if cg_model=='FR': beta = np.sum(np.square(grad)) / np.sum(np.square(grad_prev))
+            elif cg_model=='PR': beta = max(0,np.sum(grad * (grad - grad_prev)) / (np.sum(np.square(grad_prev))))
+            elif cg_model== 'HS': beta = (np.sum(grad * (grad - grad_prev)) /
+                                        np.sum(-direction_prev * (grad - grad_prev)))
+            elif cg_model== 'DY': beta = np.sum(np.square(grad)) / np.sum(-direction_prev * (grad - grad_prev))
+            
+            else: raise ValueError(f"Unknown method for CG direction update: {cg_model}")
 
-            with open(log_file, 'w', newline='') as csvfile:
-                writer = csv.writer(csvfile)
-                writer.writerow(['Iteration', 'Current Norm', 'Convergence Rate', 'Step Size', 'Gradient Magnitude',
-                                'Final d_cost', 'Final Epsilon', 'Time (min)', 'LS time (min)',
-                                'MSE', 'Parameter Change'])
+            write_to_file(f"Current Beta: {beta} (using method: {cg_model})", of)
 
+            direction = -grad + beta * direction_prev
+
+        if current_norm < tol:
+            write_to_file(f"Convergence reached at iteration: {i + 1} via norm {current_norm} < tol {tol}", of)
+            break
+
+        # Perform linear search
+        t_start_LS = time.time()
+        write_to_file(f"Initiating linear search in direction: {direction}", of)
         sys.stdout.flush()
 
+        if cost_model=='quadratic':
+            p_new, psi_new, grad_new, epsilon_new = linear_search_quadratic(p, direction, f, f_prime, grad, thresh, workers, 
+                                                                            scalist, wcslist, ov_mat, ds_model=cfg.ds_model)
 
-        for i in range(i+1, max_iter):
-            write_to_file(f"### CG Iteration: {i + 1}")
-            test_image_dir = outpath + '/test_images/' + str(i+1) + '/'
-            os.makedirs(test_image_dir, exist_ok=True)
-            t_start_CG_iter = time.time()
+        else:
+            p_new, psi_new, grad_new, epsilon_new = linear_search_general(p, direction, f, f_prime, cost_model, epsilon, psi, grad, thresh, 
+                                                                          workers, scalist, wcslist, ov_mat, ds_model=cfg.ds_model)
 
-            # Compute the gradient
-            if grad is None:
-                grad = residual_function(psi, f_prime, thresh)
-                write_to_file(f"Minutes spent in initial residual function: {(time.time() - t_start_CG_iter) / 60}")
-                print('Global elapsed t = {:8.1f}'.format((time.time()-t0_global)/60))
-                sys.stdout.flush()
+        print('Global elapsed t = {:8.1f}'.format((time.time()-t0_global)/60))
+        ls_time = (time.time() - t_start_LS) / 60
+        write_to_file(f'Total time spent in linear search: {ls_time}', of)
+        write_to_file(
+            f'Current norm: {current_norm}, Tol * Norm_0: {tol}, Difference (CN-TOL): {current_norm - tol}', of)
+        sys.stdout.flush()
 
-            # Compute the norm of the gradient
-            global current_norm
-            current_norm = np.linalg.norm(grad)
+        # Calculate additional metrics
+        convergence_rate = (current_norm - np.linalg.norm(grad_new)) / current_norm
+        step_size = np.linalg.norm(p_new.params - p.params)
+        gradient_magnitude = np.linalg.norm(grad_new)
+        mse = np.mean(psi_new ** 2)
+        parameter_change = np.linalg.norm(p_new.params - p.params)
 
-            if i == 0 and grad_prev is None:
-                write_to_file(f'Initial gradient: {grad}')
-                norm_0 = np.linalg.norm(grad)
-                write_to_file(f'Initial norm: {norm_0}')
-                write_to_file(f'Initial epsilon: {epsilon}')
-                tol = tol * norm_0
-                direction = -grad
+        with open(log_file, 'a', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow([i + 1, current_norm, convergence_rate, step_size, gradient_magnitude,
+                            np.sum(grad * direction), np.sum(psi),
+                            (time.time() - t_start_CG_iter)/60, ls_time, mse, parameter_change])
 
-            elif (i+1)%10 == 0 :
-                beta = 0
-                write_to_file(f"Current Beta: {beta} (using method: {method})")
-                direction = -grad + beta * direction_prev
+        # Update to current values
+        p = p_new
+        psi = psi_new
+        epsilon = epsilon_new
+        grad_prev = grad
+        grad = grad_new
+        direction_prev = direction
 
-            else:
-                # Calculate beta (direction scaling) depending on method
-                if method=='FR': beta = np.sum(np.square(grad)) / np.sum(np.square(grad_prev))
-                elif method=='PR': beta = max(0,np.sum(grad * (grad - grad_prev)) / (np.sum(np.square(grad_prev))))
-                elif method== 'HS': beta = (np.sum(grad * (grad - grad_prev)) /
-                                            np.sum(-direction_prev * (grad - grad_prev)))
-                elif method== 'DY': beta = np.sum(np.square(grad)) / np.sum(-direction_prev * (grad - grad_prev))
-                
-                else: raise ValueError(f"Unknown method for CG direction update: {method}"
-                                    f" (Options are: {CG_models})")
+        write_to_file(f'Total time spent in this CG iteration: {(time.time() - t_start_CG_iter) / 60} minutes.', of)
+        print('Global elapsed t = {:8.1f}'.format((time.time()-t0_global)/60))
+        sys.stdout.flush()
 
-                write_to_file(f"Current Beta: {beta} (using method: {method})")
+            # Save checkpoint if walltime exceeded
+        if time_limit is not None:
+            elapsed_minutes = (time.time() - t0_global) / 60
+            if elapsed_minutes >= time_limit:
+                write_to_file(f"Walltime limit {time_limit} min reached. Exiting early!!!", of)
+                if cfg.ds_restart is None:
+                    restart_file = os.path.join(cfg.ds_outpath, 'cg_restart.pkl')
+                save_snapshot(p, grad, epsilon, psi, direction, grad_prev, direction_prev,
+                            cg_model, tol, thresh, norm_0, cost_model, i, restart_file)
+                return p
 
-                direction = -grad + beta * direction_prev
+        if i == cfg.cg_maxiter - 1:
+            write_to_file(f'CG reached MAX ITERATIONS {cfg.cg_maxiter} and DID NOT converge!!!!', of)
 
-            if current_norm < tol:
-                write_to_file(f"Convergence reached at iteration: {i + 1} via norm {current_norm} < tol {tol}")
-                break
+    write_to_file(f'Conjugate gradient complete. Finished in {i + 1} / {cfg.cg_maxiter} iterations', of)
+    write_to_file(f'Final parameters: {p.params}', of)
+    write_to_file(f'Final norm: {current_norm}', of)
+    return p
 
-            # Perform linear search
-            t_start_LS = time.time()
-            write_to_file(f"Initiating linear search in direction: {direction}")
-            sys.stdout.flush()
-            if cost_model=='quadratic':
-                p_new, psi_new, grad_new, epsilon_new = linear_search_quadratic(p, direction, f, f_prime, grad, thresh)
-            else:
-                p_new, psi_new, grad_new, epsilon_new = linear_search_general(p, direction, f, f_prime, epsilon, psi, grad, thresh)
 
-            print('Global elapsed t = {:8.1f}'.format((time.time()-t0_global)/60))
-            ls_time = (time.time() - t_start_LS) / 60
-            write_to_file(f'Total time spent in linear search: {ls_time}')
-            write_to_file(
-                f'Current norm: {current_norm}, Tol * Norm_0: {tol}, Difference (CN-TOL): {current_norm - tol}')
-            sys.stdout.flush()
+def main():
 
-            # Calculate additional metrics
-            convergence_rate = (current_norm - np.linalg.norm(grad_new)) / current_norm
-            step_size = np.linalg.norm(p_new.params - p.params)
-            gradient_magnitude = np.linalg.norm(grad_new)
-            mse = np.mean(psi_new ** 2)
-            parameter_change = np.linalg.norm(p_new.params - p.params)
+    global filters, areas, CG_models, s_in, t_exp, tempdir, testing, use_output_float
 
-            with open(log_file, 'a', newline='') as csvfile:
-                writer = csv.writer(csvfile)
-                writer.writerow([i + 1, current_norm, convergence_rate, step_size, gradient_magnitude,
-                                np.sum(grad * direction), np.sum(psi),
-                                (time.time() - t_start_CG_iter)/60, ls_time, mse, parameter_change])
+    filters = ['Y106', 'J129', 'H158', 'F184', 'K213']
+    areas = [7006, 7111, 7340, 4840, 4654]  # cm^2
+    CG_models = {'FR', 'PR', 'HS', 'DY'}
+    s_in = 0.11  # arcsec^2
+    t_exp = 154  # sec
+    tempdir = os.getenv('TMPDIR') + '/'
+    testing=True
+    use_output_float=np.float32
 
-            # Update to current values
-            p = p_new
-            psi = psi_new
-            epsilon = epsilon_new
-            grad_prev = grad
-            grad = grad_new
-            direction_prev = direction
 
-            write_to_file(f'Total time spent in this CG iteration: {(time.time() - t_start_CG_iter) / 60} minutes.')
-            print('Global elapsed t = {:8.1f}'.format((time.time()-t0_global)/60))
-            sys.stdout.flush()
+    # Import config file
+    CFG = Config(cfg_file='/fs/scratch/PCON0003/klaliotis/pyimcom/configs/imdestripe_configs/config_destripe-H.json')
+    filter_ = filters[CFG.use_filter]
+    outpath =  CFG.ds_outpath #path to put outputs, /fs/scratch/PCON0003/klaliotis/imdestripe/
 
-             # Save checkpoint if walltime exceeded
-            if time_limit is not None:
-                elapsed_minutes = (time.time() - t0_global) / 60
-                if elapsed_minutes >= time_limit:
-                    write_to_file(f"Walltime limit {time_limit} min reached. Exiting early!!!")
-                    if restart_file is None:
-                        restart_file = os.path.join(outpath, 'cg_restart.pkl')
-                    save_snapshot(p, grad, epsilon, psi, direction, grad_prev, direction_prev,
-                                method, tol, thresh, norm_0, cost_model, i, restart_file)
-                    return p
+    # Prior on cost function is not yet implemented
+    # if CFG.cost_prior != 0:
+    #     cost_prior = CFG.cost_prior
 
-            if i == max_iter - 1:
-                write_to_file(f'CG reached MAX ITERATIONS {max_iter} and DID NOT converge!!!!')
+    if CFG.cg_model not in CG_models:
+        raise ValueError(f"CG model {CFG.cg_model} not in CG_models dictionary.")
+    outfile = outpath + filter_ + CFG.ds_outstem # the file that the output prints etc are written to
 
-        write_to_file(f'Conjugate gradient complete. Finished in {i + 1} / {max_iter} iterations')
-        write_to_file(f'Final parameters: {p.params}')
-        write_to_file(f'Final norm: {current_norm}')
-        return p
-        
-    
+    CFG()
+
+    t0 = time.time()
+
+    workers = os.cpu_count() // int(os.environ['OMP_NUM_THREADS']) if 'OMP_NUM_THREADS' in os.environ else 12
+    write_to_file(f"## Using {workers} workers for parallel processing.")
+
+    all_scas, all_wcs = get_scas(filter_, CFG.ds_obsfile)
+    write_to_file(f"{len(all_scas)} SCAs in this mosaic", filename=outfile)
+
+    if testing:
+        if os.path.isfile(outpath + 'ovmat.npy'):
+            ov_mat = np.load(outpath + 'ovmat.npy')
+        else:
+            ovmat_t0 = time.time()
+            write_to_file('Overlap matrix computing start', filename=outfile)
+            ov_mat = compareutils.get_overlap_matrix(all_wcs, verbose=True)
+            np.save(outpath + 'ovmat.npy', ov_mat)
+            write_to_file(f"Overlap matrix complete. Duration: {(time.time() - ovmat_t0) / 60} Minutes", filename=outfile)
+            write_to_file(f"Overlap matrix saved to: {outpath}ovmat.npy", filename=outfile)
+    else:
+        ovmat_t0 = time.time()
+        write_to_file('Overlap matrix computing start', filename=outfile)
+        ov_mat = compareutils.get_overlap_matrix(all_wcs,
+                                                verbose=True)  # an N_wcs x N_wcs matrix containing fractional overlap
+        write_to_file(f"Overlap matrix complete. Duration: {(time.time() - ovmat_t0) / 60} Minutes", filename=outfile)
 
     # Initialize parameters
-    p0 = Parameters(use_model, 4088)
-    cm = Cost_models(cost_model)
+    p0 = Parameters(cfg=CFG, n_rows=4088, scalist=all_scas) # KL change n_rows into a cfg param
+    cm = Cost_models(cfg=CFG)
 
     # Do it
     try:
-        p = conjugate_gradient(p0, cm.f, cm.f_prime,
-                            cg_model, cg_tol, cg_maxiter, cm.thresh,
-                            restart_file = restart_file, time_limit=7200, cost_model=cost_model)
+        p = conjugate_gradient(p0, cm.f, cm.f_prime, cm.thresh, workers, all_scas, all_wcs, ov_mat,
+                                time_limit=7200, cfg=CFG, of=outfile)
         hdu = fits.PrimaryHDU(p.params)
         hdu.writeto(outpath + 'final_params.fits', overwrite=True)
         print(outpath + 'final_params.fits created \n')
@@ -1274,8 +1220,8 @@ def main():
         hdulist = fits.HDUList([hdu, hdu2, hdu3, hdu4])
         hdulist.writeto(outpath + filter_ + '_DS_' + obsid + scaid + '.fits', overwrite=True)
 
-    write_to_file(f'Destriped images saved to {outpath + filter_} _DS_*.fits')
-    write_to_file(f'Total hours elapsed: {(time.time() - t0) / 3600}')
+    write_to_file(f'Destriped images saved to {outpath + filter_} _DS_*.fits', filename=outfile)
+    write_to_file(f'Total hours elapsed: {(time.time() - t0) / 3600}', filename=outfile)
 
 
 if __name__ == '__main__':
@@ -1290,9 +1236,9 @@ if __name__ == '__main__':
         stats = pstats.Stats(profiler, stream=stream)
         stats.sort_stats('cumulative')
         stats.print_stats()
-        with open(outpath+'profile_results.txt', 'w') as f:
+        with open('profile_results.txt', 'w') as f:
             f.write(stream.getvalue())
         if mem_usage is not None:
-            with open(outpath + 'memory_profile_results.txt', 'w') as f:
+            with open('memory_profile_results.txt', 'w') as f:
                 for i, mem in enumerate(mem_usage):
                     f.write(f"{i}\t{mem:.2f} MiB\n")
