@@ -1,5 +1,14 @@
 """
 Program to remove correlated noise stripes from RST images.
+
+Classes
+-------
+Sca_img
+     Class defining an SCA image object
+Parameters
+        Class holding the destriping parameters for a given mosaic
+Cost_models
+        Class holding the cost function models. Currently only quadratic is supported
 """
 
 import os
@@ -24,132 +33,16 @@ import copy
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from filelock import Timeout, FileLock
 from scipy.ndimage import binary_dilation
-try:
-    import furry_parakeet.pyimcom_croutines as pyimcom_croutines
-except ImportError:
-    import pyimcom_croutines
-
-
-def write_to_file(text, filename='destripe_out.txt'):
-    """
-    Function to write some text to an output file
-    :param text: Str, what to print
-    :param filename: Str, an alternative filename if not going into the outfile
-    :return: nothing
-    """
-
-    if not os.path.exists(filename):
-        with open(filename, "w+") as f:
-            f.write(text + '\n')
-    else:
-        with open(filename, "a") as f:
-            f.write(text + '\n')
-    print(text)
-
-
 import os
 import uuid
 import time
 import random
 from astropy.io import fits
 from filelock import FileLock, Timeout
-
-def save_fits(image, filename, dir=None, overwrite=True, s=False, header=None, retries=3):
-    """
-    Save a 2D image to a FITS file with locking, retries, and atomic rename.
-    Parameters
-    ----------
-    image : np.ndarray, 2D array to write.
-    filename : str, Output filename without extension.
-    dir : str, Directory to save into.
-    overwrite : bool, Whether to overwrite the final target file.
-    s : bool,  Whether to print status messages.
-    header : fits.Header or None, Optional FITS header.
-    retries : int, Number of write retry attempts if write fails.
-    """
-    filepath = os.path.join(dir, filename + '.fits')
-    lockpath = filepath + '.lock'
-    lock = FileLock(lockpath)
-
-    for attempt in range(retries):
-        try:
-            with lock.acquire(timeout=30):
-                tmp_filepath = filepath + f".{uuid.uuid4().hex}.tmp"
-                if header is not None:
-                    hdu = fits.PrimaryHDU(image, header=header)
-                else:
-                    hdu = fits.PrimaryHDU(image)
-
-                hdu.writeto(tmp_filepath, overwrite=True)
-                os.replace(tmp_filepath, filepath)  # Atomic move to final path
-
-                if s:
-                    write_to_file(f"Array {filename} written out to {filepath}")
-                return  # Success
-
-        except Timeout:
-            write_to_file(f"Failed to write {filename}; lock acquire timeout")
-            return
-
-        except OSError as e:
-            if attempt < retries - 1:
-                wait_time = 1 + random.random()
-                print(f"Write failed for {filepath} (attempt {attempt + 1}): {e}. Retrying in {wait_time:.2f}s...")
-                time.sleep(wait_time)
-            else:
-                raise RuntimeError(f"Failed to write {filepath} after {retries} attempts. Last error: {e}")
-
-
-def apply_object_mask(image, mask=None, threshold_factor=2.5, inplace=False):
-    """
-    Apply a bright object mask to an image.
-
-    :param image: 2D numpy array, the image to be masked.
-    :param mask: optional 2D boolean array, the pre-existing object mask.
-    :param threshold_factor: float, threshold for masking a pixel
-    :param: factor to multiply with the median for thresholding.
-    :param inplace: whether to modify the input image directly.
-    :return image_out: the masked image.
-    :return neighbor_mask: the mask applied.
-    """
-    if mask is not None and isinstance(mask, np.ndarray):
-        neighbor_mask = mask
-    else:
-        median_val = np.median(image)
-        high_value_mask = image >= threshold_factor * median_val
-        neighbor_mask = binary_dilation(high_value_mask, structure=np.ones((5, 5), dtype=bool))
-
-    if inplace:
-        image[neighbor_mask] = 0
-        return image, neighbor_mask
-    else:
-        image_out = np.where(neighbor_mask, 0, image)
-        return image_out, neighbor_mask
-
-
-def quadratic(x):
-    return x ** 2
-
-
-def absolute(x):
-    return np.abs(x)
-
-
-def huber_loss(x, d):
-    return np.where(np.abs(x) <= d, quadratic(x), d**2+2*d*(np.abs(x)-d))
-
-
-# Derivatives
-def quad_prime(x):
-    return 2 * x
-
-
-def abs_prime(x):
-    return np.sign(x)
-
-
-def huber_prime(x, d):
-    return np.where(np.abs(x) <= d, quad_prime(x), 2*d*np.sign(x))
+try:
+    import furry_parakeet.pyimcom_croutines as pyimcom_croutines
+except ImportError:
+    import pyimcom_croutines
 
 class Cost_models:
     """
@@ -446,6 +339,121 @@ class Parameters:
         if not self.current_shape == '2D':
             self.params_2_images()
         return np.array(self.params[sca_i, :])[:, np.newaxis] * np.ones((self.n_rows, self.n_rows))
+
+
+
+def write_to_file(text, filename='destripe_out.txt'):
+    """
+    Function to write some text to an output file
+    :param text: Str, what to print
+    :param filename: Str, an alternative filename if not going into the outfile
+    :return: nothing
+    """
+
+    if not os.path.exists(filename):
+        with open(filename, "w+") as f:
+            f.write(text + '\n')
+    else:
+        with open(filename, "a") as f:
+            f.write(text + '\n')
+    print(text)
+
+def save_fits(image, filename, dir=None, overwrite=True, s=False, header=None, retries=3):
+    """
+    Save a 2D image to a FITS file with locking, retries, and atomic rename.
+    Parameters
+    ----------
+    image : np.ndarray, 2D array to write.
+    filename : str, Output filename without extension.
+    dir : str, Directory to save into.
+    overwrite : bool, Whether to overwrite the final target file.
+    s : bool,  Whether to print status messages.
+    header : fits.Header or None, Optional FITS header.
+    retries : int, Number of write retry attempts if write fails.
+    """
+    filepath = os.path.join(dir, filename + '.fits')
+    lockpath = filepath + '.lock'
+    lock = FileLock(lockpath)
+
+    for attempt in range(retries):
+        try:
+            with lock.acquire(timeout=30):
+                tmp_filepath = filepath + f".{uuid.uuid4().hex}.tmp"
+                if header is not None:
+                    hdu = fits.PrimaryHDU(image, header=header)
+                else:
+                    hdu = fits.PrimaryHDU(image)
+
+                hdu.writeto(tmp_filepath, overwrite=True)
+                os.replace(tmp_filepath, filepath)  # Atomic move to final path
+
+                if s:
+                    write_to_file(f"Array {filename} written out to {filepath}")
+                return  # Success
+
+        except Timeout:
+            write_to_file(f"Failed to write {filename}; lock acquire timeout")
+            return
+
+        except OSError as e:
+            if attempt < retries - 1:
+                wait_time = 1 + random.random()
+                print(f"Write failed for {filepath} (attempt {attempt + 1}): {e}. Retrying in {wait_time:.2f}s...")
+                time.sleep(wait_time)
+            else:
+                raise RuntimeError(f"Failed to write {filepath} after {retries} attempts. Last error: {e}")
+
+
+def apply_object_mask(image, mask=None, threshold_factor=2.5, inplace=False):
+    """
+    Apply a bright object mask to an image.
+
+    :param image: 2D numpy array, the image to be masked.
+    :param mask: optional 2D boolean array, the pre-existing object mask.
+    :param threshold_factor: float, threshold for masking a pixel
+    :param: factor to multiply with the median for thresholding.
+    :param inplace: whether to modify the input image directly.
+    :return image_out: the masked image.
+    :return neighbor_mask: the mask applied.
+    """
+    if mask is not None and isinstance(mask, np.ndarray):
+        neighbor_mask = mask
+    else:
+        median_val = np.median(image)
+        high_value_mask = image >= threshold_factor * median_val
+        neighbor_mask = binary_dilation(high_value_mask, structure=np.ones((5, 5), dtype=bool))
+
+    if inplace:
+        image[neighbor_mask] = 0
+        return image, neighbor_mask
+    else:
+        image_out = np.where(neighbor_mask, 0, image)
+        return image_out, neighbor_mask
+
+
+def quadratic(x):
+    return x ** 2
+
+
+def absolute(x):
+    return np.abs(x)
+
+
+def huber_loss(x, d):
+    return np.where(np.abs(x) <= d, quadratic(x), d**2+2*d*(np.abs(x)-d))
+
+
+# Derivatives
+def quad_prime(x):
+    return 2 * x
+
+
+def abs_prime(x):
+    return np.sign(x)
+
+
+def huber_prime(x, d):
+    return np.where(np.abs(x) <= d, quad_prime(x), 2*d*np.sign(x))
 
 
 def get_scas(filter, obsfile):
