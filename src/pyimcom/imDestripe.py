@@ -217,8 +217,6 @@ class Sca_img:
     def apply_noise(self):
         """
         Add detector noise to self.image
-        :param save_fig: Default None. If passed as "obsid_scaid", write out a fits file of SCA image+noise
-        :return None
         """
         noiseframe = np.copy(fits.open(self.cfg.ds_indata + self.obsid + '_' + self.scaid + '.fits')[
                                  'PRIMARY'].data) * 1.458 * 50  # times gain and N_frames
@@ -232,7 +230,6 @@ class Sca_img:
     def apply_permanent_mask(self):
         """
         Apply permanent pixel mask. Updates self.image and self.mask
-        :return:
         """
         pm = fits.open(self.cfg.permanent_mask)[0].data[int(self.scaid) - 1].astype(bool)
         self.image *= pm
@@ -241,8 +238,8 @@ class Sca_img:
 
     def get_permanent_mask(self):
         """
-        Apply permanent pixel mask. Updates self.image and self.mask
-        :return:
+        Apply permanent pixel mask. 
+        Updates self.image and self.mask
         """
         pm = fits.open(self.cfg.permanent_mask)[0].data[int(self.scaid) - 1]
         pm_array = np.copy(pm)
@@ -251,18 +248,24 @@ class Sca_img:
 
     def apply_all_mask(self):
         """
-        Apply permanent pixel mask. Updates self.image in-place
-        :return:
+        Apply permanent pixel mask. 
+        Updates self.image in-place
         """
         self.image *= self.mask
 
 
     def subtract_parameters(self, p, j):
         """
-        Subtract a set of parameters from the SCA image. Updates self.image and self.params_subtracted
-        :param p: a parameters object, with current params
-        :param j: int, the index of the SCA image into all_scas list
-        :return: None
+        Subtract a set of parameters from the SCA image. 
+        Updates self.image and self.params_subtracted
+
+        Parameters
+        --------
+        p : Parameters object
+            containing params of current iteration
+        j : int
+            the index of the SCA image into all_scas list
+        
         """
         if self.params_subtracted:
             write_to_file('WARNING: PARAMS HAVE ALREADY BEEN SUBTRACTED. ABORTING NOW')
@@ -275,8 +278,16 @@ class Sca_img:
     def get_coordinates(self, pad=0.):
         """
         Create an array of ra, dec coords for the image
-        :param pad: Float64, add padding to the array. default is zero.
-        :return: ra, dec; 1D np arrays of length (height*width)
+
+        Parameters
+        --------
+        pad : Float64
+            N pixels of padding to add to the array. Default 0.0
+
+        Returns
+        --------
+        ra, dec; 1D np.arrays of length (height*width)
+            1D arrays of ra, dec coordinates for each pixel in the image
         """
         wcs = self.w
         h = self.shape[0] + pad
@@ -295,10 +306,16 @@ class Sca_img:
         Construct a version of this SCA interpolated from other, overlapping ones.
         Writes the interpolated image out to the disk, to be read/used later
         The N_eff_min parameter requires some minimum effective coverage, otherwise masks that pixel.
-        :param ind: int; index of this SCA in all_scas list
-        :param params: parameters object; parameters to be subtracted from contributing SCAs; default Nnoe
-        :param N_eff_min: float; effective coverage needed for a pixel to contribute to the interpolation
-        :return: None
+
+        Parameters
+        --------
+        ind : int
+            index of this SCA in all_scas list
+        params : Parameters object
+             parameters to be subtracted from contributing SCAs; default Nnoe
+        N_eff_min : float
+             Effective coverage needed for a pixel to contribute to the interpolation
+
         """
         this_interp = np.zeros(self.shape)
 
@@ -364,21 +381,41 @@ class Sca_img:
 
 class Parameters:
     """
-    Class holding the parameters for a given mosaic. This can be the destriping parameters, or a slew of other
-    parameters that need to be the same shape and have the same methods...
-    Attributes:
-        model: Str, which destriping model to use, which specifies the number of parameters per row.
-                Must be a key of the model_params dict
-        n_rows: Int, number of rows in the image
-        params_per_row: Int, number of parameters per row, set by model_params[model]
-        params: 2D np array, the actual array of parameters.
-        current_shape: Str, the current shape (1D or 2D) of SCA params
-    Methods:
-        params_2_images: reshape params into a 2D array; one row per SCA
-        # flatten_params: reshape params into 1D vector
-        forward_par: reshape one row of params array (one SCA) into a 2D array by projection along rows
-    To do:
-        add option for additional parameters
+    Class holding the parameters for a given mosaic. This can be the destriping parameters, or additional
+    parameters that need to be the same shape and have the same methods 
+
+    Parameters
+    ----------
+        cfg : Config object
+            built from the configuration file
+        n_rows : Int
+            number of rows in the image
+        scalist : list of Strings
+            the list of SCAs in this mosaic
+
+    Attributes
+    ----------
+        model : Str
+            Which destriping model to use, which then specifies the number of parameters per row.
+            Must be a key of the model_params dict
+        n_rows : Int
+            Number of rows in the image
+        params_per_row : Int
+            Number of parameters per row, set by model_params[model]
+        params : 2D np array
+            The actual array of parameters.
+        current_shape : Str
+            The current shape (1D or 2D) of SCA params
+        scalist : list of Strings
+            the list of SCAs in this mosaic
+
+    Methods
+    -------
+        params_2_images
+            Reshape params into a 2D array, with one row per SCA
+        forward_par
+            Reshape one row of params array (one SCA) into a 2D array by projection along rows
+
     """
 
     def __init__(self, cfg, n_rows, scalist=[]):
@@ -396,7 +433,6 @@ class Parameters:
     def params_2_images(self):
         """
         Reshape flattened parameters into 2D array with 1 row per sca and n_rows (in image) * params_per_row entries
-        :return: None
         """
         self.params = np.reshape(self.params, (len(self.scalist), self.n_rows * self.params_per_row))
         self.current_shape = '2D'
@@ -404,8 +440,15 @@ class Parameters:
     def forward_par(self, sca_i):
         """
         Takes one SCA row (n_rows) from the params and casts it into 2D (n_rows x n_rows)
-        :param sca_i: int, index of which SCA to recast into 2D
-        :return: 2D np array, the image of SCA_i's parameters
+
+        Parameters
+        --------
+        sca_i : Int
+            Index of which SCA to recast into 2D
+
+        Returns
+        --------
+         2D np.array, the image of SCA_i's parameters
         """
         if not self.current_shape == '2D':
             self.params_2_images()
@@ -416,9 +459,13 @@ class Parameters:
 def write_to_file(text, filename='destripe_out.txt'):
     """
     Function to write some text to an output file
-    :param text: Str, what to print
-    :param filename: Str, an alternative filename if not going into the outfile
-    :return: nothing
+
+    Parameters
+    --------
+    text : Str
+        The text to print
+    filename : Str
+        Filename to write out to. Default 'destripe_out.txt'
     """
 
     if not os.path.exists(filename):
@@ -432,15 +479,23 @@ def write_to_file(text, filename='destripe_out.txt'):
 def save_fits(image, filename, dir=None, overwrite=True, s=False, header=None, retries=3):
     """
     Save a 2D image to a FITS file with locking, retries, and atomic rename.
+
     Parameters
     ----------
-    image : np.ndarray, 2D array to write.
-    filename : str, Output filename without extension.
-    dir : str, Directory to save into.
-    overwrite : bool, Whether to overwrite the final target file.
-    s : bool,  Whether to print status messages.
-    header : fits.Header or None, Optional FITS header.
-    retries : int, Number of write retry attempts if write fails.
+    image : np.ndarray
+        2D array to write.
+    filename : str
+        Output filename without extension.
+    dir : str
+        Directory to save into.
+    overwrite : bool
+        Whether to overwrite the final target file.
+    s : bool
+        Whether to print status messages.
+    header : fits.Header or None
+        Optional FITS header.
+    retries : int
+        Number of write retry attempts if write fails.
     """
     filepath = os.path.join(dir, filename + '.fits')
     lockpath = filepath + '.lock'
@@ -455,7 +510,7 @@ def save_fits(image, filename, dir=None, overwrite=True, s=False, header=None, r
                 else:
                     hdu = fits.PrimaryHDU(image)
 
-                hdu.writeto(tmp_filepath, overwrite=True)
+                hdu.writeto(tmp_filepath, overwrite=overwrite)
                 os.replace(tmp_filepath, filepath)  # Atomic move to final path
 
                 if s:
@@ -479,13 +534,23 @@ def apply_object_mask(image, mask=None, threshold_factor=2.5, inplace=False):
     """
     Apply a bright object mask to an image.
 
-    :param image: 2D numpy array, the image to be masked.
-    :param mask: optional 2D boolean array, the pre-existing object mask.
-    :param threshold_factor: float, threshold for masking a pixel
-    :param: factor to multiply with the median for thresholding.
-    :param inplace: whether to modify the input image directly.
-    :return image_out: the masked image.
-    :return neighbor_mask: the mask applied.
+    Parameters
+    --------
+    image : 2D numpy array
+        the image to be masked.
+    mask : 2D boolean array, optional
+        the pre-existing object mask. Default: None
+    threshold_factor : float
+        factor to multiply with the median for thresholding.
+    inplace : Bool
+        Whether to modify the input image directly.
+
+    Returns
+    --------
+    image_out : 2D np.array
+        the masked image.
+    neighbor_mask : 2D np.array
+        the mask applied
     """
     if mask is not None and isinstance(mask, np.ndarray):
         neighbor_mask = mask
@@ -503,37 +568,53 @@ def apply_object_mask(image, mask=None, threshold_factor=2.5, inplace=False):
 
 
 def quadratic(x):
+    """ Quadratic cost function f(x) = x^2"""
     return x ** 2
 
 
 def absolute(x):
+    """ Absolute cost function f(x) = |x|"""
     return np.abs(x)
 
 
 def huber_loss(x, d):
+    """ Huber loss cost function """
     return np.where(np.abs(x) <= d, quadratic(x), d**2+2*d*(np.abs(x)-d))
 
 
 # Derivatives
 def quad_prime(x):
+    """ Derivative of quadratic cost function f'(x) = 2x"""
     return 2 * x
 
 
 def abs_prime(x):
+    """ Derivative of absolute cost function f'(x) = sign(x)"""
     return np.sign(x)
 
 
 def huber_prime(x, d):
+    """ Derivative of Huber loss cost function """
     return np.where(np.abs(x) <= d, quad_prime(x), 2*d*np.sign(x))
 
 
 def get_scas(filter, obsfile):
     """
     Function to get a list of all SCA images and their WCSs for this mosaic
-    :param filter: Str, which filter to use for this run. Options: Y106, J129, H158, F184, K213
-    :param prefix: Str, prefix / name of the SCA images
-    :return all_scas: list(strings), list of all the SCAs in this mosiac
-    :return all_wcs: list(wcs objects), the WCS object for each SCA in all_scas (same order)
+
+    Parameters
+    --------
+    filter : Str
+        which filter to use for this run. Options: Y106, J129, H158, F184, K213
+    obsfile : Str
+        prefix / path to the SCA images
+    
+    Returns
+    --------
+    all_scas : list of strings
+        list of all the SCAs in this mosiac
+    all_wcs : list of WCS objects
+        the WCS object for each SCA in all_scas (same order)
     """
     n_scas = 0
     all_scas = []
@@ -560,11 +641,18 @@ def interpolate_image_bilinear(image_B, image_A, interpolated_image, mask=None):
     Interpolate values from a "reference" SCA image onto a "target" SCA coordinate grid
     Uses pyimcom_croutines.bilinear_interpolation(float* image, float* g_eff, int rows, int cols, float* coords,
                                                     int num_coords, float* interpolated_image)
-    :param image_B : SCA object, the image to be interpolated
-    :param image_A : SCA object, the image whose grid you are interpolating B onto
-    :param interpolated_image : 2D np array, all zeros with shape of Image A.
-    :return: None
-    interpolated_image_B is updated in-place.
+
+    Parameters
+    --------
+    image_B : SCA object
+        the image to be interpolated
+    image_A : SCA object
+        the image whose grid you are interpolating B onto
+    interpolated_image : 2D np array
+        all zeros with shape of Image A. 
+        Updated in place to be the interpolation of img. B onto A's grid
+    mask : 2D np array, optional
+        if provided, this mask is interpolated instead of image_B.image
     """
 
     x_target, y_target, is_in_ref = compareutils.map_sca2sca(image_A.w, image_B.w, pad=0)
@@ -599,14 +687,22 @@ def interpolate_image_bilinear(image_B, image_A, interpolated_image, mask=None):
 
 def transpose_interpolate(image_A, wcs_A, image_B, original_image):
     """
-     Interpolate backwards from image_A to image_B space.
-     :param image_A : 2D np array, the already-interpolated gradient image
-     :param wcs_A : a wcs.WCS object, image A's WCS object
-     :param image_B : SCA object, the image we're interpolating the gradient back onto
-     :param original_image: 2D np array, the gradient image re-interpolated into image B space
-     note: bilinear_transpose(float* image, int rows, int cols, float* coords, int num_coords, float* original_image)
-     :return: None
-     original_image is updated in-place
+    Interpolate backwards from image_A to image_B space.
+    Uses bilinear_transpose(float* image, int rows, int cols, float* coords, int num_coords, float* original_image)
+
+
+     Parameters
+     --------
+     image_A : 2D np array
+        the already-interpolated gradient image
+     wcs_A : wcs.WCS object
+        image A's WCS object
+     image_B : SCA object
+        the image we're interpolating the gradient back onto
+     original_image : 2D np array
+        the gradient image re-interpolated into image B space
+        Updated in place
+
      """
     x_target, y_target, is_in_ref = compareutils.map_sca2sca(wcs_A, image_B.w, pad=0)
     coords = np.column_stack((y_target.ravel(), x_target.ravel()))
@@ -625,18 +721,34 @@ def transpose_interpolate(image_A, wcs_A, image_B, original_image):
 def transpose_par(I):
     """
     Sum up the values of an image across rows
-    :param I: 2D np array input array
-    :return: 1D vector, the sum across each row of I
+
+    Parameters
+    --------
+    I : 2D np.array 
+        Input array
+    
+     Returns
+    --------
+       1D np.array, the sum across each row of I
     """
     return np.sum(I, axis=1)
 
 
 def get_effective_gain(sca):
     """
-    retrieve the effective gain and n_eff of the image. valid only for already-interpolated images
-    :param sca: Str, like "<prefix>_<obsid>_<scaid>" describing which SCA
-    :return: g_eff: memmap 2D np array of the effective gain in each pixel
-    :return: N_eff: memmap 2D np array of how many image "B"s contributed to that interpolated image
+    Retrieve the effective gain and n_eff of the image. valid only for already-interpolated images
+
+    Parameters
+    --------
+    sca : Str
+        format like "<prefix>_<obsid>_<scaid>" describing which SCA to get the effective gain for
+
+    Returns
+    --------
+    g_eff : memmap 2D np.array 
+        the effective gain in each pixel
+    N_eff : memmap 2D np.array
+        how many image "B"s contributed to that interpolated image
     """
     m = re.search(r'_(\d+)_(\d+)', sca)
     obsid = m.group(1)
@@ -649,9 +761,18 @@ def get_effective_gain(sca):
 def get_ids(sca):
     """
     Take an SCA label and parse it out to get the Obsid and SCA id strings.
-    :param sca: Str, the sca name from all_scas list
-    :return obsid: Str, the observation ID
-    :return scaid: Str, the SCA ID (position in focal plane)
+
+    Parameters
+    --------
+    sca : Str
+        The sca name from all_scas list, formatted like <obsid>_<scaid>
+    
+    Returns
+    --------
+    obsid : Str
+        the observation ID
+    scaid : Str
+        the SCA ID (position in focal plane)
     """
     m = re.search(r'_(\d+)_(\d+)', sca)
     obsid = m.group(1)
@@ -660,7 +781,40 @@ def get_ids(sca):
 
 def save_snapshot(p, grad, epsilon, psi, direction, grad_prev, direction_prev,
                   cg_model, tol, thresh, norm_0, cost_model, i, restart_file):
-    """Save restart state to pickle file."""
+    """
+    Save restart state to pickle file.
+
+    Parameters
+    --------
+    p : Parameters object
+        current parameters
+    grad : 2D np array
+        current gradient
+    epsilon : 2D np array
+        current cost
+    psi : 3D np array
+        current residuals
+    direction : 2D np array
+        current CG direction
+    grad_prev : 2D np array
+        previous gradient
+    direction_prev : 2D np array
+        previous CG direction
+    cg_model : Str
+        which CG model is being used
+    tol : Float
+        tolerance for convergence
+    thresh : Float
+        threshold for Huber loss cost function
+    norm_0 : Float
+        initial norm of the gradient
+    cost_model : Str
+        which cost function is being used
+    i : Int
+        current iteration number
+    restart_file : Str  
+        path to the restart pickle file
+    """
     crash_state = {
         'iteration': i,
         'p': p,
@@ -683,12 +837,34 @@ def save_snapshot(p, grad, epsilon, psi, direction, grad_prev, direction_prev,
 def residual_function(psi, f_prime, scalist, wcslist, ov_mat, thresh, workers, extrareturn=False, ds_model='FR'):
         """
         Calculate the residual image, = grad(epsilon)
-        :param psi: 3D np array, the image difference array (I_A - J_A) (N_SCA, 4088, 4088)
-        :param f_prime: function, the derivative of the cost function f
-                in the future this should be set by default based on what you pass for f
-        :param extrareturn: Bool (default False); if True, return residual terms 1 and 2 separately
+
+        Parameters
+        --------
+        psi : 3D np array
+            the image difference array (I_A - J_A) (N_SCA, 4088, 4088)
+        f_prime : Function
+            the derivative of the cost function f
+            in the future this should be set by default based on what you pass for f
+        scalist : List of Str
+            the list of all SCAs in this mosaic
+        wcslist : List of WCS objects
+            the WCS object for each SCA in scalist (same order)
+        ov_mat : 2D np array
+            the overlap matrix for all SCAs in this mosaic
+        thresh : Float
+            threshold for Huber loss cost function; default None
+        workers : Int
+            number of parallel workers to use
+        extrareturn : Bool 
+            if True, return residual terms 1 and 2 separately; Default False
                 in addition to full residuals. returns resids, resids1, resids2
-        :return resids: 2D np array, with one row per SCA and one col per parameter
+        ds_model : Str
+            which destriping model is being used; default 'FR'
+        
+        Returns
+        --------
+        resids : 2D np array
+            with one row per SCA and one col per parameter
         """
         resids = Parameters(ds_model, 4088).params
         if extrareturn:
@@ -719,6 +895,38 @@ def residual_function(psi, f_prime, scalist, wcslist, ov_mat, thresh, workers, e
         return resids
 
 def residual_function_single(k, sca_a, wcs_a, psi, f_prime, scalist, ov_mat, thresh):
+    """
+    Calculate the residual for a single SCA image
+
+    Parameters
+    --------
+    k : Int
+        index of this SCA in scalist
+    sca_a : Str
+        the SCA label, formatted like <obsid>_<scaid>     
+    wcs_a : wcs.WCS object
+        the WCS object for this SCA
+    psi : 3D np array
+        the image difference array (I_A - J_A) (N_SCA, 4088, 4088)
+    f_prime : Function
+        the derivative of the cost function f
+    scalist : List of Str
+        the list of all SCAs in this mosaic
+    ov_mat : 2D np array
+        the overlap matrix for all SCAs in this mosaic
+    thresh : Float
+        threshold for Huber loss cost function; default None
+
+    Returns
+    --------
+    k : Int
+        index of this SCA in scalist
+    term_1 : 1D np array
+        the first residual term for this SCA
+    term_2_list : List of tuples
+        list of (j, term_2) tuples containing value for term 2 
+        for each SCA j that overlaps with this one
+    """
     # Go and get the WCS object for image A
     obsid_A, scaid_A = get_ids(sca_a)
 
@@ -760,6 +968,35 @@ def residual_function_single(k, sca_a, wcs_a, psi, f_prime, scalist, ov_mat, thr
     return k, term_1, term_2_list
 
 def cost_function_single(j, sca_a, p, f, scalist, ov_mat, thresh):
+    """
+    Calculate the cost function for a single SCA image
+
+    Parameters
+    --------
+    j : Int
+        index of this SCA in scalist
+    sca_a : Str
+        the SCA label, formatted like <obsid>_<scaid>
+    p : Parameters object
+        the current parameters for de-striping
+    f : Function
+        the cost function form
+    scalist : List of Str
+        the list of all SCAs in this mosaic
+    ov_mat : 2D np array
+        the overlap matrix for all SCAs in this mosaic
+    thresh : Float
+        threshold for Huber loss cost function; default None
+
+    Returns
+    --------
+    j : Int
+        index of this SCA in scalist
+    psi : 2D np array
+        the difference image I_A - J_A for this SCA
+    local_epsilon : Float
+        the cost function value for this SCA
+    """
     m = re.search(r'_(\d+)_(\d+)', sca_a)
     obsid_A, scaid_A = m.group(1), m.group(2)
 
@@ -798,10 +1035,28 @@ def cost_function_single(j, sca_a, p, f, scalist, ov_mat, thresh):
 def cost_function(p, f, thresh, workers, scalist, ov_mat):
         """
         Calculate the cost function with the current de-striping parameters.
-        :param p: parameters object, the current parameters for de-striping
-        :param f: str, keyword for function dictionary options; should also set an f_prime
-        :return epsilon: int, the total cost function summed over all images
-        :return psi: 3D np array, the difference images I_A-J_A
+
+        Parameters
+        --------
+        p : parameters object
+            the current parameters for de-striping
+        f : st
+            keyword for function dictionary options; should also set an f_prime
+        thresh : Float
+            threshold for Huber loss cost function; default None
+        workers : Int
+            number of parallel workers to use
+        scalist : List of Str
+            the list of all SCAs in this mosaic
+        ov_mat : 2D np array
+            the overlap matrix for all SCAs in this mosaic
+        
+        Returns
+        --------
+        epsilon: int
+            the total cost function summed over all images
+        psi : 3D np array
+            the difference images I_A-J_A
         """
         write_to_file('Initializing cost function')
         t0_cost = time.time()
@@ -822,20 +1077,53 @@ def cost_function(p, f, thresh, workers, scalist, ov_mat):
         return epsilon, psi
 
     
-def linear_search_general(p, direction, f, f_prime, cost_model, epsilon_current, psi_current, grad_current, thresh, workers, scalist, wcslist, ov_mat,
-                          n_iter=100, tol=10 ** -4, ds_model='FR'):
+def linear_search_general(p, direction, f, f_prime, cost_model, epsilon_current, psi_current, grad_current, thresh,
+                           workers, scalist, wcslist, ov_mat, n_iter=100, tol=10 ** -4, ds_model='FR'):
     """
     Linear search via combination bisection and secant methods for parameters that minimize the function
         d_epsilon/d_alpha in the given direction . Note alpha = depth of step in direction
-    :param p: params object, the current de-striping parameters
-    :param direction: 2D np array, direction of conjugate gradient search
-    :param f: function, cost function form
-    :param f_prime: function, derivative of cost function form
-    :param grad_current: 2D np array, current gradient AKA current residuals
-    :param n_iter: int, number of iterations at which to stop searching
-    :param tol: float, absolute value of d_cost at which to converge
-    :return best_p: parameters object, containing the best parameters found via search
-    :return best_psi: 3D numpy array, the difference images made from images with the best_p params subtracted off
+
+    Parameters
+    --------
+    p : params object
+        the current de-striping parameters
+    direction : 2D np array
+        direction of conjugate gradient search
+    f : function
+        cost function form
+    f_prime : function
+        derivative of cost function form
+    cost_model : Str
+        which cost function is being used; options: 'quadratic', 'huber_loss'
+    epsilon_current : float
+        current cost function value
+    psi_current : 3D np array
+        current difference images (I_A - J_A)
+    grad_current : 2D np array
+        current gradient AKA current residuals
+    thresh : float
+        threshold for Huber loss cost function; default None
+    workers : Int
+        number of parallel workers to use   
+    scalist : List of Str
+        the list of all SCAs in this mosaic
+    wcslist : List of WCS objects
+        the WCS object for each SCA in scalist (same order)
+    ov_mat : 2D np array
+        the overlap matrix for all SCAs in this mosaic
+    n_iter : int
+         number of iterations at which to stop searching
+    tol : float
+         absolute value of d_cost at which to converge
+    ds_model : Str
+        which destriping model is being used; default 'FR'  
+        
+    Returns
+    --------    
+    best_p : parameters object
+        containing the best parameters found via search
+    best_psi : 3D numpy array
+        the difference images made from images with the best_p params subtracted off
     """
     best_epsilon, best_psi = epsilon_current, psi_current
     best_p = copy.deepcopy(p)
@@ -971,15 +1259,46 @@ def linear_search_quadratic(p, direction, f, f_prime, grad_current, thresh, work
     """
     For the quadratic cost function, direct calculation of alpha that minimizes the function
         d_epsilon/d_alpha in the given direction . Note alpha = depth of step in direction
-    Finds the best alpha, computes the new parameters and diff image, and prints the new cost and convergence criteria
-    :param p: params object, the current de-striping parameters
-    :param direction: 2D np array, direction of conjugate gradient search
-    :param f: function, cost function form
-    :param f_prime: function, derivative of cost function form
-    :param grad_current: 2D np array, current gradient AKA current residuals
 
-    :return best_p: parameters object, containing the best parameters found via search
-    :return best_psi: 3D numpy array, the difference images made from images with the best_p params subtracted off
+    Finds the best alpha, computes the new parameters and diff image, and prints the new cost and convergence criteria
+
+    Parameters
+    --------
+    p : params object
+        the current de-striping parameters
+    direction : 2D np array
+        direction of conjugate gradient search
+    f : function
+        cost function form
+    f_prime : function
+        derivative of cost function form
+    grad_current : 2D np array
+        current gradient AKA current residuals
+    thresh : float or None
+        threshold for Huber loss cost function
+    workers : Int
+        number of parallel workers to use
+    scalist : List of Str
+        the list of all SCAs in this mosaic
+    wcslist : List of WCS objects
+        the WCS object for each SCA in scalist (same order)
+    ov_mat : 2D np array
+        the overlap matrix for all SCAs in this mosaic
+    ds_model : Str
+        which destriping model is being used; default 'FR'
+    
+
+    Returns
+    --------
+    new_p: parameters object
+        containing the new parameters found via direct calculation
+    new_psi: 3D numpy array
+        the difference images made from images with the new_p params subtracted off
+    new_resids: 2D np array
+        the new residuals calculated with new_p
+    new_epsilon: float
+        the new cost function value calculated with new_p
+    
     """
     t0_ls = time.time()
 
@@ -1040,15 +1359,38 @@ def conjugate_gradient(p, f, f_prime, thresh, workers, scalist, wcslist, ov_mat,
     """
     Algorithm to use conjugate gradient descent to optimize the parameters for destriping.
     Direction is updated using Fletcher-Reeves method
-    :param p: parameters object, containing initial parameters guess
-    :param f: function, functional form to use for cost function
-    :param f_prime: function, the derivative of f. KL: eventually f should dictate f prime
-    :param thresh:
-    :param restart_file: 
-    :param time_limit: int, how much time to elapse before stopping (minutes)
-    :param cfg: config object, containing all config parameters
-    :param of: Str, output file to write log messages to
-    :return p: params object, the best fit parameters for destriping the SCA images
+
+    Parameters
+    --------
+    p : parameters object
+        containing initial parameters guess
+    f : function
+        functional form to use for cost function
+    f_prime : function
+        the derivative of f. KL: eventually f should dictate f prime
+    thresh : float or None
+        threshold for Huber loss cost function; default None
+    workers : Int
+        number of parallel workers to use
+    scalist : List of Str
+        the list of all SCAs in this mosaic
+    wcslist : List of WCS objects
+        the WCS object for each SCA in scalist (same order)
+    ov_mat : 2D np array
+        the overlap matrix for all SCAs in this mosaic
+    restart_file : Str or None
+        if not None, path to pickle file containing restart state
+    time_limit : int or None
+        if not None, how much time to elapse before stopping (minutes)
+    cfg : config object
+        containing all config parameters
+    of : Str
+        output file to write log messages to
+    
+    Returns
+    --------
+    p : params object
+        the best fit parameters for destriping the SCA images
     """
     write_to_file('### Starting conjugate gradient optimization')
     print('Global elapsed t = {:8.1f}'.format((time.time()-t0_global)/60))
