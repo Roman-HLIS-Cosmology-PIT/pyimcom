@@ -30,7 +30,8 @@ jobs:
           texlive-latex-extra \
           texlive-fonts-recommended \
           latexmk \
-          lmodern
+          lmodern \
+          cm-super
         # use apt-get for ubuntu
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
