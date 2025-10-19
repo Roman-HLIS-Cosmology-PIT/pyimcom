@@ -69,6 +69,8 @@ def _starplot_diagnostic(datastem):
         with open(datastem + "_SimulatedStar_StarCat.txt", "r") as f:
             lines = f.readlines()
         alldata = np.loadtxt(datastem + "_SimulatedStar_StarCat.txt")
+        if len(np.shape(alldata)) == 1:
+            alldata = alldata.reshape((1, -1))  # if there's only 1 line (rare)
         N = np.shape(alldata)[0]
         print(N, "stars")
         sys.stdout.flush()
@@ -83,43 +85,49 @@ def _starplot_diagnostic(datastem):
         F = plt.figure(figsize=(13.5, 9.0))
 
         ## Dynamic range plot ##
-        S = F.add_subplot(2, 3, 1)
-        data = np.loadtxt(datastem + "_SimulatedStar_dynrange.dat")
-        xmax = data[-1][0]
-        ymin = min(data[0][-1], -30.0)
-        ymax = max(data[-1][2], 50000.0)
-        S.set_xlabel(r"radius ($s_{\rm out}$)")
-        S.set_ylabel(r"intensity ($e/s_{\rm in}^2$/p)")
-        S.set_title("Star profiles")
-        S.set_xlim(0, xmax)
-        S.set_ylim(ymin, ymax)
-        S.set_yscale("symlog", linthresh=abs(ymin))
-        S.grid(True, color="g", linestyle="-", linewidth=0.25)
-        j = int(np.floor(xmax / 4))
-        S.set_xticks(np.linspace(0, 4 * j, j + 1))
-        ylist = [-100, -90, -80, -70, -60, -50, -40, -30, -20, -10, 0]
-        ylist_label = ["-100"] + [""] * 8 + ["-10", "0"]
-        for p in range(1, 5):
-            ylist.append(10**p)
-            ylist_label.append(f"{10**p:d}")
-            for q in range(2, 10):
-                ylist.append(q * 10**p)
-                ylist_label.append("")
-        y = []
-        yl = []
-        for y_, yl_ in zip(ylist, ylist_label, strict=False):
-            if y_ >= ymin and y_ <= ymax:
-                y.append(y_)
-                yl.append(yl_)
-        print(y)
-        print(yl)
-        sys.stdout.flush()
-        S.set_yticks(y, yl)
-        S.text(0.5 * xmax, 0.3 * ymax, f"N={N}", color="k")
-        S.text(0.5 * xmax, 0.1 * ymax, r"1,5,25,50,75,95,99 pctiles", color="k")
-        S.plot(data[:, 0], data[:, 5], "k-")
-        for j in [2, 3, 4, 6, 7, 8]:
-            S.plot(data[:, 0], data[:, j], "b:")
+        if len(np.loadtxt(datastem + "_SimulatedStar_dynrange.dat")) > 0:
+            S = F.add_subplot(2, 3, 1)
+            data = np.loadtxt(datastem + "_SimulatedStar_dynrange.dat")
+            if len(np.shape(data)) == 1:
+                data = data.reshape((1, -1))  # if there is 1 star
+            xmax = data[-1][0]
+            ymin = min(data[0][-1], -30.0)
+            ymax = max(data[-1][2], 50000.0)
+            S.set_xlabel(r"radius ($s_{\rm out}$)")
+            S.set_ylabel(r"intensity ($e/s_{\rm in}^2$/p)")
+            S.set_title("Star profiles")
+            S.set_xlim(0, xmax)
+            S.set_ylim(ymin, ymax)
+            S.set_yscale("symlog", linthresh=abs(ymin))
+            S.grid(True, color="g", linestyle="-", linewidth=0.25)
+            j = int(np.floor(xmax / 4))
+            S.set_xticks(np.linspace(0, 4 * j, j + 1))
+            ylist = [-100, -90, -80, -70, -60, -50, -40, -30, -20, -10, 0]
+            ylist_label = ["-100"] + [""] * 8 + ["-10", "0"]
+            for p in range(1, 5):
+                ylist.append(10**p)
+                ylist_label.append(f"{10**p:d}")
+                for q in range(2, 10):
+                    ylist.append(q * 10**p)
+                    ylist_label.append("")
+            y = []
+            yl = []
+            for y_, yl_ in zip(ylist, ylist_label, strict=False):
+                if y_ >= ymin and y_ <= ymax:
+                    y.append(y_)
+                    yl.append(yl_)
+            print(y)
+            print(yl)
+            sys.stdout.flush()
+            S.set_yticks(y, yl)
+            S.text(0.5 * xmax, 0.3 * ymax, f"N={N}", color="k")
+            S.text(0.5 * xmax, 0.1 * ymax, r"1,5,25,50,75,95,99 pctiles", color="k")
+            S.plot(data[:, 0], data[:, 5], "k-")
+            for j in [2, 3, 4, 6, 7, 8]:
+                S.plot(data[:, 0], data[:, j], "b:")
+        else:
+            print("Skipping dynamic range plot: no data.")
+            sys.stdout.flush()
 
         ## Ellipticity plots ##
         S = F.add_subplot(2, 3, 5)
@@ -239,6 +247,8 @@ def _starplot_diagnostic(datastem):
         S.text(1.2, 0.4 * ymax, f"{pc:.3f}" + r"\% at $>$2", color="k")
         outdict["PCT_NOISE_GT2"] = pc
         sdata = np.loadtxt(datastem + "_SimulatedStar_sqrtS_hist.dat")
+        if len(np.shape(sdata)) == 1:
+            sdata = sdata.reshape((1, -1))
         S.bar(
             sdata[:, 0],
             sdata[:, 1],
@@ -277,6 +287,8 @@ def _starplot_diagnostic(datastem):
         S.grid(True, color="g", linestyle="-", linewidth=0.25)
         S.text(6.5, 0.4 * ymax, f"{pc:.3f}" + r"\% at $>$10", color="k")
         ndata = np.loadtxt(datastem + "_SimulatedStar_neff_hist.dat")
+        if len(np.shape(ndata)) == 1:
+            ndata = ndata.reshape((1, -1))
         S.bar(
             ndata[:, 0],
             ndata[:, 1],
@@ -366,6 +378,8 @@ class SimulatedStar(ReportSection):
         # load information
         c1 = c2 = 0
         data = np.loadtxt(self.datastem + "_SimulatedStar_StarCat.txt")
+        if len(np.shape(data)) == 1:
+            data = data.reshape((1, -1))  # if there is 1 star
         for ix in range(nblock):
             for iy in range(nblock):
                 ind = np.logical_and(data[:, 2] == ix, data[:, 3] == iy)
