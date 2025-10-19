@@ -22,6 +22,10 @@ from pyimcom.analysis import OutImage
 from pyimcom.coadd import Block
 from pyimcom.compress.compressutils import CompressedOutput, ReadFile
 from pyimcom.config import Config
+from pyimcom.diagnostics.mosaicimage import MosaicImage
+from pyimcom.diagnostics.noise_diagnostics import NoiseReport
+from pyimcom.diagnostics.report import ValidationReport
+from pyimcom.diagnostics.stars import SimulatedStar
 from pyimcom.psfutil import OutPSF
 from pyimcom.routine import gridD5512C
 from pyimcom.truthcats import gen_truthcats_from_cfg
@@ -263,6 +267,41 @@ wcsdata = np.array(
 )
 
 
+def pull_from_file(infile):
+    """
+    Utility to extract machine-readable data from the LaTeX as a dictionary so we can verify it.
+
+    Parameters
+    ----------
+    infile : str or str-like
+        LaTeX file to read from.
+
+    Returns
+    -------
+    dict
+        Dictionary of data blocks.
+
+    """
+
+    with open(infile, "r") as f:
+        lines = f.readlines()
+    exdata = {}
+    is_read = False
+    for line in lines:
+        if line[:9] == "$$$START ":
+            name = line.split()[1]
+            is_read = True
+            info = ""
+            continue
+        if line[:7] == "$$$END ":
+            exdata[name] = info
+            is_read = False
+            continue
+        if is_read:
+            info += line + "\n"
+    return exdata
+
+
 def make_simple_wcs(ra, dec, pa, sca):
     """
     Makes a simple approximate WCS for an SCA.
@@ -484,8 +523,8 @@ def setup(tmp_path):
     # this part runs all 4 blocks ... they're pretty small!
     cfg = Config(tmp_path / "cfg.txt")
     print(cfg.to_file(None))
-    # This has 4 blocks, but we only run 2 here to speed things up.
-    for iblk in range(2):
+    # Running all 4 blocks so we can include the diagnostics in the test coverage.
+    for iblk in range(4):
         Block(cfg=cfg, this_sub=iblk)
     gen_truthcats_from_cfg(cfg)
 
@@ -585,6 +624,26 @@ def test_PyIMCOM_run1(tmp_path, setup):
         assert hdr["FILTER"] == "F184"
         assert hdr["BLOCKX"] == 0
         assert hdr["BLOCKY"] == 1
+
+    os.mkdir(tmp_path / "rpt")
+    rpt = ValidationReport(
+        str(tmp_path) + "/out/testout_F_00_00.fits", str(tmp_path) + "/rpt/report-F", clear_all=True
+    )
+    sectionlist = [MosaicImage, SimulatedStar, NoiseReport]
+    for cls in sectionlist:
+        s = cls(rpt)
+        s.build()  # specify nblockmax to do just the lower corner
+        rpt.addsections([s])
+        del s
+    rpt.compile()  # test that the LaTeX compiles!
+    assert os.path.exists(str(tmp_path) + "/rpt/report-F_main.pdf")
+
+    # test data blocks in report
+    texdata = pull_from_file(str(tmp_path) + "/rpt/report-F_main.tex")
+    assert texdata["MosaicImage"][:18] == "N =  2, BIN =   1\n"
+    assert texdata["SimulatedStar"].split()[0] == "RMS_ELLIP_ADAPT"
+    assert texdata["SimulatedStar"].split()[1][:7] == "0.00010"
+    assert texdata["NoiseReport"] == "\n\n"
 
 
 def test_compress(tmp_path):
@@ -711,91 +770,3 @@ def test_compress(tmp_path):
                         atol=atol,
                         err_msg=f"Compression test failed for {_step}",
                     )
-
-
-# def test1(fname):
-#     """
-#     Test compression of a file.
-#
-#     Parameters
-#     ----------
-#     fname : str
-#         The file to compress/decompress. Order of conversions is
-#         `fname` -> ... .cpr.fits.gz -> ... _recovered.fits.
-#
-#     Returns
-#     -------
-#     None
-#
-#     """
-#
-#     fout = fname[:-5] + ".cpr.fits.gz"
-#     frec = fname[:-5] + "_recovered.fits"
-#
-#     with CompressedOutput(fname) as f:
-#         for j in range(1, len(f.cfg.extrainput)):
-#             if (
-#                 f.cfg.extrainput[j][:6].lower() == "gsstar"
-#                 or f.cfg.extrainput[j][:5].lower() == "cstar"
-#                 or f.cfg.extrainput[j][:8].lower() == "gstrstar"
-#                 or f.cfg.extrainput[j][:8].lower() == "gsfdstar"
-#             ):
-#                 f.compress_layer(
-#                     j,
-#                     scheme="I24B",
-#                     pars={
-#                         "VMIN": -1.0 / 64.0,
-#                         "VMAX": 7.0 / 64.0,
-#                         "BITKEEP": 20,
-#                         "DIFF": True,
-#                         "SOFTBIAS": -1,
-#                     },
-#                 )
-#             if f.cfg.extrainput[j][:5].lower() == "nstar":
-#                 f.compress_layer(
-#                     j,
-#                     scheme="I24B",
-#                     pars={"VMIN": -1500.0, "VMAX": 10500.0, "BITKEEP": 20, "DIFF": True, "SOFTBIAS": -1},
-#                 )
-#             if f.cfg.extrainput[j][:5].lower() == "gsext":
-#                 f.compress_layer(
-#                     j,
-#                     scheme="I24B",
-#                     pars={
-#                         "VMIN": -1.0 / 64.0,
-#                         "VMAX": 7.0 / 64.0,
-#                         "BITKEEP": 20,
-#                         "DIFF": True,
-#                         "SOFTBIAS": -1,
-#                     },
-#                 )
-#             if f.cfg.extrainput[j][:8].lower() == "labnoise":
-#                 f.compress_layer(
-#                     j,
-#                     scheme="I24B",
-#                     pars={"VMIN": -5, "VMAX": 5, "BITKEEP": 16, "DIFF": True, "SOFTBIAS": -1},
-#                 )
-#             if f.cfg.extrainput[j][:10].lower() == "whitenoise":
-#                 f.compress_layer(
-#                     j,
-#                     scheme="I24B",
-#                     pars={"VMIN": -8, "VMAX": 8, "BITKEEP": 16, "DIFF": True, "SOFTBIAS": -1},
-#                 )
-#             if f.cfg.extrainput[j][:7].lower() == "1fnoise":
-#                 f.compress_layer(
-#                     j,
-#                     scheme="I24B",
-#                     pars={"VMIN": -32, "VMAX": 32, "BITKEEP": 16, "DIFF": True, "SOFTBIAS": -1},
-#                 )
-#         f.to_file(fout, overwrite=True)
-#
-#     ReadFile(fout).writeto(frec, overwrite=True)
-#
-#     with ReadFile(fname) as f1, ReadFile(frec) as f2:
-#         print("")
-#         for j in range(np.shape(f1[0].data)[-3]):
-#             print(
-#                 f"slice {j:3d} max {np.amax(np.abs(f1[0].data[0, j, :, :])):11.5E} "
-#                 f"maxerr {np.amax(np.abs(f1[0].data[0, j, :, :] - f2[0].data[0, j, :, :])):11.5E}"
-#             )
-#
