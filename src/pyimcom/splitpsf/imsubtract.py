@@ -452,7 +452,7 @@ def run_imsubtract(config_file, display=None):
 
         # save outside of the layer for loop
         # write output file for each exposure
-        hdu4 = fits.PrimaryHU(data=I_img)
+        hdu4 = fits.PrimaryHDU(data=I_img)
         hdu4.writeto(f"{obsid}_{sca}_subI.fits")
 
 
