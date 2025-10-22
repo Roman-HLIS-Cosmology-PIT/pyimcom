@@ -13,3 +13,7 @@ treecorr
 scikit-image
 pytz
 furry-parakeet @ https://github.com/Roman-HLIS-Cosmology-PIT/furry-parakeet
+fsspec
+requests
+s3fs
+aiohttp

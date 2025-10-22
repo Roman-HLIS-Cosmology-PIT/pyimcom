@@ -22,6 +22,8 @@ Functions
 ---------
 local_partial_pixel_derivatives2
     Jacobian for WCS (2-sided derivative, designed to also work near poles).
+get_pix_area
+    Calculate the effective pixel areas in the image.
 _stand_alone_test
     Unit test function.
 

@@ -1,3 +1,5 @@
+.. image:: https://codecov.io/gh/Roman-HLIS-Cosmology-PIT/pyimcom/graph/badge.svg?token=GLM6LWD3F7
+
 PyIMCOM: Image combination package
 ##################################
 

@@ -11,6 +11,7 @@ gen_starcube_nonoise
 import json
 import re
 import sys
+import warnings
 from os.path import exists
 
 import galsim
@@ -187,7 +188,14 @@ def gen_starcube_nonoise(infile_fcn, outstem, nblockmax=100):
             newimage = np.zeros((npix, bd * 2 - 1, bd * 2 - 1))
             print(ibx, iby, infile, npix)
             for k in range(npix):
-                newimage[k, :, :] = map[yi[k] + 1 - bd : yi[k] + bd, xi[k] + 1 - bd : xi[k] + bd]
+                try:
+                    newimage[k, :, :] = map[yi[k] + 1 - bd : yi[k] + bd, xi[k] + 1 - bd : xi[k] + bd]
+                except ValueError:
+                    # we end up here if there is an overflow
+                    warnings.warn("Postage stamp overflow, padding with zeros.")
+                    newimage[k, :, :] = np.pad(map, bd)[
+                        yi[k] + 1 : yi[k] + 2 * bd, xi[k] + 1 : xi[k] + 2 * bd
+                    ]
 
                 # PSF shape
                 try:
@@ -245,7 +253,7 @@ def gen_starcube_nonoise(infile_fcn, outstem, nblockmax=100):
     fits.HDUList([fits.PrimaryHDU(image)]).writeto(outfile_g, overwrite=True)
 
     ofile = outstem + "_StarCat.txt"
-    np.savetxt(ofile, pos, header=f" {np.median(newpos[:,13]):14.8E}")
+    np.savetxt(ofile, pos, header=f" {np.median(pos[:,13]):14.8E}")
     output["STARCAT"] = ofile
 
     # fidelity histogram

@@ -17,10 +17,10 @@ make_picture_1band
 import os
 
 import numpy as np
-from astropy.io import fits
 from matplotlib import cm
 from PIL import Image
 
+from ..compress.compressutils import ReadFile
 from ..config import Config
 
 
@@ -88,7 +88,7 @@ def get_config(fn1):
     """
 
     cf = ""
-    with fits.open(fn1) as f:
+    with ReadFile(fn1) as f:
         for line in f["CONFIG"].data["text"]:
             cf += line + "\n"
     cfg = Config(cf)
@@ -194,11 +194,12 @@ def make_picture_1band(
         for iy in range(ymax - ymin):
             fname = fn + f"_{ix + xmin:02d}_{iy + ymin:02d}.fits"
             if os.path.exists(fname):
-                with fits.open(fname) as f:
+                with ReadFile(fname) as f:
                     print(pad, np.shape(f[0].data), fname)
+                    sh = np.shape(f[0].data)  # this is needed for trimming correctly if pad=0
                     D = np.mean(
                         f[0]
-                        .data[0, layer, pad:-pad, pad:-pad]
+                        .data[0, layer, pad : sh[-2] - pad, pad : sh[-1] - pad]
                         .reshape((nint // binning, binning, nint // binning, binning)),
                         axis=(1, 3),
                     )

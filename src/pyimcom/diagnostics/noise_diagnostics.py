@@ -161,6 +161,7 @@ class NoiseReport(ReportSection):
             Reference star brightness (not used)
         bin_flag : int, optional
             Whether to bin? (1 = bin 8x8, 0 = do not bin)
+            Note that binning is disabled if the input image is too small.
         alpha : float, optional
             Tukey window width for noise power spectrum.
 
@@ -190,6 +191,7 @@ class NoiseReport(ReportSection):
         B1 = 0.0
         if filter == "K":
             B1 = 4.65
+        whitenoisekey = None  # avoids error if there isn't a "whitenoise" layer
 
         # which blocks?
         is_first = True
@@ -233,8 +235,12 @@ class NoiseReport(ReportSection):
                     L = self.L = int(configStruct["OUTSIZE"][0]) * int(
                         configStruct["OUTSIZE"][1]
                     )  # side length in px
-                    # snap to nearest multiple of 16
-                    L = (L // 16) * 16
+                    # snap to nearest multiple of 2 or 16
+                    if L >= 32:
+                        L = (L // 16) * 16
+                    else:
+                        L = (L // 2) * 2
+                        bin_flag = 0
 
                     self.s_out = s_out = float(configStruct["OUTSIZE"][2])  # in arcsec
 
@@ -262,9 +268,13 @@ class NoiseReport(ReportSection):
                 print("# Running file: " + infile, "whitenoisekey =", whitenoisekey)
 
                 # mean coverage
+                pad = int(configStruct["PAD"])
                 with ReadFile(infile) as f:
+                    n = np.shape(f["INWEIGHT"].data)[-1]
                     mean_coverage = np.mean(
-                        np.sum(np.where(f["INWEIGHT"].data[0, :, :, :] > 0, 1, 0), axis=0)[2:-2, 2:-2]
+                        np.sum(np.where(f["INWEIGHT"].data[0, :, :, :] > 0, 1, 0), axis=0)[
+                            pad : n - pad, pad : n - pad
+                        ]
                     )
 
                 if bin_flag == 0:
@@ -297,7 +307,7 @@ class NoiseReport(ReportSection):
                         norm_LN = (
                             (s_in**2) * area * tfr / (h_jy * gain)
                         )  # factor to convert LN from flux DN/fr/s to intensity microJy/arcsec^2
-                        if filter == "K":
+                        if filter == "K" and whitenoisekey is not None:
                             with ReadFile(infile) as f:
                                 wndata = np.copy(
                                     f[0].data[
@@ -328,10 +338,10 @@ class NoiseReport(ReportSection):
 
                 # Reshape things for fits files
                 ps2d_all = np.transpose(ps2d_all, (2, 0, 1))
-                # print('# TRANSPOSED ps2d shape:', np.shape(ps2d_all))
+                print("# TRANSPOSED ps2d shape:", np.shape(ps2d_all))
                 # reshape P1D's:
-                ps1d_all = np.transpose(ps2d_all, (2, 0, 1)).reshape(-1, np.shape(ps2d_all)[1]).T
-                # print('# TRANSPOSED ps1d shape:', np.shape(ps1d_all))
+                ps1d_all = np.transpose(ps1d_all, (2, 0, 1)).reshape(-1, np.shape(ps1d_all)[1])
+                print("# TRANSPOSED ps1d shape:", np.shape(ps1d_all))
 
                 # Save power spectra data in a fits file
                 # Two HDUs: Primary contains 2D spectrum, second is a table with 1D spectrum and MC values
@@ -361,7 +371,8 @@ class NoiseReport(ReportSection):
                         self.outslab[1] = il
                     if key_layer[il][:8] == "labnoise":
                         self.outslab[2] = il
-                del key_
+                if len(NLK) >= 1:
+                    del key_
                 hdr["AREAUNIT"] = "arcsec**2"
 
                 col1 = fits.Column(name="Wavenumber", format="E", array=ps1d_all[:, 0])

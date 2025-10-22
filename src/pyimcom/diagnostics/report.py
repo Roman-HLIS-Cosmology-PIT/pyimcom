@@ -12,12 +12,12 @@ ValidationReport
 
 import os
 import subprocess
-import sys
+import warnings
 from datetime import datetime
 
 import numpy as np
-from astropy.io import fits
 
+from ..compress.compressutils import ReadFile
 from ..config import Config, Settings
 
 
@@ -59,6 +59,7 @@ class ReportSection:
 
     def __init__(self, rpt):
         self.stem = rpt.stem
+        self.fnsuffix = rpt.fnsuffix
         self.LegacyName = rpt.LegacyName
         self.cfg = rpt.cfg
         self.dstem = rpt.dstem
@@ -89,11 +90,7 @@ class ReportSection:
         """
 
         if in_x >= 0 and in_x < self.cfg.nblock and in_y >= 0 and in_y < self.cfg.nblock:
-            in_fname = self.stem + f"_{in_x:02d}_{in_y:02d}"
-            if self.LegacyName:
-                in_fname += "_map"
-            in_fname += ".fits"
-            return in_fname
+            return self.stem + f"_{in_x:02d}_{in_y:02d}" + self.fnsuffix
         else:
             raise ValueError("pyimcom.validation.report.ReportSection: infile: block selection out of range")
 
@@ -135,6 +132,8 @@ class ValidationReport:
         LaTeX source, dictionary with keys 'preamble', 'head', 'body', 'appendix', and 'end'.
     stem: str
         Stem for the input files.
+    suffix : str
+        Suffix for the input files.
     LegacyName : bool
         Legacy naming convention for the input files with _map.fits? Should be False in the future.
     cfg : pyimcom.config.Config
@@ -166,7 +165,7 @@ class ValidationReport:
     def __init__(self, fname, dstem, clear_all=False):
         """Constructor."""
 
-        with fits.open(fname) as f:
+        with ReadFile(fname) as f:
             c = f["CONFIG"].data["text"]
             n = len(c)
             cf = ""
@@ -201,11 +200,15 @@ class ValidationReport:
         # get the file coordinates
         self.LegacyName = False
         self.stem = fname[:-11]
-        tail = fname[-11:]
+        self.fnsuffix = ".fits"
         if fname[-9:] == "_map.fits":
             self.LegacyName = True
             self.stem = fname[:-15]
-            tail = fname[-15:]
+            self.fnsuffix = "_map.fits"
+        if fname[-12:] == ".cpr.fits.gz":
+            # compressed option
+            self.stem = fname[:-18]
+            self.fnsuffix = ".cpr.fits.gz"
 
         # LaTeX skeleton
         self.tex = {
@@ -245,6 +248,8 @@ class ValidationReport:
             + f"{self.cfg.ra:8.4f}"
             + "    DEC = "
             + f"{self.cfg.dec:8.4f}"
+            + "    LONPOLE = "
+            + f"{self.cfg.lonpole:8.4f}"
             + "\\end{verbatim}\n"
         )
         self.tex["head"] += "The tests returned the following results.\n\n"
@@ -315,7 +320,7 @@ class ValidationReport:
         with open(self.dstem + "_main.tex", "w") as f:
             f.write(self.texout())
 
-    def compile(self, ntimes=2):
+    def compile(self, ntimes=2, warn_pdf_err=False):
         """
         Compile the LaTeX into a PDF.
 
@@ -323,6 +328,9 @@ class ValidationReport:
         ----------
         ntimes : int, optional
             Number of times to compile (may have to run twice to get all the references).
+        warn_pdf_err : bool, optional
+            If True, compilation failures result in a warning. If False (default),
+            result in an exception.
 
         Returns
         -------
@@ -340,7 +348,9 @@ class ValidationReport:
                 self.compileproc = subprocess.run(
                     ["pdflatex", "-interaction=nonstopmode", tail + "_main.tex"], capture_output=True
                 )
-            except subprocess.CalledProcessError:
-                print("ERROR *** LaTeX failed to compile! ***\n")
-                sys.stdout.flush()
+            except subprocess.CalledProcessError as exc:
+                if warn_pdf_err:
+                    warnings.warn("ERROR *** LaTeX failed to compile! ***\n")
+                else:
+                    raise RuntimeError("LaTeX failed to compile.") from exc
         os.chdir(pwd)

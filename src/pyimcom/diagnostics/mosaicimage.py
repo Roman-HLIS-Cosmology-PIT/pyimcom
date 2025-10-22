@@ -41,7 +41,7 @@ class MosaicImage(ReportSection):
         # which blocks to take
         n = min(nblockmax, self.cfg.nblock)
         ns = self.cfg.n1 * self.cfg.n2
-        j = int(n * ns / 1999.99999)
+        j = max(int(n * ns / 1999.99999), 1)  # prevent j==0
         while ns % j != 0:
             j -= 1
         print("binning=", j, "nside=", ns, "tot=", n * ns)
