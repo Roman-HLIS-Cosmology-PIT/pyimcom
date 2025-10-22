@@ -213,6 +213,7 @@ def run_imsubtract(config_file, display=None):
             I_img = np.copy(hdul[0].data)  # this is I # noqa: F841
         # find number of layers
         nlayer = np.shape(I_img)[-3]  # noqa: F841
+        print("nlayers:", nlayer)
         # get wcs information from fits file (or asdf if indicated)
         sca_wcs = get_wcs(exp)
 
@@ -302,11 +303,11 @@ def run_imsubtract(config_file, display=None):
         A = oversamp * (sca_nside + 2 * I_pad)
 
         # add for loop over layers (nlayers)
-        for n in nlayer:
+        for n in range(nlayer):
             H_canvas = np.zeros((A, A))
             # define other important quantities for convolution
             Nl = int(np.floor(np.sqrt(Ncoeff + 0.5)))
-            KH = np.zeros(A - axis_num + 1, A - axis_num + 1)
+            KH = np.zeros((A - axis_num + 1, A - axis_num + 1))
             x_canvas = np.linspace(
                 -I_pad - 0.5 + 0.5 / oversamp, sca_nside + I_pad - 0.5 + 0.5 / oversamp, oversamp * A
             )
@@ -399,7 +400,7 @@ def run_imsubtract(config_file, display=None):
                 bb_x, bb_y = np.meshgrid(x, y)
 
                 # map bounding box from SCA to output block coordinates
-                ra_map, dec_map = sca_wcs.pixel_to_world_values(bb_x, bb_y, 0)
+                ra_map, dec_map = sca_wcs.all_pix2world(bb_x, bb_y, 0)
                 x_bb, y_bb = block_wcs.all_world2pix(
                     ra_map, dec_map, 0
                 )  # dont want to overwrite past definitions # noqa: E501
