@@ -210,9 +210,9 @@ def run_imsubtract(config_file, display=None):
         # inlayercache data --- changed to context manager structure
         with fits.open(exp) as hdul:
             # read in the input image, I
-            I_input = np.copy(hdul[0].data)  # this is I # noqa: F841
+            I_img = np.copy(hdul[0].data)  # this is I # noqa: F841
         # find number of layers
-        nlayer = np.shape(I_input)[-3]  # noqa: F841
+        nlayer = np.shape(I_img)[-3]  # noqa: F841
         # get wcs information from fits file (or asdf if indicated)
         sca_wcs = get_wcs(exp)
 
@@ -229,6 +229,8 @@ def run_imsubtract(config_file, display=None):
         hdul2.close()
         # SCA padding
         I_pad = int(np.ceil(axis_num / 2 / oversamp))  # native pixels
+        # define the first index needed for convolution
+        first_index = (oversamp + 2 * oversamp * I_pad - axis_num) // 2
 
         # get the kernel size
         s_in_rad = pix_size * np.pi / (180 * 3600)  # convert arcsec to radians
@@ -300,148 +302,156 @@ def run_imsubtract(config_file, display=None):
         A = oversamp * (sca_nside + 2 * I_pad)
 
         # add for loop over layers (nlayers)
-        H_canvas = np.zeros((A, A))
-        # define other important quantities for convolution
-        Nl = int(np.floor(np.sqrt(Ncoeff + 0.5)))
-        KH = np.zeros(A - axis_num + 1, A - axis_num + 1)
-        x_canvas = np.linspace(
-            -I_pad - 0.5 + 0.5 / oversamp, sca_nside + I_pad - 0.5 + 0.5 / oversamp, oversamp * A
-        )
-        u_canvas = (x_canvas - (sca_nside - 1) / 2) / (sca_nside / 2)
-
-        # loop over the blocks in the list
-        count = 0  # noqa: F841
-        for ix, iy in block_list:
-            print("BLOCK: ", ix, iy)
-
-            # open the block info
-            hdul3 = fits.open(block_path + f"_{ix:02d}_{iy:02d}.fits")
-            block_data = np.copy(hdul3[0].data)
-            block_wcs = get_wcs_from_infile(hdul3)
-            hdul3.close()
-            # print("block wcs:", block_wcs)
-
-            # determine the length of one axis of the block
-            block_length = block_data.shape[-1]  # length in output pixels
-            overlap = n2 * postage_pad  # size of one overlap region due to postage stamp
-            a1 = 4 * overlap / (block_length - 1)  # percentage of region to have window function taper
-            # the '-1' is due to scipy's convention on alpha that the denominator is the distance from the
-            # first to the last point, so 1 less than the length
-            window = tukey(block_length, alpha=a1)
-            # apply window function to block data
-            block = block_data[0] * window  # noqa: F841
-
-            # check the window function
-            plt.plot(np.arange(len(window)), window, color="indigo")
-            plt.axvline(block_length - 1, c="mediumpurple")
-            plt.axvline(block_length - overlap - 1, c="mediumpurple")
-            plt.axvline(block_length - 2 * overlap - 1, c="mediumpurple")
-            plt.xlim(block_length - 3 * overlap, block_length + overlap)
-            plt.plot(block_length - 2, window[block_length - 2], c="darkmagenta", marker="o")
-            plt.plot(
-                block_length - 2 * overlap, window[block_length - 2 * overlap], c="darkmagenta", marker="o"
+        for n in nlayer:
+            H_canvas = np.zeros((A, A))
+            # define other important quantities for convolution
+            Nl = int(np.floor(np.sqrt(Ncoeff + 0.5)))
+            KH = np.zeros(A - axis_num + 1, A - axis_num + 1)
+            x_canvas = np.linspace(
+                -I_pad - 0.5 + 0.5 / oversamp, sca_nside + I_pad - 0.5 + 0.5 / oversamp, oversamp * A
             )
-            plt.plot(block_length - overlap, window[block_length - overlap], c="blueviolet", marker="o")
-            plt.plot(
-                block_length - overlap - 2, window[block_length - overlap - 2], c="blueviolet", marker="o"
-            )
-            pltshow(plt, display, {"type": "window", "obsid": obsid, "sca": sca, "ix": ix, "iy": iy})
-            print(
-                window[block_length - 2],
-                window[block_length - 2 * overlap],
-                window[block_length - 2] + window[block_length - 2 * overlap],
-            )
-            print(
-                window[block_length - overlap],
-                window[block_length - overlap - 2],
-                window[block_length - overlap] + window[block_length - overlap - 2],
-            )
+            u_canvas = (x_canvas - (sca_nside - 1) / 2) / (sca_nside / 2)
 
-            # find the 'Bounding Box' in SCA coordinates
-            # create mesh grid for output block
-            block_arr = np.arange(block_length)
-            x_out, y_out = np.meshgrid(block_arr, block_arr)
-            # convert to ra and dec using block wcs
-            ra_sca, dec_sca = block_wcs.pixel_to_world_values(x_out, y_out, 0)
-            # print(ra_sca.shape, dec_sca.shape)
-            print("ra, dec: ", ra_sca[0::2663, 0::2663], dec_sca[0::2663, 0::2663])
+            # loop over the blocks in the list
+            count = 0  # noqa: F841
+            for ix, iy in block_list:
+                print("BLOCK: ", ix, iy)
 
-            # convert into SCA coordinates
-            x_in, y_in = sca_wcs.all_world2pix(ra_sca, dec_sca, 0)
-            print("x_in, y_in: ", x_in[0::2663, 0::2663], y_in[0::2663, 0::2663])
+                # open the block info
+                hdul3 = fits.open(block_path + f"_{ix:02d}_{iy:02d}.fits")
+                block_data = np.copy(hdul3[0].data)
+                block_wcs = get_wcs_from_infile(hdul3)
+                hdul3.close()
+                # print("block wcs:", block_wcs)
 
-            # get the bounding box from the max and min values
-            left = np.floor(np.min(x_in))
-            right = np.ceil(np.max(x_in))
-            bottom = np.floor(np.min(y_in))
-            top = np.ceil(np.max(y_in))
+                # determine the length of one axis of the block
+                block_length = block_data.shape[-1]  # length in output pixels
+                overlap = n2 * postage_pad  # size of one overlap region due to postage stamp
+                a1 = 4 * overlap / (block_length - 1)  # percentage of region to have window function taper
+                # the '-1' is due to scipy's convention on alpha that the denominator is the distance from the
+                # first to the last point, so 1 less than the length
+                window = tukey(block_length, alpha=a1)
+                # apply window function to block data
+                block = block_data[0] * window  # noqa: F841
 
-            # trim bounding box to ensure not extending past SCA padding
-            # add trimming for bounding box (do this with left, right, bottom, top)
-            left = np.max([left, -I_pad])
-            right = np.max([right, sca_nside - 1 + I_pad])
-            bottom = np.max([bottom, -I_pad])
-            top = np.max([top, sca_nside - 1 + I_pad])
-
-            # create the bounding box mesh grid, with ovsamp
-            # determine side lengths of the box
-            width = int(oversamp * (right - left + 1))
-            height = int(oversamp * (top - bottom + 1))
-            # create arrays for meshgrid
-            x = np.linspace(left - 0.5 + 0.5 / oversamp, right + 0.5 - 0.5 / oversamp, width)
-            y = np.linspace(bottom - 0.5 + 0.5 / oversamp, top + 0.5 + 0.5 / oversamp, height)
-            bb_x, bb_y = np.meshgrid(x, y)
-
-            # map bounding box from SCA to output block coordinates
-            ra_map, dec_map = sca_wcs.pixel_to_world_values(bb_x, bb_y, 0)
-            x_bb, y_bb = block_wcs.all_world2pix(
-                ra_map, dec_map, 0
-            )  # dont want to overwrite past definitions # noqa: E501
-
-            # add padding to the block (with window applied)
-            block_padded = np.pad(block, 5, mode="constant", constant_values=0)[None, :, :]
-            x_bb += 5
-            y_bb += 5
-
-            # create interpolated version of block
-            H = np.zeros((1, np.size(x_bb)))
-            pyimcom_croutines.iD5512C(block_padded, x_bb.ravel(), y_bb.ravel(), H)
-            # reshape H
-            H = H.reshape(x_bb.shape)
-
-            # multiply by Jacobian to H
-            # get native pixel size
-            native_pix = get_pix_area(sca_wcs, region=[left, right + 1, bottom, top + 1], ovsamp=oversamp)
-
-            H *= native_pix / (pix_size * 180 / np.pi) ** 2
-
-            # add H to H_canvas
-            H_canvas[
-                oversamp * (bottom + I_pad) : oversamp * (top + 1 + I_pad),
-                oversamp * (left + I_pad) : oversamp * (right + 1 + I_pad),
-            ] += H
-
-        # apply convolution to canvas
-        for lu in range(Nl):
-            for lv in range(Nl):
-                KH[:, :] += np.convolve(
-                    K[lu + lv * Nl, :, :],
-                    H_canvas * eval_legendre(lu, u_canvas)[None, :] * eval_legendre(lv, u_canvas)[:, None],
-                    mode="valid",
+                # check the window function
+                plt.plot(np.arange(len(window)), window, color="indigo")
+                plt.axvline(block_length - 1, c="mediumpurple")
+                plt.axvline(block_length - overlap - 1, c="mediumpurple")
+                plt.axvline(block_length - 2 * overlap - 1, c="mediumpurple")
+                plt.xlim(block_length - 3 * overlap, block_length + overlap)
+                plt.plot(block_length - 2, window[block_length - 2], c="darkmagenta", marker="o")
+                plt.plot(
+                    block_length - 2 * overlap,
+                    window[block_length - 2 * overlap],
+                    c="darkmagenta",
+                    marker="o",
+                )
+                plt.plot(block_length - overlap, window[block_length - overlap], c="blueviolet", marker="o")
+                plt.plot(
+                    block_length - overlap - 2, window[block_length - overlap - 2], c="blueviolet", marker="o"
+                )
+                pltshow(plt, display, {"type": "window", "obsid": obsid, "sca": sca, "ix": ix, "iy": iy})
+                print(
+                    window[block_length - 2],
+                    window[block_length - 2 * overlap],
+                    window[block_length - 2] + window[block_length - 2 * overlap],
+                )
+                print(
+                    window[block_length - overlap],
+                    window[block_length - overlap - 2],
+                    window[block_length - overlap] + window[block_length - overlap - 2],
                 )
 
-        # downsample back to native pixels
-        KH_native = KH / oversamp
+                # find the 'Bounding Box' in SCA coordinates
+                # create mesh grid for output block
+                block_arr = np.arange(block_length)
+                x_out, y_out = np.meshgrid(block_arr, block_arr)
+                # convert to ra and dec using block wcs
+                ra_sca, dec_sca = block_wcs.pixel_to_world_values(x_out, y_out, 0)
+                # print(ra_sca.shape, dec_sca.shape)
+                print("ra, dec: ", ra_sca[0::2663, 0::2663], dec_sca[0::2663, 0::2663])
 
-        # subtract from input image
-        I_sub = I_input - KH_native
+                # convert into SCA coordinates
+                x_in, y_in = sca_wcs.all_world2pix(ra_sca, dec_sca, 0)
+                print("x_in, y_in: ", x_in[0::2663, 0::2663], y_in[0::2663, 0::2663])
 
-        # I_input[0,ilayer,:,:] -= KH_native
-        #   (But rename I_input) # use less memory
+                # get the bounding box from the max and min values
+                left = np.floor(np.min(x_in))
+                right = np.ceil(np.max(x_in))
+                bottom = np.floor(np.min(y_in))
+                top = np.ceil(np.max(y_in))
+
+                # trim bounding box to ensure not extending past SCA padding
+                # add trimming for bounding box (do this with left, right, bottom, top)
+                left = np.max([left, -I_pad])
+                right = np.max([right, sca_nside - 1 + I_pad])
+                bottom = np.max([bottom, -I_pad])
+                top = np.max([top, sca_nside - 1 + I_pad])
+
+                # create the bounding box mesh grid, with ovsamp
+                # determine side lengths of the box
+                width = int(oversamp * (right - left + 1))
+                height = int(oversamp * (top - bottom + 1))
+                # create arrays for meshgrid
+                x = np.linspace(left - 0.5 + 0.5 / oversamp, right + 0.5 - 0.5 / oversamp, width)
+                y = np.linspace(bottom - 0.5 + 0.5 / oversamp, top + 0.5 + 0.5 / oversamp, height)
+                bb_x, bb_y = np.meshgrid(x, y)
+
+                # map bounding box from SCA to output block coordinates
+                ra_map, dec_map = sca_wcs.pixel_to_world_values(bb_x, bb_y, 0)
+                x_bb, y_bb = block_wcs.all_world2pix(
+                    ra_map, dec_map, 0
+                )  # dont want to overwrite past definitions # noqa: E501
+
+                # add padding to the block (with window applied)
+                block_padded = np.pad(block, 5, mode="constant", constant_values=0)[None, :, :]
+                x_bb += 5
+                y_bb += 5
+
+                # create interpolated version of block
+                H = np.zeros((1, np.size(x_bb)))
+                pyimcom_croutines.iD5512C(block_padded, x_bb.ravel(), y_bb.ravel(), H)
+                # reshape H
+                H = H.reshape(x_bb.shape)
+
+                # multiply by Jacobian to H
+                # get native pixel size
+                native_pix = get_pix_area(sca_wcs, region=[left, right + 1, bottom, top + 1], ovsamp=oversamp)
+
+                H *= native_pix / (pix_size * 180 / np.pi) ** 2
+
+                # add H to H_canvas
+                H_canvas[
+                    oversamp * (bottom + I_pad) : oversamp * (top + 1 + I_pad),
+                    oversamp * (left + I_pad) : oversamp * (right + 1 + I_pad),
+                ] += H
+
+            # apply convolution to canvas
+            for lu in range(Nl):
+                for lv in range(Nl):
+                    KH[:, :] += np.convolve(
+                        K[lu + lv * Nl, :, :],
+                        H_canvas
+                        * eval_legendre(lu, u_canvas)[None, :]
+                        * eval_legendre(lv, u_canvas)[:, None],
+                        mode="valid",
+                    )
+
+            # # downsample back to native pixels
+            # KH_native = KH / oversamp
+
+            # # subtract from input image
+            # I_sub = I_input - KH_native
+
+            # subtract from the input image (using less memory)
+            I_img[0, n, :, :] -= KH[
+                first_index:-first_index:oversamp, first_index:-first_index:oversamp
+            ]  # n here is for nlayer
 
         # save outside of the layer for loop
         # write output file for each exposure
-        hdu4 = fits.PrimaryHU(data=I_sub)  # I_sub is whatever new I_input name
+        hdu4 = fits.PrimaryHU(data=I_img)
         hdu4.writeto(f"{obsid}_{sca}_subI.fits")
 
 
