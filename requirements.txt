@@ -12,7 +12,7 @@ matplotlib
 treecorr
 scikit-image
 pytz
-git+https://github.com/Roman-HLIS-Cosmology-PIT/furry-parakeet.git#egg=furry_parakeet
+furry_parakeet @ git+https://github.com/Roman-HLIS-Cosmology-PIT/furry-parakeet@main
 fsspec
 requests
 s3fs
