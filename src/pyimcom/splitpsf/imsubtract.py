@@ -369,7 +369,9 @@ def run_imsubtract(config_file, display=None):
                 block_arr = np.arange(block_length)
                 x_out, y_out = np.meshgrid(block_arr, block_arr)
                 # convert to ra and dec using block wcs
-                ra_sca, dec_sca = block_wcs.pixel_to_world_values(x_out, y_out, 0)
+                ra_sca, dec_sca = block_wcs.pixel_to_world_values(
+                    x_out, y_out, 0
+                )  # # switched to pixel_to_world_values from all_world2pix because of SlicedLowLevelWCS
                 # print(ra_sca.shape, dec_sca.shape)
                 print("ra, dec: ", ra_sca[0::2663, 0::2663], dec_sca[0::2663, 0::2663])
 
@@ -401,9 +403,10 @@ def run_imsubtract(config_file, display=None):
 
                 # map bounding box from SCA to output block coordinates
                 ra_map, dec_map = sca_wcs.all_pix2world(bb_x, bb_y, 0)
-                x_bb, y_bb = block_wcs.all_world2pix(
+                x_bb, y_bb = block_wcs.world_to_pixel_values(
                     ra_map, dec_map, 0
                 )  # dont want to overwrite past definitions # noqa: E501
+                # switched to world_to_pixel values from all_world2pix because of SlicedLowLevelWCS
 
                 # add padding to the block (with window applied)
                 block_padded = np.pad(block, 5, mode="constant", constant_values=0)[None, :, :]
