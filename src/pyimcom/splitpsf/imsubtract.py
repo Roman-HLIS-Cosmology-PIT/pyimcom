@@ -28,6 +28,7 @@ from astropy.wcs.wcsapi import SlicedLowLevelWCS
 from furry_parakeet import (
     pyimcom_croutines,
 )
+from scipy.signal import fftconvolve
 from scipy.signal.windows import tukey
 from scipy.special import eval_legendre
 
@@ -227,6 +228,7 @@ def run_imsubtract(config_file, display=None):
 
         # get the oversampling factor
         oversamp = hdul2[0].header["OVSAMP"]  # number of kernel pixels / native pixels
+        print("oversamp:", oversamp)
         hdul2.close()
         # SCA padding
         I_pad = int(np.ceil(axis_num / 2 / oversamp))  # native pixels
@@ -308,9 +310,7 @@ def run_imsubtract(config_file, display=None):
             # define other important quantities for convolution
             Nl = int(np.floor(np.sqrt(Ncoeff + 0.5)))
             KH = np.zeros((A - axis_num + 1, A - axis_num + 1))
-            x_canvas = np.linspace(
-                -I_pad - 0.5 + 0.5 / oversamp, sca_nside + I_pad - 0.5 + 0.5 / oversamp, oversamp * A
-            )
+            x_canvas = np.linspace(-I_pad - 0.5 + 0.5 / oversamp, sca_nside + I_pad - 0.5 + 0.5 / oversamp, A)
             u_canvas = (x_canvas - (sca_nside - 1) / 2) / (sca_nside / 2)
 
             # loop over the blocks in the list
@@ -372,7 +372,7 @@ def run_imsubtract(config_file, display=None):
                 ra_sca, dec_sca = block_wcs.pixel_to_world_values(
                     x_out, y_out, 0
                 )  # # switched to pixel_to_world_values from all_world2pix because of SlicedLowLevelWCS
-                # print(ra_sca.shape, dec_sca.shape)
+                print("ra shape:", ra_sca.shape, "dec shape:", dec_sca.shape)
                 print("ra, dec: ", ra_sca[0::2663, 0::2663], dec_sca[0::2663, 0::2663])
 
                 # convert into SCA coordinates
@@ -380,22 +380,38 @@ def run_imsubtract(config_file, display=None):
                 print("x_in, y_in: ", x_in[0::2663, 0::2663], y_in[0::2663, 0::2663])
 
                 # get the bounding box from the max and min values
-                left = np.floor(np.min(x_in))
-                right = np.ceil(np.max(x_in))
-                bottom = np.floor(np.min(y_in))
-                top = np.ceil(np.max(y_in))
-
+                left = int(np.floor(np.min(x_in)))
+                right = int(np.ceil(np.max(x_in)))
+                bottom = int(np.floor(np.min(y_in)))
+                top = int(np.ceil(np.max(y_in)))
+                print("vertical of bounding box:", top - bottom)
+                print("horizontal of bounding box:", right - left)
+                print("left", left)
+                print("right", right)
+                print("bottom", bottom)
+                print("top", top)
+                print("sca_nside", sca_nside)
+                print("I_pad", I_pad)
                 # trim bounding box to ensure not extending past SCA padding
                 # add trimming for bounding box (do this with left, right, bottom, top)
+
                 left = np.max([left, -I_pad])
-                right = np.max([right, sca_nside - 1 + I_pad])
+                right = np.min([right, sca_nside - 1 + I_pad])
                 bottom = np.max([bottom, -I_pad])
-                top = np.max([top, sca_nside - 1 + I_pad])
+                top = np.min([top, sca_nside - 1 + I_pad])
+                print("after trimming:")
+                print("vertical of bounding box:", top - bottom)
+                print("horizontal of bounding box:", right - left)
 
                 # create the bounding box mesh grid, with ovsamp
                 # determine side lengths of the box
                 width = int(oversamp * (right - left + 1))
                 height = int(oversamp * (top - bottom + 1))
+
+                # check if weight, height are positive
+                if width <= 0 or height <= 0:
+                    continue
+
                 # create arrays for meshgrid
                 x = np.linspace(left - 0.5 + 0.5 / oversamp, right + 0.5 - 0.5 / oversamp, width)
                 y = np.linspace(bottom - 0.5 + 0.5 / oversamp, top + 0.5 + 0.5 / oversamp, height)
@@ -417,6 +433,7 @@ def run_imsubtract(config_file, display=None):
                 H = np.zeros((1, np.size(x_bb)))
                 pyimcom_croutines.iD5512C(block_padded, x_bb.ravel(), y_bb.ravel(), H)
                 # reshape H
+                print("x_bb shape:", x_bb.shape)
                 H = H.reshape(x_bb.shape)
 
                 # multiply by Jacobian to H
@@ -424,7 +441,13 @@ def run_imsubtract(config_file, display=None):
                 native_pix = get_pix_area(sca_wcs, region=[left, right + 1, bottom, top + 1], ovsamp=oversamp)
 
                 H *= native_pix / (pix_size * 180 / np.pi) ** 2
+                print("H shape:", H.shape)
+                print("H canvas shape:", H_canvas.shape)
 
+                print("bottom side:", oversamp * (bottom + I_pad))
+                print("top side:", oversamp * (top + 1 + I_pad))
+                print("left side:", oversamp * (left + I_pad))
+                print("right side:", oversamp * (right + 1 + I_pad))
                 # add H to H_canvas
                 H_canvas[
                     oversamp * (bottom + I_pad) : oversamp * (top + 1 + I_pad),
@@ -433,8 +456,10 @@ def run_imsubtract(config_file, display=None):
 
             # apply convolution to canvas
             for lu in range(Nl):
+                print(lu)
                 for lv in range(Nl):
-                    KH[:, :] += np.convolve(
+                    print(lv)
+                    KH[:, :] += fftconvolve(
                         K[lu + lv * Nl, :, :],
                         H_canvas
                         * eval_legendre(lu, u_canvas)[None, :]
@@ -449,7 +474,7 @@ def run_imsubtract(config_file, display=None):
             # I_sub = I_input - KH_native
 
             # subtract from the input image (using less memory)
-            I_img[0, n, :, :] -= KH[
+            I_img[n, :, :] -= KH[
                 first_index:-first_index:oversamp, first_index:-first_index:oversamp
             ]  # n here is for nlayer
 
