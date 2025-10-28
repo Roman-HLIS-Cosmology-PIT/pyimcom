@@ -535,7 +535,7 @@ def run_imsubtract(config_file, display=None, scanum=None, local_output=False, m
 if __name__ == "__main__":
     """Calling program is here.
 
-    python3 -m pyimcom.splitpsf.imsubtract  <config> [<output images>]
+    python3 -m pyimcom.splitpsf.imsubtract  <config> <sca> [<output images>]
     (uses plt.show() if output stem not specified; output image directory is relative to cache file)
 
     """
@@ -544,10 +544,15 @@ if __name__ == "__main__":
     # get the json file
     config_file = sys.argv[1]
 
+    # get the SCA (0 for all of them)
+    sca = int(sys.argv[2])
+    if sca == 0:
+        sca = None
+
     display = "/dev/null"
-    if len(sys.argv) > 2:
-        display = sys.argv[2]
-    run_imsubtract(config_file, display=display, max_img=1)
+    if len(sys.argv) > 3:
+        display = sys.argv[3]
+    run_imsubtract(config_file, display=display, scanum=sca, max_img=1)
 
     end = time.time()
     elapsed = end - start
