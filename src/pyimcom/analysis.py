@@ -125,11 +125,9 @@ class OutImage:
         if hdu_names is None:
             self.hdu_names = OutImage.get_hdu_names(self.cfg.outmaps)
 
-        data_loaded = hasattr(self, "hdu_list")
-        if not data_loaded:
-            self.hdu_list = ReadFile(self.fpath)
+        with fits.open(self.fpath) as _hdul:
+            _header = _hdul["CONFIG"].header
 
-        _header = self.hdu_list["CONFIG"].header
         if ("BLOCKX" in _header) and ("BLOCKY" in _header):
             self.ibx = int(_header["BLOCKX"])
             self.iby = int(_header["BLOCKY"])
