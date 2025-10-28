@@ -115,14 +115,6 @@ class OutImage:
         fpath = str(fpath)
         self.fpath = fpath
 
-        # Get file indices.
-        fstem = Path(fpath).stem
-        # This part is for legacy file names that had a '_map'.
-        # Summer 2025 run and later don't have this.
-        if fstem[-4:] == "_map":
-            fstem = fstem[:-4]
-        self.ibx, self.iby = map(int, fstem.split("_")[-2:])
-
         self.cfg = cfg
         if cfg is None:
             with ReadFile(fpath) as hdu_list:
@@ -132,6 +124,21 @@ class OutImage:
         self.hdu_names = hdu_names
         if hdu_names is None:
             self.hdu_names = OutImage.get_hdu_names(self.cfg.outmaps)
+
+        with fits.open(self.fpath) as _hdul:
+            _header = _hdul["CONFIG"].header
+
+        if ("BLOCKX" in _header) and ("BLOCKY" in _header):
+            self.ibx = int(_header["BLOCKX"])
+            self.iby = int(_header["BLOCKY"])
+        else:
+            # Get file indices.
+            fstem = Path(fpath).stem
+            # This part is for legacy file names that had a '_map'.
+            # Summer 2025 run and later don't have this.
+            if fstem[-4:] == "_map":
+                fstem = fstem[:-4]
+            self.ibx, self.iby = map(int, fstem.split("_")[-2:])
 
     @staticmethod
     def get_last_line(fname: str) -> str:
