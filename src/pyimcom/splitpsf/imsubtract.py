@@ -382,12 +382,13 @@ def run_imsubtract(config_file, display=None, scanum=None, local_output=False, m
                 # determine the length of one axis of the block
                 block_length = block_data.shape[-1]  # length in output pixels
                 overlap = n2 * postage_pad  # size of one overlap region due to postage stamp
-                a1 = 4 * overlap / (block_length - 1)  # percentage of region to have window function taper
+                a1 = 2 * (2 * overlap - 1) / (block_length - 1)  # percentage of region to have
+                # window function taper
                 # the '-1' is due to scipy's convention on alpha that the denominator is the distance from the
                 # first to the last point, so 1 less than the length
                 window = tukey(block_length, alpha=a1)
-                # apply window function to block data
-                block = block_data[0, n, :, :] * window
+                # apply window function to block data in both directions
+                block = block_data[0, n, :, :] * window[:, None] * window[None, :]
 
                 # check the window function
                 with ReportFigContext(matplotlib, plt):
@@ -414,14 +415,14 @@ def run_imsubtract(config_file, display=None, scanum=None, local_output=False, m
                     )
                     pltshow(plt, display, {"type": "window", "obsid": obsid, "sca": sca, "ix": ix, "iy": iy})
                 print(
-                    window[block_length - 2],
+                    window[block_length - 1],
                     window[block_length - 2 * overlap],
-                    window[block_length - 2] + window[block_length - 2 * overlap],
+                    window[block_length - 1] + window[block_length - 2 * overlap],
                 )
                 print(
                     window[block_length - overlap],
-                    window[block_length - overlap - 2],
-                    window[block_length - overlap] + window[block_length - overlap - 2],
+                    window[block_length - overlap - 1],
+                    window[block_length - overlap] + window[block_length - overlap - 1],
                 )
 
                 # find the 'Bounding Box' in SCA coordinates
