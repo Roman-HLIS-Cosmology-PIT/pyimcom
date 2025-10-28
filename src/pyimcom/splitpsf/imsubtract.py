@@ -430,9 +430,7 @@ def run_imsubtract(config_file, display=None, scanum=None, local_output=False, m
                 block_arr = np.arange(block_length)
                 x_out, y_out = np.meshgrid(block_arr, block_arr)
                 # convert to ra and dec using block wcs
-                ra_sca, dec_sca = block_wcs.pixel_to_world_values(
-                    x_out, y_out, 0
-                )  # # switched to pixel_to_world_values from all_world2pix because of SlicedLowLevelWCS
+                ra_sca, dec_sca = block_wcs.pixel_to_world_values(x_out, y_out, 0)
 
                 # convert into SCA coordinates
                 x_in, y_in = sca_wcs.all_world2pix(ra_sca, dec_sca, 0)
@@ -442,9 +440,8 @@ def run_imsubtract(config_file, display=None, scanum=None, local_output=False, m
                 right = int(np.ceil(np.max(x_in)))
                 bottom = int(np.floor(np.min(y_in)))
                 top = int(np.ceil(np.max(y_in)))
-                # trim bounding box to ensure not extending past SCA padding
-                # add trimming for bounding box (do this with left, right, bottom, top)
 
+                # trim bounding box to ensure not extending past SCA padding
                 left = np.max([left, -I_pad])
                 right = np.min([right, sca_nside - 1 + I_pad])
                 bottom = np.max([bottom, -I_pad])
@@ -466,10 +463,7 @@ def run_imsubtract(config_file, display=None, scanum=None, local_output=False, m
 
                 # map bounding box from SCA to output block coordinates
                 ra_map, dec_map = sca_wcs.all_pix2world(bb_x, bb_y, 0)
-                x_bb, y_bb = block_wcs.world_to_pixel_values(
-                    ra_map, dec_map, 0
-                )  # dont want to overwrite past definitions # noqa: E501
-                # switched to world_to_pixel values from all_world2pix because of SlicedLowLevelWCS
+                x_bb, y_bb = block_wcs.world_to_pixel_values(ra_map, dec_map, 0)
 
                 # add padding to the block (with window applied)
                 block_padded = np.pad(block, 5, mode="constant", constant_values=0)[None, :, :]
@@ -507,16 +501,8 @@ def run_imsubtract(config_file, display=None, scanum=None, local_output=False, m
                         mode="valid",
                     )
 
-            # # downsample back to native pixels
-            # KH_native = KH / oversamp
-
-            # # subtract from input image
-            # I_sub = I_input - KH_native
-
             # subtract from the input image (using less memory)
-            I_img[n, :, :] -= KH[
-                first_index:-first_index:oversamp, first_index:-first_index:oversamp
-            ]  # n here is for nlayer
+            I_img[n, :, :] -= KH[first_index:-first_index:oversamp, first_index:-first_index:oversamp]
 
         # save outside of the layer for loop
         # write output file for each exposure
