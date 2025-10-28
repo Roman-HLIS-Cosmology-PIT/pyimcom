@@ -129,9 +129,10 @@ class OutImage:
         if not data_loaded:
             self.hdu_list = ReadFile(self.fpath)
 
-        if ("BLOCKX" in self.hdu_list[1].header) and ("BLOCKY" in self.hdu_list[1].header):
-            self.ibx = int(self.hdu_list[1].header["BLOCKX"])
-            self.iby = int(self.hdu_list[1].header["BLOCKY"])
+        _header = self.hdu_list["CONFIG"].header
+        if ("BLOCKX" in _header) and ("BLOCKY" in _header):
+            self.ibx = int(_header["BLOCKX"])
+            self.iby = int(_header["BLOCKY"])
         else:
             # Get file indices.
             fstem = Path(fpath).stem
