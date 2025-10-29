@@ -312,19 +312,19 @@ class Config:
         "kappaC_arr",
         "uctarget",
         "sigmamax",  # SECTION VIII
-        "ds_model", 
+        "ds_model",
         "ds_outpath",
-        "ds_outstem", 
-        "cg_model", 
-        "cost_model", 
-        "ds_obsfile", 
+        "ds_outstem",
+        "cg_model",
+        "cost_model",
+        "ds_obsfile",
         "ds_indata",
         "ds_restart",
-        "cost_prior", 
-        "resid_model", 
-        "hub_thresh", 
-        "cg_maxiter", 
-        "cg_tol"  # SECTION IX
+        "cost_prior",
+        "resid_model",
+        "hub_thresh",
+        "cg_maxiter",
+        "cg_tol",  # SECTION IX
     )
 
     def __init__(self, cfg_file: str = "", inmode=None) -> None:
@@ -389,25 +389,23 @@ class Config:
 
         ### SECTION IX: DESTRIPING PARAMS ###
         if self.cost_model:
-            if self.cost_model=='quadratic':
-                self.resid_model = 'quad_prime'
-            elif self.cost_model=='absolute':
-                self.resid_model = 'abs_prime'
-            elif self.cost_model=='huber_loss':
-                self.resid_model = 'hub_prime'
-            #stuff
-
+            if self.cost_model == "quadratic":
+                self.resid_model = "quad_prime"
+            elif self.cost_model == "absolute":
+                self.resid_model = "abs_prime"
+            elif self.cost_model == "huber_loss":
+                self.resid_model = "hub_prime"
+            # stuff
 
         ### SECTION IX: DESTRIPING PARAMS ###
         if self.cost_model:
-            if self.cost_model=='quadratic':
-                self.resid_model = 'quad_prime'
-            elif self.cost_model=='absolute':
-                self.resid_model = 'abs_prime'
-            elif self.cost_model=='huber_loss':
-                self.resid_model = 'hub_prime'
-            #stuff
-
+            if self.cost_model == "quadratic":
+                self.resid_model = "quad_prime"
+            elif self.cost_model == "absolute":
+                self.resid_model = "abs_prime"
+            elif self.cost_model == "huber_loss":
+                self.resid_model = "hub_prime"
+            # stuff
 
     def _from_dict(self, cfg_dict: dict) -> None:
         """
@@ -527,13 +525,13 @@ class Config:
             self.no_qlt_ctrl = cfg_dict.get("EMPIRNQC", False)
 
         ### SECTION IX: DESTRIPING PARAMS ###
-        self.ds_model = cfg_dict.get('DSMODEL', False)
-        self.ds_outpath, self.ds_outstem = cfg_dict['DSOUT']
-        self.cg_model, self.cg_maxiter, self.cg_tol = cfg_dict['CGMODEL']
-        self.cost_model, self.cost_prior, self.hub_thresh = cfg_dict['DSCOST']
-        self.ds_obsfile = cfg_dict.get('DSOBSFILE', None)
-        self.ds_indata = cfg_dict.get('DSINDATA', None)
-        self.ds_restart = cfg_dict.get('DSRESTART', None)
+        self.ds_model = cfg_dict.get("DSMODEL", False)
+        self.ds_outpath, self.ds_outstem = cfg_dict["DSOUT"]
+        self.cg_model, self.cg_maxiter, self.cg_tol = cfg_dict["CGMODEL"]
+        self.cost_model, self.cost_prior, self.hub_thresh = cfg_dict["DSCOST"]
+        self.ds_obsfile = cfg_dict.get("DSOBSFILE")
+        self.ds_indata = cfg_dict.get("DSINDATA")
+        self.ds_restart = cfg_dict.get("DSRESTART")
 
         # Lagrange multiplier (kappa) information
         # list of kappa/C values, ascending order
