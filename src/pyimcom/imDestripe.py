@@ -1467,7 +1467,7 @@ def conjugate_gradient(p, f, f_prime, thresh, workers, scalist, wcslist, neighbo
         grad = None
         direction = None  # No initial direction
         write_to_file('### Starting initial cost function', of)
-        epsilon, psi = cost_function(p, f, thresh, workers, scalist, neighbbors)
+        epsilon, psi = cost_function(p, f, thresh, workers, scalist, neighbors)
         print('Global elapsed t = {:8.1f}'.format((time.time()-t0_global)/60))
 
         with open(log_file, 'w', newline='') as csvfile:
