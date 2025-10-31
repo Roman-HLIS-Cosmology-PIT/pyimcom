@@ -73,7 +73,7 @@ def update(cfg_file, proceed=True):
     for _, _, files in os.walk(path):
         for file in files:
             if file.startswith(exp):
-                m = re.search(r"_(\d{8})_(\d{2})\.fits", file[len(exp) :])
+                m = re.search(r"_(\d{8})_(\d{2})\.fits$", file[len(exp) :])
                 if m:
                     idsca.append((int(m.group(1)), int(m.group(2))))
 
