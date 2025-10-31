@@ -167,7 +167,7 @@ class Sca_img:
             Writes the interpolated image out to the disk, to be read/used later
     """
 
-    def __init__(self, obsid, scaid, cfg, interpolated=False, add_noise=True, add_objmask=True):
+    def __init__(self, obsid, scaid, cfg, neighbors, interpolated=False, add_noise=True, add_objmask=True):
 
         if interpolated:
             file = fits.open(cfg.ds_outpath + 'interpolations/' + obsid + '_' + scaid + '_interp.fits', memmap=True)
@@ -189,8 +189,6 @@ class Sca_img:
         self.cfg=cfg
 
         # Calculate effecive gain
-        # KL something to make sure the same SCA isn't being accessed as A and B at the same time here
-        # could use file locks but I'm pretty sure it's not possible (but double check)
         if not os.path.isfile(tempdir + obsid + '_' + scaid + '_geff.dat'):
             g0 = time.time()
             g_eff = np.memmap(tempdir + obsid + '_' + scaid + '_geff.dat', dtype='float64', mode='w+',
@@ -309,7 +307,7 @@ class Sca_img:
         return ra, dec
 
 
-    def make_interpolated(self, ind, scalist, ov_mat, params=None, N_eff_min=0.5):
+    def make_interpolated(self, ind, scalist, neighbors, params=None, N_eff_min=0.5):
         """
         Construct a version of this SCA interpolated from other, overlapping ones.
         Writes the interpolated image out to the disk, to be read/used later
@@ -319,6 +317,10 @@ class Sca_img:
         --------
         ind : int
             index of this SCA in all_scas list
+        scalist : List of Str
+            the list of all SCAs in this mosaic
+        neighbors : Dict
+            dictionary where keys are SCA indices and values are lists of indices of overlapping SCAs
         params : Parameters object
              parameters to be subtracted from contributing SCAs; default Nnoe
         N_eff_min : float
@@ -337,43 +339,43 @@ class Sca_img:
             make_Neff = False
 
         t_a_start = time.time()
-        #write_to_file(f'Starting interpolation for SCA {self.obsid}_{self.scaid}')
         sys.stdout.flush()
 
         N_BinA = 0
 
-        for k, sca_b in enumerate(scalist):
+        sca_b_list = neighbors[ind]
+        
+        for k in sca_b_list:
+            sca_b = scalist[k]
             obsid_B, scaid_B = get_ids(sca_b)
 
-            # KL make this get neighbors too!!
-            if obsid_B != self.obsid and ov_mat[ind, k] >= 0.1:  # Check if this sca_b overlaps sca_a by at least 10%
-                N_BinA += 1
-                I_B = Sca_img(obsid_B, scaid_B)  # Initialize image B
+            N_BinA += 1
+            I_B = Sca_img(obsid_B, scaid_B)  # Initialize image B
 
-                if params:
-                    I_B.subtract_parameters(params, k)
+            if params:
+                I_B.subtract_parameters(params, k)
 
-                I_B.apply_all_mask()  # now I_B is masked
-                B_interp = np.zeros_like(self.image)
-                interpolate_image_bilinear(I_B, self, B_interp)
+            I_B.apply_all_mask()  # now I_B is masked
+            B_interp = np.zeros_like(self.image)
+            interpolate_image_bilinear(I_B, self, B_interp)
 
-                if make_Neff:
-                    B_mask_interp = np.zeros_like(self.image)
-                    interpolate_image_bilinear(I_B, self, B_mask_interp,
-                                               mask=I_B.mask)  # interpolate B pixel mask onto A grid
+            if make_Neff:
+                B_mask_interp = np.zeros_like(self.image)
+                interpolate_image_bilinear(I_B, self, B_mask_interp,
+                                            mask=I_B.mask)  # interpolate B pixel mask onto A grid
 
-                # KL diagnostics: comment out, or define an obs and sca diagnosics to replace 670,10
-                # make it optional to do the diagnostics (throughout)
-                # something like OBSID_DIAGNOSTIC = 670 SCAID_DIAGNOSITC = 10 at top of file
-                if obsid_B == '670' and scaid_B == '10' and make_Neff:  # only do this once
-                    save_fits(B_interp, '670_10_B' + self.obsid + '_' + self.scaid + '_interp', dir=test_image_dir)
+            # KL diagnostics: comment out, or define an obs and sca diagnosics to replace 670,10
+            # make it optional to do the diagnostics (throughout)
+            # something like OBSID_DIAGNOSTIC = 670 SCAID_DIAGNOSITC = 10 at top of file
+            if obsid_B == '670' and scaid_B == '10' and make_Neff:  # only do this once
+                save_fits(B_interp, '670_10_B' + self.obsid + '_' + self.scaid + '_interp', dir=test_image_dir)
 
-                if self.obsid == '670' and self.scaid == '10' and make_Neff:
-                    save_fits(B_interp, '670_10_A' + obsid_B + '_' + scaid_B + '_interp', dir=test_image_dir)
+            if self.obsid == '670' and self.scaid == '10' and make_Neff:
+                save_fits(B_interp, '670_10_A' + obsid_B + '_' + scaid_B + '_interp', dir=test_image_dir)
 
-                this_interp += B_interp
-                if make_Neff:
-                    N_eff += B_mask_interp
+            this_interp += B_interp
+            if make_Neff:
+                N_eff += B_mask_interp
 
         write_to_file(f'Interpolation of {self.obsid}_{self.scaid} done. Number of contributing SCAs: {N_BinA}')
         new_mask = N_eff > N_eff_min
@@ -873,7 +875,7 @@ def get_neighbors(scalist, ov_mat, overlap_thresh=0.1):
                         if ov_mat[k, j] >= overlap_thresh and j != k]
     return neighbors
 
-def residual_function(psi, f_prime, scalist, wcslist, ov_mat, neighbors, thresh, workers, extrareturn=False, ds_model='FR'):
+def residual_function(psi, f_prime, scalist, wcslist, neighbors, thresh, workers, extrareturn=False, ds_model='FR'):
         """
         Calculate the residual image, = grad(epsilon)
 
@@ -888,8 +890,6 @@ def residual_function(psi, f_prime, scalist, wcslist, ov_mat, neighbors, thresh,
             the list of all SCAs in this mosaic
         wcslist : List of WCS objects
             the WCS object for each SCA in scalist (same order)
-        ov_mat : 2D np array
-            the overlap matrix for all SCAs in this mosaic
         neighbors : Dict
             dictionary where keys are SCA indices and values are lists of indices of overlapping SCAs
         thresh : Float
@@ -915,7 +915,7 @@ def residual_function(psi, f_prime, scalist, wcslist, ov_mat, neighbors, thresh,
         t_r_0 = time.time()
 
         with ProcessPoolExecutor(max_workers=workers) as executor:
-            futures = [executor.submit(residual_function_single, k, sca_a, wcslist[k], psi, f_prime, scalist, ov_mat, neighbors, thresh) for k, sca_a in
+            futures = [executor.submit(residual_function_single, k, sca_a, wcslist[k], psi, f_prime, scalist, neighbors, thresh) for k, sca_a in
                        enumerate(scalist)]
 
         for future in as_completed(futures):
@@ -937,7 +937,7 @@ def residual_function(psi, f_prime, scalist, wcslist, ov_mat, neighbors, thresh,
         if extrareturn: return resids, resids1, resids2
         return resids
 
-def residual_function_single(k, sca_a, wcs_a, psi, f_prime, scalist, ov_mat, neighbors, thresh):
+def residual_function_single(k, sca_a, wcs_a, psi, f_prime, scalist, neighbors, thresh):
     """
     Calculate the residual for a single SCA image
 
@@ -955,8 +955,6 @@ def residual_function_single(k, sca_a, wcs_a, psi, f_prime, scalist, ov_mat, nei
         the derivative of the cost function f
     scalist : List of Str
         the list of all SCAs in this mosaic
-    ov_mat : 2D np array
-        the overlap matrix for all SCAs in this mosaic
     neighbors : Dict
         dictionary where keys are SCA indices and values are lists of indices of overlapping SCAs
     thresh : Float
@@ -997,19 +995,18 @@ def residual_function_single(k, sca_a, wcs_a, psi, f_prime, scalist, ov_mat, nei
         sca_b=scalist[j]
         obsid_B, scaid_B = get_ids(sca_b)
 
-        if obsid_B != obsid_A and ov_mat[k, j] >= 0.1:
-            I_B = Sca_img(obsid_B, scaid_B)
-            gradient_original = np.zeros(I_B.shape)
+        I_B = Sca_img(obsid_B, scaid_B)
+        gradient_original = np.zeros(I_B.shape)
 
-            transpose_interpolate(gradient_interpolated, wcs_a, I_B, gradient_original)
-            gradient_original *= I_B.g_eff
+        transpose_interpolate(gradient_interpolated, wcs_a, I_B, gradient_original)
+        gradient_original *= I_B.g_eff
 
-            term_2 = transpose_par(gradient_original)
-            term_2_list.append((j, term_2))
+        term_2 = transpose_par(gradient_original)
+        term_2_list.append((j, term_2))
 
     return k, term_1, term_2_list
 
-def cost_function_single(j, sca_a, p, f, scalist, ov_mat, thresh):
+def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh):
     """
     Calculate the cost function for a single SCA image
 
@@ -1025,8 +1022,8 @@ def cost_function_single(j, sca_a, p, f, scalist, ov_mat, thresh):
         the cost function form
     scalist : List of Str
         the list of all SCAs in this mosaic
-    ov_mat : 2D np array
-        the overlap matrix for all SCAs in this mosaic
+    neighbors : Dict
+        dictionary where keys are SCA indices and values are lists of indices of overlapping SCAs
     thresh : Float
         threshold for Huber loss cost function; default None
 
@@ -1050,7 +1047,7 @@ def cost_function_single(j, sca_a, p, f, scalist, ov_mat, thresh):
         hdu = fits.PrimaryHDU(I_A.image)
         hdu.writeto(test_image_dir + '670_10_I_A_sub_masked.fits', overwrite=True)
 
-    J_A_image, J_A_mask = I_A.make_interpolated(j, scalist, ov_mat, params=p)
+    J_A_image, J_A_mask = I_A.make_interpolated(j, scalist, neighbors, params=p)
 
     J_A_mask *= I_A.mask
 
@@ -1074,7 +1071,7 @@ def cost_function_single(j, sca_a, p, f, scalist, ov_mat, thresh):
 
     return j, psi, local_epsilon
 
-def cost_function(p, f, thresh, workers, scalist, ov_mat):
+def cost_function(p, f, thresh, workers, scalist, neighbors):
         """
         Calculate the cost function with the current de-striping parameters.
 
@@ -1090,8 +1087,8 @@ def cost_function(p, f, thresh, workers, scalist, ov_mat):
             number of parallel workers to use
         scalist : List of Str
             the list of all SCAs in this mosaic
-        ov_mat : 2D np array
-            the overlap matrix for all SCAs in this mosaic
+        neighbors : Dict
+            dictionary where keys are SCA indices and values are lists of indices of threshold-overlapping SCAs
         
         Returns
         --------
@@ -1107,7 +1104,7 @@ def cost_function(p, f, thresh, workers, scalist, ov_mat):
         epsilon = 0
 
         with ProcessPoolExecutor(max_workers=workers) as executor:
-            futures = [executor.submit(cost_function_single, j, sca_a, p, f, scalist, ov_mat, thresh) for j, sca_a in enumerate(scalist)]
+            futures = [executor.submit(cost_function_single, j, sca_a, p, f, scalist, neighbors, thresh) for j, sca_a in enumerate(scalist)]
 
         for future in as_completed(futures):
             j, psi_j, local_eps = future.result()
@@ -1121,7 +1118,7 @@ def cost_function(p, f, thresh, workers, scalist, ov_mat):
 
     
 def linear_search_general(p, direction, f, f_prime, cost_model, epsilon_current, psi_current, grad_current, thresh,
-                           workers, scalist, wcslist, ov_mat, neighbors, n_iter=100, tol=10 ** -4, ds_model='FR'):
+                           workers, scalist, wcslist, neighbors, n_iter=100, tol=10 ** -4, ds_model='FR'):
     """
     Linear search via combination bisection and secant methods for parameters that minimize the function
         d_epsilon/d_alpha in the given direction . Note alpha = depth of step in direction
@@ -1152,8 +1149,8 @@ def linear_search_general(p, direction, f, f_prime, cost_model, epsilon_current,
         the list of all SCAs in this mosaic
     wcslist : List of WCS objects
         the WCS object for each SCA in scalist (same order)
-    ov_mat : 2D np array
-        the overlap matrix for all SCAs in this mosaic
+    neighbors : Dict
+        dictionary where keys are SCA indices and values are lists of indices of overlapping SCAs
     n_iter : int
          number of iterations at which to stop searching
     tol : float
@@ -1203,15 +1200,15 @@ def linear_search_general(p, direction, f, f_prime, cost_model, epsilon_current,
     write_to_file('### Calculating min and max epsilon and cost')
     max_params = p.params + alpha_max * direction
     max_p.params = max_params
-    max_epsilon, max_psi = cost_function(max_p, f, thresh, workers, scalist, ov_mat)
-    max_resids = residual_function(max_psi, f_prime, scalist, wcslist, ov_mat, neighbors, thresh, workers, ds_model=ds_model)
+    max_epsilon, max_psi = cost_function(max_p, f, thresh, workers, scalist, neighbors)
+    max_resids = residual_function(max_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, ds_model=ds_model)
     del max_psi
     d_cost_max = np.sum(max_resids * direction)
 
     min_params = p.params + alpha_min * direction
     min_p.params = min_params
-    min_epsilon, min_psi = cost_function(min_p, f, thresh, workers, scalist, ov_mat)
-    min_resids = residual_function(min_psi, f_prime, scalist, wcslist, ov_mat, neighbors, thresh, workers, ds_model=ds_model)
+    min_epsilon, min_psi = cost_function(min_p, f, thresh, workers, scalist, neighbors)
+    min_resids = residual_function(min_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, ds_model=ds_model)
     del min_psi
     d_cost_min = np.sum(min_resids * direction)
 
@@ -1251,9 +1248,9 @@ def linear_search_general(p, direction, f, f_prime, cost_model, epsilon_current,
         working_params = p.params + alpha_test * direction
         working_p.params = working_params
 
-        working_epsilon, working_psi = cost_function(working_p, f, thresh, workers, scalist, ov_mat)
+        working_epsilon, working_psi = cost_function(working_p, f, thresh, workers, scalist, neighbors)
         print('Global elapsed t = {:8.1f}'.format((time.time()-t0_global)/60))
-        working_resids = residual_function(working_psi, f_prime, scalist, wcslist, ov_mat, neighbors, thresh, workers, ds_model=ds_model)
+        working_resids = residual_function(working_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, ds_model=ds_model)
         print('Global elapsed t = {:8.1f}'.format((time.time()-t0_global)/60))
         d_cost = np.sum(working_resids * direction)
         convergence_crit = (alpha_max - alpha_min)
@@ -1298,7 +1295,7 @@ def linear_search_general(p, direction, f, f_prime, cost_model, epsilon_current,
 
     return best_p, best_psi
 
-def linear_search_quadratic(p, direction, f, f_prime, grad_current, thresh, workers, scalist, wcslist, ov_mat, ds_model='FR'):
+def linear_search_quadratic(p, direction, f, f_prime, grad_current, thresh, workers, scalist, wcslist, neighbors, ds_model='FR'):
     """
     For the quadratic cost function, direct calculation of alpha that minimizes the function
         d_epsilon/d_alpha in the given direction . Note alpha = depth of step in direction
@@ -1325,8 +1322,8 @@ def linear_search_quadratic(p, direction, f, f_prime, grad_current, thresh, work
         the list of all SCAs in this mosaic
     wcslist : List of WCS objects
         the WCS object for each SCA in scalist (same order)
-    ov_mat : 2D np array
-        the overlap matrix for all SCAs in this mosaic
+    neighbors : Dict
+        dictionary where keys are SCA indices and values are lists of indices of overlapping SCAs
     ds_model : Str
         which destriping model is being used; default 'FR'
     
@@ -1365,15 +1362,15 @@ def linear_search_quadratic(p, direction, f, f_prime, grad_current, thresh, work
     # Calculate 
     trial_params = p.params + alpha_max * direction
     trial_p.params = trial_params
-    trial_epsilon, trial_psi = cost_function(trial_p, f, thresh, workers, scalist, ov_mat)
-    trial_resids = residual_function(trial_psi, f_prime,  scalist, wcslist, ov_mat, neighbors, thresh, workers, ds_model=ds_model)
+    trial_epsilon, trial_psi = cost_function(trial_p, f, thresh, workers, scalist, neighbors)
+    trial_resids = residual_function(trial_psi, f_prime,  scalist, wcslist, neighbors, thresh, workers, ds_model=ds_model)
     del trial_psi, trial_epsilon
 
     alpha_new = alpha_max * (-np.sum(direction * grad_current)) / (np.sum(direction * (trial_resids-grad_current))+1e-12)
 
     new_params = p.params + alpha_new * direction
     new_p.params = new_params
-    new_epsilon, new_psi = cost_function(new_p, f,thresh, workers, scalist, ov_mat)
+    new_epsilon, new_psi = cost_function(new_p, f,thresh, workers, scalist, neighbors)
     new_resids = grad_current + (alpha_new/alpha_max) * (trial_resids - grad_current)
     print('(Inside LS) Global elapsed t = {:8.1f}'.format((time.time()-t0_global)/60))
     sys.stdout.flush()
@@ -1395,7 +1392,7 @@ def linear_search_quadratic(p, direction, f, f_prime, grad_current, thresh, work
 
 
 
-def conjugate_gradient(p, f, f_prime, thresh, workers, scalist, wcslist, ov_mat, neighbors,
+def conjugate_gradient(p, f, f_prime, thresh, workers, scalist, wcslist, neighbors,
                        restart_file=None, time_limit=None, cfg=None, of='destripe_out.txt'):
     """
     Algorithm to use conjugate gradient descent to optimize the parameters for destriping.
@@ -1417,8 +1414,6 @@ def conjugate_gradient(p, f, f_prime, thresh, workers, scalist, wcslist, ov_mat,
         the list of all SCAs in this mosaic
     wcslist : List of WCS objects
         the WCS object for each SCA in scalist (same order)
-    ov_mat : 2D np array
-        the overlap matrix for all SCAs in this mosaic
     neighbors : Dict    
         dictionary where keys are SCA indices and values are lists of indices of overlapping SCAs
     restart_file : Str or None
@@ -1472,7 +1467,7 @@ def conjugate_gradient(p, f, f_prime, thresh, workers, scalist, wcslist, ov_mat,
         grad = None
         direction = None  # No initial direction
         write_to_file('### Starting initial cost function', of)
-        epsilon, psi = cost_function(p, f, thresh, workers, scalist, ov_mat)
+        epsilon, psi = cost_function(p, f, thresh, workers, scalist, neighbbors)
         print('Global elapsed t = {:8.1f}'.format((time.time()-t0_global)/60))
 
         with open(log_file, 'w', newline='') as csvfile:
@@ -1491,7 +1486,7 @@ def conjugate_gradient(p, f, f_prime, thresh, workers, scalist, wcslist, ov_mat,
 
         # Compute the gradient
         if grad is None:
-            grad = residual_function(psi, f_prime, scalist, wcslist, ov_mat, neighbors, thresh, workers, ds_model=cfg.ds_model)
+            grad = residual_function(psi, f_prime, scalist, wcslist, neighbors, thresh, workers, ds_model=cfg.ds_model)
             write_to_file(f"Minutes spent in initial residual function: {(time.time() - t_start_CG_iter) / 60}", of)
             print('Global elapsed t = {:8.1f}'.format((time.time()-t0_global)/60))
             sys.stdout.flush()
@@ -1538,11 +1533,11 @@ def conjugate_gradient(p, f, f_prime, thresh, workers, scalist, wcslist, ov_mat,
 
         if cost_model=='quadratic':
             p_new, psi_new, grad_new, epsilon_new = linear_search_quadratic(p, direction, f, f_prime, grad, thresh, workers, 
-                                                                            scalist, wcslist, ov_mat, neighbors, ds_model=cfg.ds_model)
+                                                                            scalist, wcslist, neighbors, ds_model=cfg.ds_model)
 
         else:
             p_new, psi_new, grad_new, epsilon_new = linear_search_general(p, direction, f, f_prime, cost_model, epsilon, psi, grad, thresh, 
-                                                                          workers, scalist, wcslist, ov_mat, neighbors, ds_model=cfg.ds_model)
+                                                                          workers, scalist, wcslist, neighbors, ds_model=cfg.ds_model)
 
         print('Global elapsed t = {:8.1f}'.format((time.time()-t0_global)/60))
         ls_time = (time.time() - t_start_LS) / 60
@@ -1657,7 +1652,7 @@ def main():
 
     # Do it
     try:
-        p = conjugate_gradient(p0, cm.f, cm.f_prime, cm.thresh, workers, all_scas, all_wcs, ov_mat, neighbors,
+        p = conjugate_gradient(p0, cm.f, cm.f_prime, cm.thresh, workers, all_scas, all_wcs, neighbors,
                                 time_limit=7200, cfg=CFG, of=outfile)
         hdu = fits.PrimaryHDU(p.params)
         hdu.writeto(outpath + 'final_params.fits', overwrite=True)
