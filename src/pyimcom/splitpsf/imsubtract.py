@@ -539,7 +539,7 @@ if __name__ == "__main__":
     display = "/dev/null"
     if len(sys.argv) > 3:
         display = sys.argv[3]
-    run_imsubtract(config_file, display=display, scanum=sca, max_img=1)
+    run_imsubtract(config_file, display=display, scanum=sca)  # , max_img=1)
 
     end = time.time()
     elapsed = end - start
