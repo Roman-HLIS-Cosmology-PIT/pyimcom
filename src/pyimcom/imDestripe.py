@@ -74,6 +74,7 @@ import uuid
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import numpy as np
+import asdf
 from astropy import wcs
 from astropy.io import fits
 from config import Config
@@ -94,7 +95,10 @@ t0_global = time.time()  # after imports
 # Module settings
 testing = True
 use_output_float = np.float32
+tempdir = os.getenv("TMPDIR") + "/"
 
+# For test outputs: set sca=0 to not produce test outputs.
+img_full_output = {"obsid": 670, "sca": 10}
 
 class Cost_models:
     """
@@ -1788,10 +1792,8 @@ def conjugate_gradient(
 
 
 def main():
-    global tempdir
-
+     
     CG_models = {"FR", "PR", "HS", "DY"}
-    tempdir = os.getenv("TMPDIR") + "/"
 
     # Import config file
     CFG = Config(
