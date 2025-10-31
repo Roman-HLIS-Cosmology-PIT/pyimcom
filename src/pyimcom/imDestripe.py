@@ -44,6 +44,8 @@ get_ids
     Take an SCA label and parse it out to get the Obsid and SCA id strings.
 save_snapshot
     Save restart state to pickle file.
+get_neighbors
+    Get the neighboring SCAs for each SCA in the mosaic
 residual_function
     Calculate the residual image, = grad(epsilon)
 residual_function_single
@@ -114,9 +116,12 @@ class Sca_img:
 
     Parameters
     --------
-        scaid:  Str, the SCA id
-        obsid : Str, the observation id
-        cfg : Config object, built from the configuration file
+        scaid :  Str
+            the SCA id
+        obsid : Str
+            the observation id
+        cfg : Config object
+            built from the configuration file
         interpolated : Bool
             True if you want the interpolated version of this SCA and not the original. Default False
         add_noise : Bool
@@ -126,7 +131,8 @@ class Sca_img:
    
    Attributes
     --------
-        image : 2D np array, the SCA image (4088x4088)
+        image : 2D np array
+            the SCA image (4088x4088)
         shape : Tuple
             the shape of the image
         w : WCS object
@@ -183,6 +189,8 @@ class Sca_img:
         self.cfg=cfg
 
         # Calculate effecive gain
+        # KL something to make sure the same SCA isn't being accessed as A and B at the same time here
+        # could use file locks but I'm pretty sure it's not possible (but double check)
         if not os.path.isfile(tempdir + obsid + '_' + scaid + '_geff.dat'):
             g0 = time.time()
             g_eff = np.memmap(tempdir + obsid + '_' + scaid + '_geff.dat', dtype='float64', mode='w+',
@@ -337,6 +345,7 @@ class Sca_img:
         for k, sca_b in enumerate(scalist):
             obsid_B, scaid_B = get_ids(sca_b)
 
+            # KL make this get neighbors too!!
             if obsid_B != self.obsid and ov_mat[ind, k] >= 0.1:  # Check if this sca_b overlaps sca_a by at least 10%
                 N_BinA += 1
                 I_B = Sca_img(obsid_B, scaid_B)  # Initialize image B
@@ -353,6 +362,9 @@ class Sca_img:
                     interpolate_image_bilinear(I_B, self, B_mask_interp,
                                                mask=I_B.mask)  # interpolate B pixel mask onto A grid
 
+                # KL diagnostics: comment out, or define an obs and sca diagnosics to replace 670,10
+                # make it optional to do the diagnostics (throughout)
+                # something like OBSID_DIAGNOSTIC = 670 SCAID_DIAGNOSITC = 10 at top of file
                 if obsid_B == '670' and scaid_B == '10' and make_Neff:  # only do this once
                     save_fits(B_interp, '670_10_B' + self.obsid + '_' + self.scaid + '_interp', dir=test_image_dir)
 
@@ -407,7 +419,7 @@ class Parameters:
         current_shape : Str
             The current shape (1D or 2D) of SCA params
         scalist : list of Strings
-            the list of SCAs in this mosaic
+            the list of SCAs in this mosaic #KL add what format the strings would have
 
     Methods
     -------
@@ -552,6 +564,10 @@ def apply_object_mask(image, mask=None, threshold_factor=2.5, inplace=False):
     neighbor_mask : 2D np.array
         the mask applied
     """
+    # KL input images will have first attempt at sky subtraction done
+    # so threshold probably additive instead of multiplicative
+    # probably put in config file -- mask will be like thresh_m * med + thresh_c 
+    # where thresh_m and thresh_c are in the config file
     if mask is not None and isinstance(mask, np.ndarray):
         neighbor_mask = mask
     else:
@@ -581,8 +597,6 @@ def huber_loss(x, d):
     """ Huber loss cost function """
     return np.where(np.abs(x) <= d, quadratic(x), d**2+2*d*(np.abs(x)-d))
 
-
-# Derivatives
 def quad_prime(x):
     """ Derivative of quadratic cost function f'(x) = 2x"""
     return 2 * x
@@ -616,6 +630,7 @@ def get_scas(filter, obsfile):
     all_wcs : list of WCS objects
         the WCS object for each SCA in all_scas (same order)
     """
+    # KL could specify a location for all the imdestripe meta stuff
     n_scas = 0
     all_scas = []
     all_wcs = []
@@ -632,7 +647,7 @@ def get_scas(filter, obsfile):
     write_to_file(f'N SCA images in this mosaic: {str(n_scas)}')
     write_to_file('SCA List:', 'SCA_list.txt')
     for i, s in enumerate(all_scas):
-        write_to_file(f"SCA {i}: {s}", "SCA_list.txt")
+        write_to_file(f"SCA {i}: {s}", "SCA_list.txt") # KL make sure this saves to the correct location
     return all_scas, all_wcs
 
 
@@ -915,6 +930,8 @@ def residual_function(psi, f_prime, scalist, wcslist, ov_mat, neighbors, thresh,
                 if extrareturn:
                     resids2[j, :] += term_2
 
+        # KL explicitly give output locations to write_to_file (these should go to the diagnostics directory)
+        # could give cfg to write_to_file 
         write_to_file(f'Residuals calculation finished in {(time.time() - t_r_0) / 60} minutes.')
         write_to_file(f"Average time making resids per sca: {(time.time() - t_r_0) / len(scalist)} seconds")
         if extrareturn: return resids, resids1, resids2
