@@ -245,6 +245,10 @@ def run_imsubtract(config_file, display=None, scanum=None, local_output=False, m
     pix_size = Settings.pixscale_native  # native pixel scale in arcsec
     sca_nside = Settings.sca_nside  # length of sca side, in native pixels
 
+    # get information from Settings
+    pix_size = Settings.pixscale_native  # native pixel scale in arcsec
+    sca_nside = Settings.sca_nside  # length of sca side, in native pixels
+
     # separate the path from the inlayercache info
     m = re.search(r"^(.*)\/(.*)", info)
     if m:

@@ -20,10 +20,23 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.11', '3.12', '3.13']
+        python-version: ['3.12', '3.13']
 
     steps:
     - uses: actions/checkout@v5
+    - name: Install TeX Live packages
+      run: |
+        sudo apt-get update -y
+        sudo apt-get install -y \
+          texlive-base \
+          texlive-latex-base \
+          texlive-latex-recommended \
+          texlive-latex-extra \
+          texlive-fonts-recommended \
+          latexmk \
+          lmodern \
+          cm-super
+        # use apt-get for ubuntu
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
       with:
