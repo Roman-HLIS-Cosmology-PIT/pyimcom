@@ -74,7 +74,7 @@ The subtracted images are re-inserted as the cached files by the command::
 
   python3 -m pyimcom.splitpsf.update_cube config.json
 
-This first checks that all files are available, and then moves the subtracted files into the cache location ``f"{cfgdata.inlayercache}_{obsid:08d}_{sca:02d}.fits"``. The previously cached files are archived in f"{cfgdata.inlayercache}_{id:08d}_{sca:02d}_{iter:02d}iter.fits".
+This first checks that all files are available, and then moves the subtracted files into the cache location ``f"{cfgdata.inlayercache}_{obsid:08d}_{sca:02d}.fits"``. The previously cached files are archived in ``f"{cfgdata.inlayercache}_{id:08d}_{sca:02d}_{iter:02d}iter.fits"``.
 
 This also updates the iteration number (``iter``), which is assumed to start at 0. The iteration number is stored in the file ``f"{cfgdata.inlayercache}_iter.txt"``.
 
