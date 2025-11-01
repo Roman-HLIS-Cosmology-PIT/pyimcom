@@ -2146,7 +2146,7 @@ class Block:
         config_hdu.header["BLOCKX"] = self.ibx
         config_hdu.header["BLOCKY"] = self.iby
         if is_final:
-            for package in ["numpy", "scipy", "astropy", "fitsio", "asdf"]:
+            for package in ["numpy", "scipy", "astropy", "fitsio", "asdf", "pyimcom"]:
                 keyword = "V" + package.upper()[:7]
                 pkgname = package
                 if package == "numpy":
@@ -2256,6 +2256,26 @@ class Block:
                     ("20uB", "50000*log10(Neff)"),
                 )
             )
+
+        # splitpsf information
+        if self.cfg.psfsplit:
+            text = ""
+            iter = 0
+            iterfile = self.cfg.inlayercache + "_iter.txt"
+            oldcfgfile = self.cfg.inlayercache + "_oldcfg.json"
+            if exists(iterfile):
+                with open(iterfile, "r") as f:
+                    iter = int(f.read().split()[0])
+            if exists(oldcfgfile):
+                with open(oldcfgfile, "r") as fcfg:
+                    text = fcfg.read()
+            prevconfig_hdu = fits.TableHDU.from_columns(
+                [fits.Column(name="text", array=text.split(), format="A512", ascii=True)]
+            )
+            prevconfig_hdu.header["EXTNAME"] = "OLDCFG"
+            prevconfig_hdu.header["IMSBITER"] = (iter, "Number of iterations of PSFSPLIT")
+            prevconfig_hdu.header["COMMENT"] = "Configuration files from previous iterations."
+            hdulist.append(prevconfig_hdu)
 
         hdu_list = fits.HDUList(hdulist)
         hdu_list.writeto(self.outstem + ".fits", overwrite=True)
