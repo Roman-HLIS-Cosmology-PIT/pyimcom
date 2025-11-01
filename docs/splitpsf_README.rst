@@ -78,4 +78,4 @@ This first checks that all files are available, and then moves the subtracted fi
 
 This also updates the iteration number (``iter``), which is assumed to start at 0. The iteration number is stored in the file ``f"{cfgdata.inlayercache}_iter.txt"``.
 
-Finally, it is possible that different runs will have different configuration settings, so the previous configuration file(s) are stored in `f"{cfgdata.inlayercache}_oldcfg.json"``.
+Finally, it is possible that different runs will have different configuration settings, so the previous configuration file(s) are stored in ``f"{cfgdata.inlayercache}_oldcfg.json"``.
