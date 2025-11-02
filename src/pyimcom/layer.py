@@ -240,8 +240,7 @@ class GalSimInject:
             rngX.advance(2**30)
             delta = delta - 2**30
         if delta>0:
-            print("advance by", delta, rngX)
-            rngX.advance(int(np.int32(delta))) # attempt to avoid overflow
+            rngX.advance(int(np.int32(delta))) # conversion to avoid overflow
 
 
     @staticmethod
@@ -290,7 +289,7 @@ class GalSimInject:
         for i in range(N):
             GalSimInject._advance(rngX, nskip[i])
             out_temp[i] = np.random.Generator(rngX).uniform()
-        rngX.advance(lenpix - subpix_sort[-1] - 1)
+        GalSimInject._advance(rngX, lenpix - subpix_sort[-1] - 1)
         out = np.zeros(N)
         for i in range(N):
             out[k[i]] = out_temp[i]
