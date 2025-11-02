@@ -241,7 +241,7 @@ class GalSimInject:
             delta = delta - 2**30
         if delta>0:
             print("advance by", delta, rngX)
-            rngX.advance(delta)
+            rngX.advance(int(np.int32(delta))) # attempt to avoid overflow
 
 
     @staticmethod
