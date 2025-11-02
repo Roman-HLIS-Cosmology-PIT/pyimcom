@@ -17,6 +17,7 @@ from astropy import wcs
 from astropy.io import fits
 from astropy.modeling import models
 from astropy.table import Table
+from furry_parakeet.pyimcom_croutines import gridD5512C
 from gwcs import coordinate_frames as cf
 from pyimcom.analysis import OutImage
 from pyimcom.coadd import Block
@@ -27,7 +28,6 @@ from pyimcom.diagnostics.noise_diagnostics import NoiseReport
 from pyimcom.diagnostics.report import ValidationReport
 from pyimcom.diagnostics.stars import SimulatedStar
 from pyimcom.psfutil import OutPSF
-from pyimcom.routine import gridD5512C
 from pyimcom.truthcats import gen_truthcats_from_cfg
 from scipy.signal import convolve
 
