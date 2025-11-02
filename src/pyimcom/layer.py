@@ -240,6 +240,7 @@ class GalSimInject:
             rngX.advance(2**30)
             delta = delta - 2**30
         if delta>0:
+            print("advance by", delta, rngX)
             rngX.advance(delta)
 
 
