@@ -236,12 +236,11 @@ class GalSimInject:
 
         """
 
-        while delta>=2**30:
+        while delta >= 2**30:
             rngX.advance(2**30)
             delta = delta - 2**30
-        if delta>0:
-            rngX.advance(int(np.int32(delta))) # conversion to avoid overflow
-
+        if delta > 0:
+            rngX.advance(int(np.int32(delta)))  # conversion to avoid overflow
 
     @staticmethod
     def subgen(rngX, lenpix, subpix):
