@@ -215,6 +215,35 @@ class GalSimInject:
         return sca_image.array[pad // 2 : -pad // 2, pad // 2 : -pad // 2]
 
     @staticmethod
+    def _advance(rngX, delta):
+        """
+        Advances the random number generator.
+
+        Using ``GalSimInject._advance(rngX, delta)`` should be equivalent to
+        ``rngX.advance(delta)``, but this is designed to work with a 32-bit limit
+        on advance (so needed on some platforms).
+
+        Parameters
+        ----------
+        rngX : np.random.BitGenerator
+            The random number generator; must support the advance method.
+        delta : int
+            The number of steps to advance. Must be >=0.
+
+        Returns
+        -------
+        None
+
+        """
+
+        while delta>=2**30:
+            rngX.advance(2**30)
+            delta = delta - 2**30
+        if delta>0:
+            rngX.advance(delta)
+
+
+    @staticmethod
     def subgen(rngX, lenpix, subpix):
         """
         Returns a subset of the next large block of random numbers.
@@ -247,7 +276,7 @@ class GalSimInject:
         N = np.size(subpix)
         # skip if empty
         if N == 0:
-            rngX.advance(lenpix)
+            GalSimInject._advance(rngX, lenpix)
             return np.zeros(0)
 
         out_temp = np.zeros(N)
@@ -258,7 +287,7 @@ class GalSimInject:
         nskip[0] += 1
 
         for i in range(N):
-            rngX.advance(nskip[i])
+            GalSimInject._advance(rngX, nskip[i])
             out_temp[i] = np.random.Generator(rngX).uniform()
         rngX.advance(lenpix - subpix_sort[-1] - 1)
         out = np.zeros(N)
