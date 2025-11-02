@@ -245,6 +245,11 @@ class GalSimInject:
         """
 
         N = np.size(subpix)
+        # skip if empty
+        if N == 0:
+            rngX.advance(lenpix)
+            return np.zeros(0)
+
         out_temp = np.zeros(N)
         k = np.argsort(subpix)
         subpix_sort = subpix[k]

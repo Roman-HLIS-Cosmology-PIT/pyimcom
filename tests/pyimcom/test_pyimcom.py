@@ -82,7 +82,8 @@ myCfg_format = """
         6
     ],
     "EXTRAINPUT": [
-        "gsstar14"
+        "gsstar14",
+        "gsext14,seed=100,shear=-.01:0.017320508075688773"
     ],
     "PADSIDES": "all",
     "OUTMAPS": "USTN",
