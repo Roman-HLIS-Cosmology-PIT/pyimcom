@@ -542,7 +542,7 @@ class NoiseReport(ReportSection):
             ps_2d = NoiseReport.measure_power_spectrum(noise, L, norm=norm, bin=True, win=win, alpha=alpha)
         ps_r, ps_1d, ps_image_err = NoiseReport.azimuthal_average(ps_2d, num_radial_bins)
         wavenumbers = NoiseReport._get_wavenumbers(noise.shape[0], num_radial_bins)
-        npix = np.product(noiseframe.shape)
+        npix = np.prod(noiseframe.shape)
         comment = [use_slice] * num_radial_bins
 
         # consolidate results
