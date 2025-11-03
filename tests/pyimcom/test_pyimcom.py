@@ -29,7 +29,7 @@ from pyimcom.diagnostics.report import ValidationReport
 from pyimcom.diagnostics.stars import SimulatedStar
 from pyimcom.psfutil import OutPSF
 from pyimcom.truthcats import gen_truthcats_from_cfg
-from pyimcom.wcsutils import _stand_alone_test
+from pyimcom.wcsutil import _stand_alone_test
 from scipy.signal import convolve
 
 EXAMPLE_FILE = (
