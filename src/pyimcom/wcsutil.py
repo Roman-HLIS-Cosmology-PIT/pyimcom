@@ -158,7 +158,7 @@ class LocWCS:
         2x2 Jacobian from detector to tangent plane coordinates in radians.
     approx_wcs : astropy.wcs.WCS
         The best-fit TAN-SIP approximation (if set).
-    max_wcs_err : float
+    wcs_max_err : float
         The worst error (in pixels) from the approx_wcs (if set).
     errmap : np.array
         The error map (in pixels) from the approx_wcs (if set). Shape (2, `N`, `N`).
