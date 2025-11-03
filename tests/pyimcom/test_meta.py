@@ -104,7 +104,11 @@ def test_metamosaic(tmp_path):
 
     rot = 20 * np.pi / 180.0
     im0 = mosaic.shearimage(
-        1200, jac=[[np.cos(rot), np.sin(rot)], [-np.sin(rot), np.cos(rot)]], psfgrow=1.02, oversamp=1.0
+        1200,
+        jac=[[np.cos(rot), np.sin(rot)], [-np.sin(rot), np.cos(rot)]],
+        psfgrow=1.02,
+        oversamp=1.0,
+        verbose=True,
     )
     shearimage_to_fits(im0, tmp_dir + "/xdist.fits", overwrite=True)
 

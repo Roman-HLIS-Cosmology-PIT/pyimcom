@@ -29,6 +29,7 @@ from pyimcom.diagnostics.report import ValidationReport
 from pyimcom.diagnostics.stars import SimulatedStar
 from pyimcom.psfutil import OutPSF
 from pyimcom.truthcats import gen_truthcats_from_cfg
+from pyimcom.wcsutils import _stand_alone_test
 from scipy.signal import convolve
 
 EXAMPLE_FILE = (
@@ -480,6 +481,9 @@ def setup(tmp_path):
                     asdf.AsdfFile({"roman": {"data": im, "meta": {"wcs": sca_gwcs}}}).write_to(
                         tmp_path / f"in/sim_L2_{filt:s}_{iobs:d}_{sca:d}.asdf"
                     )
+
+                    # WCS test
+                    assert _stand_alone_test(str(tmp_path / f"in/sim_L2_{filt:s}_{iobs:d}_{sca:d}.asdf"))
 
                     # Also can write a FITS version to make sure we can ...
                     # hope this is useful to look at if something goes wrong
