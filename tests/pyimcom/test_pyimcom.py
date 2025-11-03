@@ -83,7 +83,11 @@ myCfg_format = """
     ],
     "EXTRAINPUT": [
         "gsstar14",
-        "gsext14,seed=100,shear=-.01:0.017320508075688773"
+        "gsext14,seed=100,shear=-.01:0.017320508075688773",
+        "cstar14",
+        "nstar14,2e5,100,256",
+        "whitenoise1",
+        "1fnoise2"
     ],
     "PADSIDES": "all",
     "OUTMAPS": "USTN",
@@ -605,6 +609,21 @@ def test_PyIMCOM_run1(tmp_path, setup):
         assert np.abs(SL1 - 1) < 5e-4
         assert VAR < 1e-5
 
+        # difference between gsstar and cstar
+        diff = np.amax(np.abs(fblock[0].data[0, 1, :, :] - fblock[0].data[0, 3, :, :]))
+        assert diff < 5e-4
+
+        diff = np.amax(np.abs(fblock[0].data[0, 4, :, :] / 2e5 - fblock[0].data[0, 3, :, :]))
+        assert diff < 5e-4
+        dmax = np.amax(fblock[0].data[0, 4, :, :])
+        assert np.abs(dmax - 35879.0) < 500.0
+
+        # values from noise layers
+        test5 = np.array([[0.7601451, 0.9042513], [0.64049757, 0.70962816]])
+        test6 = np.array([[0.24921854, -0.23588116], [-0.39272013, -0.6111549]])
+        assert np.amax(np.abs(fblock[0].data[0, 5, :2, :2] - test5)) < 1e-3
+        assert np.amax(np.abs(fblock[0].data[0, 6, :2, :2] - test6)) < 1e-3
+
     # Test output reader
     my_block = OutImage(pth)
     sci_image = my_block.get_coadded_layer("SCI")
@@ -644,7 +663,15 @@ def test_PyIMCOM_run1(tmp_path, setup):
     assert texdata["MosaicImage"][:18] == "N =  2, BIN =   1\n"
     assert texdata["SimulatedStar"].split()[0] == "RMS_ELLIP_ADAPT"
     assert texdata["SimulatedStar"].split()[1][:7] == "0.00010"
-    assert texdata["NoiseReport"] == "\n\n"
+
+    fields = texdata["NoiseReport"].split()
+    print(fields)
+    assert fields[0] == "LAYER00"
+    assert fields[1] == "whitenoise1"
+    assert np.abs(float(fields[2]) - 0.162502) < 1e-4
+    assert fields[3] == "LAYER01"
+    assert fields[4] == "1fnoise2"
+    assert np.abs(float(fields[5]) - 2.96809) < 1e-4
 
 
 def test_compress(tmp_path):
