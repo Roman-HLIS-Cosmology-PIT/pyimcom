@@ -324,7 +324,8 @@ class Config:
         "resid_model",
         "hub_thresh",
         "cg_maxiter",
-        "cg_tol",  # SECTION IX
+        "cg_tol", 
+        "gaindir" # SECTION IX
     )
 
     def __init__(self, cfg_file: str = "", inmode=None) -> None:
@@ -532,6 +533,7 @@ class Config:
         self.ds_obsfile = cfg_dict.get("DSOBSFILE")
         self.ds_indata = cfg_dict.get("DSINDATA")
         self.ds_restart = cfg_dict.get("DSRESTART")
+        self.gaindir = cfg_dict.get("GAINDIR", False)
 
         # Lagrange multiplier (kappa) information
         # list of kappa/C values, ascending order

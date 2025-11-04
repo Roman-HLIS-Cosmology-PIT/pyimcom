@@ -224,31 +224,38 @@ class Sca_img:
         self.cfg = cfg
 
         # Calculate effecive gain
-        if not os.path.isfile(tempdir + obsid + "_" + scaid + "_geff.dat"):
-            g0 = time.time()
-            g_eff = np.memmap(
-                tempdir + obsid + "_" + scaid + "_geff.dat", dtype="float64", mode="w+", shape=self.shape
-            )
-            ra, dec = self.get_coordinates(pad=2.0)
-            ra = ra.reshape((4090, 4090))
-            dec = dec.reshape((4090, 4090))
-            derivs = np.array(
-                (
-                    (ra[1:-1, 2:] - ra[1:-1, :-2]) / 2,
-                    (ra[2:, 1:-1] - ra[:-2, 1:-1]) / 2,
-                    (dec[1:-1, 2:] - dec[1:-1, :-2]) / 2,
-                    (dec[2:, 1:-1] - dec[:-2, 1:-1]) / 2,
+        if cfg.gaindir == False:
+            if not os.path.isfile(tempdir + obsid + "_" + scaid + "_geff.dat"):
+                g0 = time.time()
+                g_eff = np.memmap(
+                    tempdir + obsid + "_" + scaid + "_geff.dat", dtype="float64", mode="w+", shape=self.shape
                 )
-            )
-            derivs_px = np.reshape(np.transpose(derivs), (4088**2, 2, 2))
-            det_mat = np.reshape(np.linalg.det(derivs_px), (4088, 4088))
-            g_eff[:, :] = 1 / (np.abs(det_mat) * np.cos(np.deg2rad(dec[1:4089, 1:4089])))
-            g_eff.flush()
-            del g_eff
+                ra, dec = self.get_coordinates(pad=2.0)
+                ra = ra.reshape((4090, 4090))
+                dec = dec.reshape((4090, 4090))
+                derivs = np.array(
+                    (
+                        (ra[1:-1, 2:] - ra[1:-1, :-2]) / 2,
+                        (ra[2:, 1:-1] - ra[:-2, 1:-1]) / 2,
+                        (dec[1:-1, 2:] - dec[1:-1, :-2]) / 2,
+                        (dec[2:, 1:-1] - dec[:-2, 1:-1]) / 2,
+                    )
+                )
+                derivs_px = np.reshape(np.transpose(derivs), (4088**2, 2, 2))
+                det_mat = np.reshape(np.linalg.det(derivs_px), (4088, 4088))
+                g_eff[:, :] = 1 / (np.abs(det_mat) * np.cos(np.deg2rad(dec[1:4089, 1:4089])))
+                g_eff.flush()
+                del g_eff
 
-        self.g_eff = np.memmap(
-            tempdir + obsid + "_" + scaid + "_geff.dat", dtype="float64", mode="r", shape=self.shape
-        )
+            self.g_eff = np.memmap(
+                tempdir + obsid + "_" + scaid + "_geff.dat", dtype="float64", mode="r", shape=self.shape
+            )
+        else:
+            # PLACEHOLDER for reading in real flat fields as gain
+            # Needs to be adapted once actual file format is known
+            g_eff_file = asdf.open(cfg.gaindir + cfg.use_filter + "_geff.fits", memmap=True)
+            self.g_eff = g_eff_file[int(scaid) - 1].data.astype(np.float64)
+            g_eff_file.close()
 
         # Add a noise frame, if requested
         if add_noise:
