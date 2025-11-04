@@ -46,6 +46,8 @@ The perl script can be run on the Ohio Supercomputer Center using the format::
 
 When the script is run, it will prompt you for a Y/N answer on whether you want to proceed with job submission. A ``Y`` answer will submit the jobs via slurm, using ``afterok`` to pipeline the job arrays. A ``N`` will exit without submitting the jobs (but you can still inspect them).
 
+Note that this script doesn't clear the cache files; if you are re-starting after a failure, or re-running the workflow, you will have to do that manually (it is too dangerous for me to want to automate!).
+
 Details
 #######
 
