@@ -404,17 +404,14 @@ class Sca_img:
                 interpolate_image_bilinear(
                     I_B, self, B_mask_interp, mask=I_B.mask
                 )  # interpolate B pixel mask onto A grid
+            if img_full_output["scaid"]!=0:
+                if obsid_B == img_full_output["obsid"] and scaid_B == img_full_output["scaid"] and make_Neff:  # only do this once
+                    save_fits(
+                            B_interp, f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_B_{self.obsid}_{self.scaid}_interp', dir=test_image_dir
+                        )
 
-            # KL diagnostics: comment out, or define an obs and sca diagnosics to replace 670,10
-            # make it optional to do the diagnostics (throughout)
-            # something like OBSID_DIAGNOSTIC = 670 SCAID_DIAGNOSITC = 10 at top of file
-            if obsid_B == "670" and scaid_B == "10" and make_Neff:  # only do this once
-                save_fits(
-                        B_interp, "670_10_B" + self.obsid + "_" + self.scaid + "_interp", dir=test_image_dir
-                    )
-
-            if self.obsid == "670" and self.scaid == "10" and make_Neff:
-                save_fits(B_interp, "670_10_A" + obsid_B + "_" + scaid_B + "_interp", dir=test_image_dir)
+                if self.obsid == img_full_output["obsid"] and self.scaid == img_full_output["scaid"] and make_Neff:
+                    save_fits(B_interp, f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_A_{obsid_B}_{scaid_B}_interp', dir=test_image_dir)
 
             this_interp += B_interp
             if make_Neff:
@@ -1118,9 +1115,12 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh):
     I_A.subtract_parameters(p, j)
     I_A.apply_all_mask()
 
-    if obsid_A == "670" and scaid_A == "10":
-        hdu = fits.PrimaryHDU(I_A.image)
-        hdu.writeto(test_image_dir + "670_10_I_A_sub_masked.fits", overwrite=True)
+    if img_full_output["scaid"]!=0:
+        if obsid_A == img_full_output["obsid"] and scaid_A == img_full_output["scaid"]:
+            hdu = fits.PrimaryHDU(I_A.image)
+            hdu.writeto(test_image_dir + 
+                        f"{img_full_output["obsid"]}_{img_full_output["scaid"]}_I_A_sub_masked.fits", 
+                        overwrite=True)
 
     J_A_image, J_A_mask = I_A.make_interpolated(j, scalist, neighbors, params=p)
 
@@ -1130,14 +1130,15 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh):
     result = f(psi, thresh) if thresh is not None else f(psi)
     local_epsilon = np.sum(result)
 
-    if obsid_A == "670" and scaid_A == "10":
-        hdu = fits.PrimaryHDU(J_A_image * J_A_mask)
-        hdu.writeto(test_image_dir + "670_10_J_A_masked.fits", overwrite=True)
+    if img_full_output["scaid"]!=0:
+        if obsid_A == img_full_output["obsid"] and scaid_A == img_full_output["scaid"]:
+            hdu = fits.PrimaryHDU(J_A_image * J_A_mask)
+            hdu.writeto(test_image_dir + f"{img_full_output["obsid"]}_{img_full_output["scaid"]}_J_A_masked.fits", overwrite=True)
 
-        hdu = fits.PrimaryHDU(psi)
-        hdu.writeto(test_image_dir + "670_10_Psi.fits", overwrite=True)
+            hdu = fits.PrimaryHDU(psi)
+            hdu.writeto(test_image_dir + f"{img_full_output["obsid"]}_{img_full_output["scaid"]}_Psi.fits", overwrite=True)
 
-        write_to_file("Sample stats for SCA 670_10:")
+        write_to_file(f"Sample stats for SCA {img_full_output}:")
         write_to_file(f"Image A mean: {np.mean(I_A.image)}")
         write_to_file(f"Image B mean: {np.mean(J_A_image)}")
         write_to_file(f"Psi mean: {np.mean(psi)}")
