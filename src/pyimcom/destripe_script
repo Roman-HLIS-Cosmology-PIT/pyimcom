@@ -18,6 +18,9 @@ source activate local
 # Explicitly set the number of OpenMP threads
 export OMP_NUM_THREADS=2
 
+# Explicitly set the temp directory OR comment out to use os.environ default
+# export TMPDIR=/fs/scratch/PCON0003/klaliotis/tmp
+
 # Verify the environment variables
 echo "OMP_NUM_THREADS: $OMP_NUM_THREADS"
 

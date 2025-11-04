@@ -97,7 +97,7 @@ t0_global = time.time()  # after imports
 # Module settings
 testing = True
 use_output_float = np.float32
-tempdir = os.getenv("TMPDIR") + "/"
+tempdir = str(os.environ["TMPDIR"]) if "TMPDIR" in os.environ else os.getenv("TMPDIR") + "/"
 
 # For test outputs: set sca=0 to not produce test outputs.
 img_full_output = {"obsid": 670, "sca": 10}
@@ -182,7 +182,7 @@ class Sca_img:
             Writes the interpolated image out to the disk, to be read/used later
     """
 
-    def __init__(self, obsid, scaid, cfg, neighbors, interpolated=False, add_noise=True, add_objmask=True):
+    def __init__(self, obsid, scaid, cfg, neighbors, tempdir=tempdir, interpolated=False, add_noise=True, add_objmask=True):
 
         if interpolated:
             file = fits.open(
@@ -339,7 +339,7 @@ class Sca_img:
         return ra, dec
 
 
-    def make_interpolated(self, ind, scalist, neighbors, params=None, N_eff_min=0.5):
+    def make_interpolated(self, ind, scalist, neighbors, tempdir=tempdir, params=None, N_eff_min=0.5):
         """
         Construct a version of this SCA interpolated from other, overlapping ones.
         Writes the interpolated image out to the disk, to be read/used later
@@ -791,7 +791,7 @@ def transpose_par(I):
     return np.sum(I, axis=1)
 
 
-def get_effective_gain(sca):
+def get_effective_gain(sca, tempdir=tempdir):
     """
     Retrieve the effective gain and n_eff of the image. valid only for already-interpolated images
 
@@ -1146,7 +1146,7 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh):
 
     return j, psi, local_epsilon
 
-def cost_function(p, f, thresh, workers, scalist, neighbors):
+def cost_function(p, f, thresh, workers, scalist, neighbors, tempdir=tempdir):
     """
     Calculate the cost function with the current de-striping parameters.
 
