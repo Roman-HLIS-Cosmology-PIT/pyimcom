@@ -13,6 +13,42 @@ The current implementation only works for output Gaussian PSF (an error will be 
   :width: 800
   :alt: Workflow for PSF splitting
 
+Quick start: running the workflow
+=================================
+
+An example workflow script, using perl + slurm, is in `writejob_example.pl <../scripts/writejob_example.pl>`_. This carries out the sequence of steps:
+
+0. PSF splitting (separates the PSF into short- and long-range pieces)
+
+1. Build input layers
+
+2. First run of PyIMCOM (iteration 0, with smaller ``INPAD`` radius, so that it is faster)
+
+3. Imsubtract run
+
+4. Update the cached input layers (and stash the old ones)
+
+5. Final run of PyIMCOM (iteration 1)
+
+6. `Compression <compress_README.rst>`_
+
+7. `Write report <diagnostics_README.rst>`_
+
+The perl script can be run on the Ohio Supercomputer Center using the format::
+
+  perl writejobs_example.pl $ACCOUNT $CONFIGURATION $LOGFILETAG $SCRIPTTAG
+  # $ACCOUNT       = the account name you want to use
+  # $CONFIGURATION = the configuration file you want to run
+  # $LOGFILETAG    = prefix for the log files
+  # $SCRIPTTAG     = prefix for the scripts to write
+
+**Important**: On other platforms, you may need to adjust the handling of OSC's ``$TMPDIR`` variable (which is where on-node storage is located; this may differ across various HPC platforms).
+
+When the script is run, it will prompt you for a Y/N answer on whether you want to proceed with job submission. A ``Y`` answer will submit the jobs via slurm, using ``afterok`` to pipeline the job arrays. A ``N`` will exit without submitting the jobs (but you can still inspect them).
+
+Details
+#######
+
 Setup
 =====
 
