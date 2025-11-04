@@ -84,6 +84,7 @@ from filelock import FileLock, Timeout
 from memory_profiler import memory_usage
 from scipy.ndimage import binary_dilation
 from utils import compareutils
+from .wcsutil import PyIMCOM_WCS
 
 try:
     import furry_parakeet.pyimcom_croutines as pyimcom_croutines
@@ -182,7 +183,8 @@ class Sca_img:
             Writes the interpolated image out to the disk, to be read/used later
     """
 
-    def __init__(self, obsid, scaid, cfg, neighbors, tempdir=tempdir, interpolated=False, add_noise=True, add_objmask=True):
+    def __init__(self, obsid, scaid, cfg, neighbors, tempdir=tempdir, interpolated=False, add_noise=True, 
+                 add_objmask=True, indata_type = 'fits'):
 
         if interpolated:
             file = fits.open(
@@ -190,15 +192,29 @@ class Sca_img:
             )
             image_hdu = "PRIMARY"
         else:
-            file = fits.open(
-                cfg.ds_obsfile + filters[cfg.use_filter] + "_" + obsid + "_" + scaid + ".fits", memmap=True
-            )
-            image_hdu = "SCI"
-        self.image = np.copy(file[image_hdu].data).astype(np.float64)
+            if indata_type=="fits":
+                file = fits.open(
+                    cfg.ds_obsfile + filters[cfg.use_filter] + "_" + obsid + "_" + scaid + ".fits", memmap=True
+                )
 
+            elif indata_type=="asdf":
+                file = asdf.open(
+                    cfg.ds_obsfile + filters[cfg.use_filter] + "_" + obsid + "_" + scaid + ".asdf", memmap=True
+                )
+                image_hdu = "SCI"
+
+        
+        if indata_type=="fits":
+            self.w = wcs.WCS(file[image_hdu].header)
+            self.image = np.copy(file[image_hdu].data).astype(np.float64)
+            self.header = file[image_hdu].header
+
+        elif indata_type=="asdf":
+            self.w = PyIMCOM_WCS(file["roman"]["meta"]["wcs"])
+            self.image = file["roman"]["data"]
+            self.header = None
+        
         self.shape = np.shape(self.image)
-        self.w = wcs.WCS(file[image_hdu].header)
-        self.header = file[image_hdu].header
         file.close()
 
         self.obsid = obsid
@@ -591,7 +607,7 @@ def save_fits(image, filename, dir=None, overwrite=True, s=False, header=None, r
                 raise RuntimeError(f"Failed to write {filepath} after {retries} attempts. Last error: {e}")
 
 
-def apply_object_mask(image, mask=None, threshold_factor=2.5, inplace=False):
+def apply_object_mask(image, mask=None, threshold_m=2.5, threshold_c=0, inplace=False):
     """
     Apply a bright object mask to an image.
 
@@ -601,8 +617,10 @@ def apply_object_mask(image, mask=None, threshold_factor=2.5, inplace=False):
         the image to be masked.
     mask : 2D boolean array, optional
         the pre-existing object mask. Default: None
-    threshold_factor : float
+    threshold_m : float
         factor to multiply with the median for thresholding.
+    threshold_c : float
+        constant to add to the threshold.
     inplace : Bool
         Whether to modify the input image directly.
 
@@ -621,7 +639,7 @@ def apply_object_mask(image, mask=None, threshold_factor=2.5, inplace=False):
         neighbor_mask = mask
     else:
         median_val = np.median(image)
-        high_value_mask = image >= threshold_factor * median_val
+        high_value_mask = image >= threshold_m * median_val + threshold_c
         neighbor_mask = binary_dilation(high_value_mask, structure=np.ones((5, 5), dtype=bool))
 
     if inplace:
@@ -661,7 +679,7 @@ def huber_prime(x, d):
     return np.where(np.abs(x) <= d, quad_prime(x), 2 * d * np.sign(x))
 
 
-def get_scas(filter, obsfile):
+def get_scas(filter, obsfile, indata_type='fits'):
     """
     Function to get a list of all SCA images and their WCSs for this mosaic
 
@@ -689,10 +707,16 @@ def get_scas(filter, obsfile):
         if m:
             this_obsfile = str(m.group(0))
             all_scas.append(this_obsfile)
-            this_file = fits.open(f, memmap=True)
-            this_wcs = wcs.WCS(this_file["SCI"].header)
-            all_wcs.append(this_wcs)
-            this_file.close()
+            if indata_type=="fits":
+                this_file = fits.open(f, memmap=True)
+                this_wcs = wcs.WCS(this_file["SCI"].header)
+                all_wcs.append(this_wcs)
+                this_file.close()
+            elif indata_type=="asdf":
+                this_file = asdf.open(f, memmap=True)
+                this_wcs = PyIMCOM_WCS(this_file["roman"]["meta"]["wcs"])
+                all_wcs.append(this_wcs)
+                this_file.close()
     write_to_file(f"N SCA images in this mosaic: {str(n_scas)}")
     write_to_file("SCA List:", "SCA_list.txt")
     for i, s in enumerate(all_scas):
@@ -1517,7 +1541,7 @@ def conjugate_gradient(
     restart_file=None,
     time_limit=None,
     cfg=None,
-    of="destripe_out.txt",
+    of="destripe_out.txt"
 ):
     """
     Algorithm to use conjugate gradient descent to optimize the parameters for destriping.
@@ -1863,7 +1887,7 @@ def main():
             neighbors,
             time_limit=7200,
             cfg=CFG,
-            of=outfile,
+            of=outfile
         )
         hdu = fits.PrimaryHDU(p.params)
         hdu.writeto(outpath + "final_params.fits", overwrite=True)
