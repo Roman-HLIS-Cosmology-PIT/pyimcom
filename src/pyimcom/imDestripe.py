@@ -1150,7 +1150,7 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh):
         if obsid_A == img_full_output["obsid"] and scaid_A == img_full_output["scaid"]:
             hdu = fits.PrimaryHDU(I_A.image)
             hdu.writeto(test_image_dir + 
-                        f"{img_full_output["obsid"]}_{img_full_output["scaid"]}_I_A_sub_masked.fits", 
+                        f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_I_A_sub_masked.fits', 
                         overwrite=True)
 
     J_A_image, J_A_mask = I_A.make_interpolated(j, scalist, neighbors, params=p)
@@ -1164,10 +1164,10 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh):
     if img_full_output["scaid"]!=0:
         if obsid_A == img_full_output["obsid"] and scaid_A == img_full_output["scaid"]:
             hdu = fits.PrimaryHDU(J_A_image * J_A_mask)
-            hdu.writeto(test_image_dir + f"{img_full_output["obsid"]}_{img_full_output["scaid"]}_J_A_masked.fits", overwrite=True)
+            hdu.writeto(test_image_dir + f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_J_A_masked.fits', overwrite=True)
 
             hdu = fits.PrimaryHDU(psi)
-            hdu.writeto(test_image_dir + f"{img_full_output["obsid"]}_{img_full_output["scaid"]}_Psi.fits", overwrite=True)
+            hdu.writeto(test_image_dir + f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_Psi.fits', overwrite=True)
 
         write_to_file(f"Sample stats for SCA {img_full_output}:")
         write_to_file(f"Image A mean: {np.mean(I_A.image)}")
