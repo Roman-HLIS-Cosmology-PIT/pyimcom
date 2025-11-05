@@ -183,11 +183,13 @@ if (($response eq 'Y') or ($response eq 'y')) {
     $cmd = "sbatch $job-0.job";
     print "\#0: $cmd\n";
     $id = `$cmd`;
+    $id = int((split ' ', $id)[-1]);
     print "$Job " . (sprintf "%2d", 0) . ": id = $id\n";
     for $i (1..$njob) {
         $cmd = "sbatch --dependency=afterok:$id $job-$i.job";
         print "\#$i: $cmd\n";
         $id = `$cmd`;
+        $id = int((split ' ', $id)[-1]);
         print "$Job " . (sprintf "%2d", $i) . ": id = $id\n";
     }
 }
