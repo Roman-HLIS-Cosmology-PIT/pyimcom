@@ -101,7 +101,7 @@ use_output_float = np.float32
 tempdir = str(os.environ["TMPDIR"]) if "TMPDIR" in os.environ else os.getenv("TMPDIR") + "/"
 
 # For test outputs: set sca=0 to not produce test outputs.
-img_full_output = {"obsid": 670, "sca": 10}
+img_full_output = {"obsid": 670, "scaid": 10}
 
 class Cost_models:
     """
@@ -196,13 +196,13 @@ class Sca_img:
                 file = fits.open(
                     cfg.ds_obsfile + filters[cfg.use_filter] + "_" + obsid + "_" + scaid + ".fits", memmap=True
                 )
+                image_hdu = "SCI"
 
             elif indata_type=="asdf":
                 file = asdf.open(
                     cfg.ds_obsfile + filters[cfg.use_filter] + "_" + obsid + "_" + scaid + ".asdf", memmap=True
                 )
-                image_hdu = "SCI"
-
+                
         
         if indata_type=="fits":
             self.w = wcs.WCS(file[image_hdu].header)
@@ -1175,12 +1175,12 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg):
             hdu = fits.PrimaryHDU(psi)
             hdu.writeto(test_image_dir + f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_Psi.fits', overwrite=True)
 
-        write_to_file(f"Sample stats for SCA {img_full_output}:")
-        write_to_file(f"Image A mean: {np.mean(I_A.image)}")
-        write_to_file(f"Image B mean: {np.mean(J_A_image)}")
-        write_to_file(f"Psi mean: {np.mean(psi)}")
-        write_to_file(f"f(Psi) mean: {np.mean(result)}")
-        write_to_file(f"Local epsilon for SCA {j}: {local_epsilon}")
+            write_to_file(f"Sample stats for SCA {img_full_output}:")
+            write_to_file(f"Image A mean: {np.mean(I_A.image)}")
+            write_to_file(f"Image B mean: {np.mean(J_A_image)}")
+            write_to_file(f"Psi mean: {np.mean(psi)}")
+            write_to_file(f"f(Psi) mean: {np.mean(result)}")
+            write_to_file(f"Local epsilon for SCA {j}: {local_epsilon}")
 
     return j, psi, local_epsilon
 
@@ -1908,7 +1908,8 @@ def main():
         hdu.writeto(outpath + "final_params.fits", overwrite=True)
         print(outpath + "final_params.fits created \n")
 
-    except:
+    except Exception as e:
+        print(f'Exception: {e}')
         print("Conjugate gradient failed. Restart state saved to cg_restart.pkl\n")
 
     for i, sca in enumerate(all_scas):
