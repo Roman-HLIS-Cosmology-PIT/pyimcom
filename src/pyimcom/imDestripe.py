@@ -79,20 +79,20 @@ import numpy as np
 import asdf
 from astropy import wcs
 from astropy.io import fits
-from config import Config
+from config import Config, Settings
 from filelock import FileLock, Timeout
 from memory_profiler import memory_usage
 from scipy.ndimage import binary_dilation
 from utils import compareutils
-from .wcsutil import PyIMCOM_WCS
+from wcsutil import PyIMCOM_WCS
 
 try:
     import furry_parakeet.pyimcom_croutines as pyimcom_croutines
 except ImportError:
     import pyimcom_croutines
 
-from .config.Settings import RomanFilters as filters
-
+#from Config.Settings import RomanFilters as filters
+filters = Settings.RomanFilters
 t0_global = time.time()  # after imports
 
 # Module settings
@@ -115,7 +115,7 @@ class Cost_models:
             "huber_loss": (huber_loss, huber_prime),
         }
 
-        self.model = cfg.cg_model
+        self.model = cfg.cost_model
 
         if self.model == "huber_loss":
             self.thresh = cfg.hub_thresh
@@ -183,7 +183,7 @@ class Sca_img:
             Writes the interpolated image out to the disk, to be read/used later
     """
 
-    def __init__(self, obsid, scaid, cfg, neighbors, tempdir=tempdir, interpolated=False, add_noise=True, 
+    def __init__(self, obsid, scaid, cfg, tempdir=tempdir, interpolated=False, add_noise=True, 
                  add_objmask=True, indata_type = 'fits'):
 
         if interpolated:
@@ -413,7 +413,7 @@ class Sca_img:
             obsid_B, scaid_B = get_ids(sca_b)
 
             N_BinA += 1
-            I_B = Sca_img(obsid_B, scaid_B)  # Initialize image B
+            I_B = Sca_img(obsid_B, scaid_B, self.cfg)  # Initialize image B
 
             if params:
                 I_B.subtract_parameters(params, k)
@@ -964,7 +964,7 @@ def get_neighbors(scalist, ov_mat, overlap_thresh=0.1):
 
 
 def residual_function(
-    psi, f_prime, scalist, wcslist, neighbors, thresh, workers, extrareturn=False, ds_model="FR"
+    psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg, extrareturn=False
 ):
     """
     Calculate the residual image, = grad(epsilon)
@@ -986,18 +986,19 @@ def residual_function(
         threshold for Huber loss cost function; default None
     workers : Int
         number of parallel workers to use
+    cfg : Config object 
+        the configuration for this run
     extrareturn : Bool 
         if True, return residual terms 1 and 2 separately; Default False
             in addition to full residuals. returns resids, resids1, resids2
-    ds_model : Str
-        which destriping model is being used; default 'FR'
+
         
     Returns
     --------
     resids : 2D np array
         with one row per SCA and one col per parameter
         """
-    resids = Parameters(ds_model, 4088).params
+    resids = Parameters(cfg.ds_model, 4088).params
     if extrareturn:
         resids1 = np.zeros_like(resids)
         resids2 = np.zeros_like(resids)
@@ -1016,6 +1017,7 @@ def residual_function(
                 scalist,
                 neighbors,
                 thresh,
+                cfg
             )
             for k, sca_a in enumerate(scalist)
         ]
@@ -1040,7 +1042,7 @@ def residual_function(
         return resids, resids1, resids2
     return resids
 
-def residual_function_single(k, sca_a, wcs_a, psi, f_prime, scalist, neighbors, thresh):
+def residual_function_single(k, sca_a, wcs_a, psi, f_prime, scalist, neighbors, thresh, cfg):
     """
     Calculate the residual for a single SCA image
 
@@ -1062,6 +1064,8 @@ def residual_function_single(k, sca_a, wcs_a, psi, f_prime, scalist, neighbors, 
         dictionary where keys are SCA indices and values are lists of indices of overlapping SCAs
     thresh : Float
         threshold for Huber loss cost function; default None
+    cfg : Config object
+        the configuration for this run
 
     Returns
     --------
@@ -1098,7 +1102,7 @@ def residual_function_single(k, sca_a, wcs_a, psi, f_prime, scalist, neighbors, 
         sca_b = scalist[j]
         obsid_B, scaid_B = get_ids(sca_b)
 
-        I_B = Sca_img(obsid_B, scaid_B)
+        I_B = Sca_img(obsid_B, scaid_B, cfg)
         gradient_original = np.zeros(I_B.shape)
 
         transpose_interpolate(gradient_interpolated, wcs_a, I_B, gradient_original)
@@ -1109,7 +1113,7 @@ def residual_function_single(k, sca_a, wcs_a, psi, f_prime, scalist, neighbors, 
 
     return k, term_1, term_2_list
 
-def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh):
+def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg):
     """
     Calculate the cost function for a single SCA image
 
@@ -1129,6 +1133,8 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh):
         dictionary where keys are SCA indices and values are lists of indices of overlapping SCAs
     thresh : Float
         threshold for Huber loss cost function; default None
+    cfg : Config object
+        the configuration for this run
 
     Returns
     --------
@@ -1142,7 +1148,7 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh):
     m = re.search(r"_(\d+)_(\d+)", sca_a)
     obsid_A, scaid_A = m.group(1), m.group(2)
 
-    I_A = Sca_img(obsid_A, scaid_A)
+    I_A = Sca_img(obsid_A, scaid_A, cfg)
     I_A.subtract_parameters(p, j)
     I_A.apply_all_mask()
 
@@ -1178,7 +1184,7 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh):
 
     return j, psi, local_epsilon
 
-def cost_function(p, f, thresh, workers, scalist, neighbors, tempdir=tempdir):
+def cost_function(p, f, thresh, workers, scalist, neighbors, cfg, tempdir=tempdir):
     """
     Calculate the cost function with the current de-striping parameters.
 
@@ -1196,6 +1202,8 @@ def cost_function(p, f, thresh, workers, scalist, neighbors, tempdir=tempdir):
         the list of all SCAs in this mosaic
     neighbors : Dict
         dictionary where keys are SCA indices and values are lists of indices of threshold-overlapping SCAs
+    cfg : Config object 
+        the configuration for this run
     
     Returns
     --------
@@ -1212,7 +1220,7 @@ def cost_function(p, f, thresh, workers, scalist, neighbors, tempdir=tempdir):
 
     with ProcessPoolExecutor(max_workers=workers) as executor:
         futures = [
-            executor.submit(cost_function_single, j, sca_a, p, f, scalist, neighbors, thresh)
+            executor.submit(cost_function_single, j, sca_a, p, f, scalist, neighbors, thresh, cfg)
             for j, sca_a in enumerate(scalist)
         ]
 
@@ -1243,9 +1251,9 @@ def linear_search_general(
     scalist,
     wcslist,
     neighbors,
+    cfg,
     n_iter=100,
     tol=10**-4,
-    ds_model="FR",
 ):
     """
     Linear search via combination bisection and secant methods for parameters that minimize the function
@@ -1279,12 +1287,12 @@ def linear_search_general(
         the WCS object for each SCA in scalist (same order)
     neighbors : Dict
         dictionary where keys are SCA indices and values are lists of indices of overlapping SCAs
+    cfg : Config object
+        the configuration for this run
     n_iter : int
          number of iterations at which to stop searching
     tol : float
          absolute value of d_cost at which to converge
-    ds_model : Str
-        which destriping model is being used; default 'FR'
 
     Returns
     --------
@@ -1328,18 +1336,18 @@ def linear_search_general(
     write_to_file("### Calculating min and max epsilon and cost")
     max_params = p.params + alpha_max * direction
     max_p.params = max_params
-    max_epsilon, max_psi = cost_function(max_p, f, thresh, workers, scalist, neighbors)
+    max_epsilon, max_psi = cost_function(max_p, f, thresh, workers, scalist, neighbors, cfg)
     max_resids = residual_function(
-        max_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, ds_model=ds_model
+        max_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg
     )
     del max_psi
     d_cost_max = np.sum(max_resids * direction)
 
     min_params = p.params + alpha_min * direction
     min_p.params = min_params
-    min_epsilon, min_psi = cost_function(min_p, f, thresh, workers, scalist, neighbors)
+    min_epsilon, min_psi = cost_function(min_p, f, thresh, workers, scalist, neighbors, cfg)
     min_resids = residual_function(
-        min_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, ds_model=ds_model
+        min_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg
     )
     del min_psi
     d_cost_min = np.sum(min_resids * direction)
@@ -1382,10 +1390,10 @@ def linear_search_general(
         working_params = p.params + alpha_test * direction
         working_p.params = working_params
 
-        working_epsilon, working_psi = cost_function(working_p, f, thresh, workers, scalist, neighbors)
+        working_epsilon, working_psi = cost_function(working_p, f, thresh, workers, scalist, neighbors, cfg)
         print(f"Global elapsed t = {(time.time()-t0_global)/60:8.1f}")
         working_resids = residual_function(
-            working_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, ds_model=ds_model
+            working_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg
         )
         print(f"Global elapsed t = {(time.time()-t0_global)/60:8.1f}")
         d_cost = np.sum(working_resids * direction)
@@ -1433,7 +1441,7 @@ def linear_search_general(
 
 
 def linear_search_quadratic(
-    p, direction, f, f_prime, grad_current, thresh, workers, scalist, wcslist, neighbors, ds_model="FR"
+    p, direction, f, f_prime, grad_current, thresh, workers, scalist, wcslist, neighbors, cfg
 ):
     """
     For the quadratic cost function, direct calculation of alpha that minimizes the function
@@ -1463,8 +1471,8 @@ def linear_search_quadratic(
         the WCS object for each SCA in scalist (same order)
     neighbors : Dict
         dictionary where keys are SCA indices and values are lists of indices of overlapping SCAs
-    ds_model : Str
-        which destriping model is being used; default 'FR'
+    cfg : Config object
+        the configuration for this run
 
 
     Returns
@@ -1501,9 +1509,9 @@ def linear_search_quadratic(
     # Calculate
     trial_params = p.params + alpha_max * direction
     trial_p.params = trial_params
-    trial_epsilon, trial_psi = cost_function(trial_p, f, thresh, workers, scalist, neighbors)
+    trial_epsilon, trial_psi = cost_function(trial_p, f, thresh, workers, scalist, neighbors, cfg)
     trial_resids = residual_function(
-        trial_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, ds_model=ds_model
+        trial_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg
     )
     del trial_psi, trial_epsilon
 
@@ -1515,7 +1523,7 @@ def linear_search_quadratic(
 
     new_params = p.params + alpha_new * direction
     new_p.params = new_params
-    new_epsilon, new_psi = cost_function(new_p, f, thresh, workers, scalist, neighbors)
+    new_epsilon, new_psi = cost_function(new_p, f, thresh, workers, scalist, neighbors, cfg)
     new_resids = grad_current + (alpha_new / alpha_max) * (trial_resids - grad_current)
     print(f"(Inside LS) Global elapsed t = {(time.time()-t0_global)/60:8.1f}")
     sys.stdout.flush()
@@ -1623,7 +1631,7 @@ def conjugate_gradient(
         grad = None
         direction = None  # No initial direction
         write_to_file("### Starting initial cost function", of)
-        epsilon, psi = cost_function(p, f, thresh, workers, scalist, neighbors)
+        epsilon, psi = cost_function(p, f, thresh, workers, scalist, neighbors, cfg)
         print(f"Global elapsed t = {(time.time()-t0_global)/60:8.1f}")
 
         with open(log_file, "w", newline="") as csvfile:
@@ -1655,7 +1663,7 @@ def conjugate_gradient(
         # Compute the gradient
         if grad is None:
             grad = residual_function(
-                psi, f_prime, scalist, wcslist, neighbors, thresh, workers, ds_model=cfg.ds_model
+                psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg
             )
             write_to_file(
                 f"Minutes spent in initial residual function: {(time.time() - t_start_CG_iter) / 60}", of
@@ -1721,7 +1729,7 @@ def conjugate_gradient(
                 scalist, 
                 wcslist, 
                 neighbors, 
-                ds_model=cfg.ds_model
+                cfg
             )
 
         else:
@@ -1739,7 +1747,7 @@ def conjugate_gradient(
                 scalist,
                 wcslist,
                 neighbors,
-                ds_model=cfg.ds_model,
+                cfg
             )
 
         print(f"Global elapsed t = {(time.time()-t0_global)/60:8.1f}")
@@ -1905,7 +1913,7 @@ def main():
 
     for i, sca in enumerate(all_scas):
         obsid, scaid = get_ids(sca)
-        this_sca = Sca_img(obsid, scaid, add_objmask=False)
+        this_sca = Sca_img(obsid, scaid, CFG, add_objmask=False)
         this_param_set = p.forward_par(i)
         ds_image = this_sca.image - this_param_set
         pm = this_sca.get_permanent_mask()
