@@ -686,7 +686,7 @@ def huber_prime(x, d):
     return np.where(np.abs(x) <= d, quad_prime(x), 2 * d * np.sign(x))
 
 
-def get_scas(filter, obsfile, indata_type='fits'):
+def get_scas(filter, obsfile, cfg, indata_type='fits'):
     """
     Function to get a list of all SCA images and their WCSs for this mosaic
 
@@ -725,9 +725,9 @@ def get_scas(filter, obsfile, indata_type='fits'):
                 all_wcs.append(this_wcs)
                 this_file.close()
     write_to_file(f"N SCA images in this mosaic: {str(n_scas)}")
-    write_to_file("SCA List:", "SCA_list.txt")
+    write_to_file("SCA List:", cfg.ds_outpath+"SCA_list.txt")
     for i, s in enumerate(all_scas):
-        write_to_file(f"SCA {i}: {s}", "SCA_list.txt") # KL make sure this saves to the correct location
+        write_to_file(f"SCA {i}: {s}", cfg.ds_outpath+"SCA_list.txt") 
     return all_scas, all_wcs
 
 
@@ -1850,7 +1850,7 @@ def main():
     workers = os.cpu_count() // int(os.environ["OMP_NUM_THREADS"]) if "OMP_NUM_THREADS" in os.environ else 12
     write_to_file(f"## Using {workers} workers for parallel processing.")
 
-    all_scas, all_wcs = get_scas(filter_, CFG.ds_obsfile)
+    all_scas, all_wcs = get_scas(filter_, CFG.ds_obsfile, CFG)
     write_to_file(f"{len(all_scas)} SCAs in this mosaic", filename=outfile)
 
     if testing:
