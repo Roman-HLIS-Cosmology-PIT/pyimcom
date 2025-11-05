@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH --nodes=1
 #SBATCH --exclusive
-#SBATCH --time=24:00:00
+#SBATCH --time=12:00:00
 #SBATCH --job-name=imdestripe_H_mosaictest_v2
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --mail-user=laliotis.2@osu.edu
-#SBATCH --output=/fs/scratch/PCON0003/klaliotis/imdestripe/mosaic_test/imdestripe_test_v2.out.%j
+#SBATCH --output=/fs/scratch/PCON0003/klaliotis/imdestripe/mosaic_test_v2/imdestripe_test_v2.out.%j
 #SBATCH --account=PAS2340
 
 #Set echo
