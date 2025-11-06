@@ -276,7 +276,13 @@ def run_imsubtract(config_file, display=None, scanum=None, local_output=False, m
         # inlayercache data --- changed to context manager structure
         with fits.open(path + "/" + exp) as hdul:
             # read in the input image, I
-            I_img = np.copy(hdul[0].data)  # this is I
+            I_img = np.memmap(
+                path + "/" + exp[:-5] + "_data.npy",
+                dtype=np.float32,
+                mode="w+",
+                shape=np.shape(hdul[0].data),
+            )
+            I_img[:, :, :] = hdul[0].data  # this is I
         # find number of layers
         nlayer = np.shape(I_img)[-3]
         # get wcs information from fits file (or asdf if indicated)
