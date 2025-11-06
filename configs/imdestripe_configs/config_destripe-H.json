@@ -50,7 +50,7 @@
         "_ds_out.txt"
     ],
     "CGMODEL": ["PR",
-        11,
+        2,
         1e-3
         ],
     "DSCOST": ["quadratic",

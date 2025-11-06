@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --nodes=1
 #SBATCH --exclusive
-#SBATCH --time=12:00:00
+#SBATCH --time=24:00:00
 #SBATCH --job-name=imdestripe_H_mosaictest_v2
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --mail-user=laliotis.2@osu.edu
@@ -13,7 +13,7 @@ set -x
 
 #Activate Conda Environment
 source /users/PCON0003/klaliotis/.conda/envs/
-source activate local
+source activate pyimcom2
 
 # Explicitly set the number of OpenMP threads
 export OMP_NUM_THREADS=2

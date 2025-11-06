@@ -74,7 +74,7 @@ import sys
 import time
 import uuid
 from concurrent.futures import ProcessPoolExecutor, as_completed
-
+import logging
 import numpy as np
 import asdf
 from astropy import wcs
@@ -998,7 +998,8 @@ def residual_function(
     resids : 2D np array
         with one row per SCA and one col per parameter
         """
-    resids = Parameters(cfg.ds_model, 4088).params
+    
+    resids = Parameters(cfg, 4088).params
     if extrareturn:
         resids1 = np.zeros_like(resids)
         resids2 = np.zeros_like(resids)
@@ -1910,6 +1911,7 @@ def main():
 
     except Exception as e:
         print(f'Exception: {e}')
+        logging.exception("An error occurred:")
         print("Conjugate gradient failed. Restart state saved to cg_restart.pkl\n")
 
     for i, sca in enumerate(all_scas):
