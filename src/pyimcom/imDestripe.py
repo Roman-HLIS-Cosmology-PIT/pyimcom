@@ -1237,11 +1237,11 @@ def cost_function(p, f, thresh, workers, scalist, neighbors, cfg, tempdir=tempdi
             for j, sca_a in enumerate(scalist)
         ]
 
-    for future in as_completed(futures):
-        j, psi_j, local_eps = future.result()
-        psi[j, :, :] = psi_j
-        del psi_j
-        epsilon += local_eps
+        for future in as_completed(futures):
+            j, psi_j, local_eps = future.result()
+            psi[j, :, :] = psi_j
+            del psi_j
+            epsilon += local_eps
 
     write_to_file(f"Ending cost function. Time elapsed: {(time.time() - t0_cost) / 60} minutes")
     write_to_file(
