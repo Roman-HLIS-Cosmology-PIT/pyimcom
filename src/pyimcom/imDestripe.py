@@ -1078,6 +1078,7 @@ def residual_function_single(k, sca_a, wcs_a, psi, f_prime, scalist, neighbors, 
         list of (j, term_2) tuples containing value for term 2
         for each SCA j that overlaps with this one
     """
+    t0=time.time()
     # Go and get the WCS object for image A
     obsid_A, scaid_A = get_ids(sca_a)
 
@@ -1097,7 +1098,15 @@ def residual_function_single(k, sca_a, wcs_a, psi, f_prime, scalist, neighbors, 
     )
     gradient_interpolated[~valid_mask] = 0
 
+    t1 = time.time()
+    if t1 - t0 > 5:  # If first transpose takes >5 seconds, something's wrong
+        print(f"WARNING: Worker {k} took {t1-t0:.2f}s for first transpose")
+    sys.stdout.flush()
+
     term_2_list = []
+    print(f"Worker {k} starting term 2 calculations with {len(neighbors[k])} neighbors.")
+    print(f"Time so far for worker {k}: {time.time()-t0:.2f}s")
+    sys.stdout.flush()
 
     for j in neighbors[k]:
         sca_b = scalist[j]
@@ -1111,6 +1120,8 @@ def residual_function_single(k, sca_a, wcs_a, psi, f_prime, scalist, neighbors, 
 
         term_2 = transpose_par(gradient_original)
         term_2_list.append((j, term_2))
+        print(f"Worker {k} finished term 2 for neighbor {j}. Time elapsed: {time.time()-t0:.2f}s")
+        sys.stdout.flush()
 
     return k, term_1, term_2_list
 
