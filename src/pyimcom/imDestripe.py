@@ -276,6 +276,7 @@ class Sca_img:
                     overwrite=True,
                 )
 
+    #KL add option to turn off apply_noise (if you leave it out of the config file it turns off)
     def apply_noise(self):
         """
         Add detector noise to self.image
@@ -1023,17 +1024,17 @@ def residual_function(
             for k, sca_a in enumerate(scalist)
         ]
 
-    for future in as_completed(futures):
-        k, term_1, term_2_list = future.result()
-        resids[k, :] -= term_1
-        if extrareturn:
-            resids1[k, :] -= term_1
-
-        # Process term_2 contributions
-        for j, term_2 in term_2_list:
-            resids[j, :] += term_2
+        for future in as_completed(futures):
+            k, term_1, term_2_list = future.result()
+            resids[k, :] -= term_1
             if extrareturn:
-                resids2[j, :] += term_2
+                resids1[k, :] -= term_1
+
+            # Process term_2 contributions
+            for j, term_2 in term_2_list:
+                resids[j, :] += term_2
+                if extrareturn:
+                    resids2[j, :] += term_2
 
         # KL explicitly give output locations to write_to_file (these should go to the diagnostics directory)
         # could give cfg to write_to_file 
@@ -1845,10 +1846,12 @@ def conjugate_gradient(
 
 
 def main():
-     
+    # KL add test flag to not make all the intermediate images
+
     CG_models = {"FR", "PR", "HS", "DY"}
 
     # Import config file
+    # KL make command line argument
     CFG = Config(
         cfg_file="/fs/scratch/PCON0003/klaliotis/pyimcom/configs/imdestripe_configs/config_destripe-H.json"
     )
@@ -1943,6 +1946,7 @@ def main():
         hdulist = fits.HDUList([hdu, hdu2, hdu3, hdu4])
         hdulist.writeto(outpath + filter_ + "_DS_" + obsid + scaid + ".fits", overwrite=True)
 
+    # KL Fix the out file name with underscore between obs id and sca id
     write_to_file(f"Destriped images saved to {outpath + filter_} _DS_*.fits", filename=outfile)
     write_to_file(f"Total hours elapsed: {(time.time() - t0) / 3600}", filename=outfile)
 
