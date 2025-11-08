@@ -95,7 +95,7 @@ close OUT;
 
 # Imsubtract
 $njob++;
-$script3  = "$scriptHead#SBATCH --array=1-18\n#SBATCH --time=48:00:00\n#SBATCH --nodes=1 --ntasks-per-node=1 --cpus-per-task=6\n";
+$script3  = "$scriptHead#SBATCH --array=1-18\n#SBATCH --time=48:00:00\n#SBATCH --nodes=1 --ntasks-per-node=1 --cpus-per-task=12\n";
 $script3 .= "cd \$SLURM_SUBMIT_DIR\n";
 $script3 .= "python3 -m pyimcom.splitpsf.imsubtract $cfg \$SLURM_ARRAY_TASK_ID > $tag-S$njob-\$SLURM_ARRAY_TASK_ID.txt\n";
 open(OUT, ">", "$job-$njob.job");
@@ -135,8 +135,8 @@ print COUT "    print(fname, '-->', fout); sys.stdout.flush()\n";
 print COUT "\n";
 print COUT "    with CompressedOutput(fname) as f:\n";
 print COUT "        for j in range(1,len(f.cfg.extrainput)):\n";
-print COUT "            if f.cfg.extrainput[j][:6].lower()=='gsstar' or f.cfg.extrainput[j][:5].lower()=='cstar'\n";
-print COUT "                    or f.cfg.extrainput[j][:8].lower()=='gstrstar' or f.cfg.extrainput[j][:8].lower()=='gsfdstar':\n";
+print COUT "            if (f.cfg.extrainput[j][:6].lower()=='gsstar' or f.cfg.extrainput[j][:5].lower()=='cstar'\n";
+print COUT "                    or f.cfg.extrainput[j][:8].lower()=='gstrstar' or f.cfg.extrainput[j][:8].lower()=='gsfdstar'):\n";
 print COUT "                f.compress_layer(j, scheme='I24B', pars={'VMIN': -1./64., 'VMAX': 7./64., 'BITKEEP': 20, 'DIFF': True, 'SOFTBIAS': -1})\n";
 print COUT "            if f.cfg.extrainput[j][:5].lower()=='nstar':\n";
 print COUT "                f.compress_layer(j, scheme='I24B', pars={'VMIN': -1500., 'VMAX': 10500., 'BITKEEP': 20, 'DIFF': True, 'SOFTBIAS': -1})\n";
@@ -153,7 +153,7 @@ close COUT;
 $njob++;
 $script6  = "$scriptHead#SBATCH --time=8:00:00\n#SBATCH --nodes=1 --ntasks-per-node=1 --cpus-per-task=4\n";
 $script6 .= "cd \$SLURM_SUBMIT_DIR\n";
-$script6 .= "python $job\_compress.py $cfg > $tag-S$njob.txt\n";
+$script6 .= "python $job\_cprs.py $cfg > $tag-S$njob.txt\n";
 open(OUT, ">", "$job-$njob.job");
 print OUT $script6;
 close OUT;
