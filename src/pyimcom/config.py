@@ -313,12 +313,13 @@ class Config:
         "uctarget",
         "sigmamax",  # SECTION VIII
         "ds_model",
+        "ds_rows",
         "ds_outpath",
         "ds_outstem",
         "cg_model",
         "cost_model",
         "ds_obsfile",
-        "ds_indata",
+        "ds_noisefile",
         "ds_restart",
         "cost_prior",
         "resid_model",
@@ -526,12 +527,12 @@ class Config:
             self.no_qlt_ctrl = cfg_dict.get("EMPIRNQC", False)
 
         ### SECTION IX: DESTRIPING PARAMS ###
-        self.ds_model = cfg_dict.get("DSMODEL", False)
+        self.ds_model, self.ds_rows = cfg_dict["DSMODEL"]
         self.ds_outpath, self.ds_outstem = cfg_dict["DSOUT"]
         self.cg_model, self.cg_maxiter, self.cg_tol = cfg_dict["CGMODEL"]
         self.cost_model, self.cost_prior, self.hub_thresh = cfg_dict["DSCOST"]
         self.ds_obsfile = cfg_dict.get("DSOBSFILE")
-        self.ds_indata = cfg_dict.get("DSINDATA")
+        self.noisefile = cfg_dict.get("DSNOISEFILE", False)
         self.ds_restart = cfg_dict.get("DSRESTART")
         self.gaindir = cfg_dict.get("GAINDIR", False)
 

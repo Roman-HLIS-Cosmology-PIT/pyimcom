@@ -27,4 +27,4 @@ echo "OMP_NUM_THREADS: $OMP_NUM_THREADS"
 #Run programs
 cd /fs/scratch/PCON0003/klaliotis/pyimcom/src/pyimcom
 
-python3 imDestripe.py
+python3 imDestripe.py /fs/scratch/PCON0003/klaliotis/pyimcom/configs/imdestripe_configs/config_destripe-H.json

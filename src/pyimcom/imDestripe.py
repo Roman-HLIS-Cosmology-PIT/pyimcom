@@ -85,7 +85,6 @@ from memory_profiler import memory_usage
 from scipy.ndimage import binary_dilation
 from utils import compareutils
 from wcsutil import PyIMCOM_WCS
-
 try:
     import furry_parakeet.pyimcom_croutines as pyimcom_croutines
 except ImportError:
@@ -140,8 +139,6 @@ class Sca_img:
             built from the configuration file
         interpolated : Bool
             True if you want the interpolated version of this SCA and not the original. Default False
-        add_noise : Bool
-            True if you want to add read noise to the SCA image. Default True
         add_objmask : Bool
             True if you want to apply the permanent pixel mask and a bright object mask. Default True
 
@@ -183,12 +180,12 @@ class Sca_img:
             Writes the interpolated image out to the disk, to be read/used later
     """
 
-    def __init__(self, obsid, scaid, cfg, tempdir=tempdir, interpolated=False, add_noise=True, 
+    def __init__(self, obsid, scaid, cfg, tempdir=tempdir, interpolated=False,
                  add_objmask=True, indata_type = 'fits'):
 
         if interpolated:
             file = fits.open(
-                cfg.ds_outpath + "interpolations/" + obsid + "_" + scaid + "_interp.fits", memmap=True
+                tempdir + "interpolations/" + obsid + "_" + scaid + "_interp.fits", memmap=True
             )
             image_hdu = "PRIMARY"
         else:
@@ -257,8 +254,8 @@ class Sca_img:
             self.g_eff = g_eff_file[int(scaid) - 1].data.astype(np.float64)
             g_eff_file.close()
 
-        # Add a noise frame, if requested
-        if add_noise:
+        # Add a noise frame if specified in config file
+        if cfg.ds_noisefile is not False:
             self.apply_noise()
 
         if add_objmask:
@@ -267,7 +264,7 @@ class Sca_img:
             self.mask *= np.logical_not(
                 object_mask
             )  # self.mask = True for good pixels, so set object_mask'ed pixels to False
-            if not os.path.exists(cfg.ds_outpath + self.obsid + "_" + self.scaid + "_mask.fits"):
+            if not os.path.exists(cfg.ds_outpath + self.obsid + "_" + self.scaid + "_mask.fits") and testing:
                 mask_img = self.mask.astype("uint8")
                 save_fits(
                     mask_img,
@@ -276,13 +273,12 @@ class Sca_img:
                     overwrite=True,
                 )
 
-    #KL add option to turn off apply_noise (if you leave it out of the config file it turns off)
     def apply_noise(self):
         """
         Add detector noise to self.image
         """
         noiseframe = (
-            np.copy(fits.open(self.cfg.ds_indata + self.obsid + "_" + self.scaid + ".fits")["PRIMARY"].data)
+            np.copy(fits.open(self.cfg.ds_noisefile + self.obsid + "_" + self.scaid + ".fits")["PRIMARY"].data)
             * 1.458
             * 50
         )  # times gain and N_frames
@@ -297,8 +293,8 @@ class Sca_img:
         Apply permanent pixel mask. Updates self.image and self.mask
         """
         pm = fits.open(self.cfg.permanent_mask)[0].data[int(self.scaid) - 1].astype(bool)
-        self.image *= pm
-        self.mask *= pm
+        self.image *= ~pm
+        self.mask *= ~pm
 
     def get_permanent_mask(self):
         """
@@ -428,13 +424,14 @@ class Sca_img:
                 interpolate_image_bilinear(
                     I_B, self, B_mask_interp, mask=I_B.mask
                 )  # interpolate B pixel mask onto A grid
-            if img_full_output["scaid"]!=0:
-                if obsid_B == img_full_output["obsid"] and scaid_B == img_full_output["scaid"] and make_Neff:  # only do this once
+
+            if img_full_output["scaid"]!=0 and testing:
+                if obsid_B == str(img_full_output["obsid"]) and scaid_B == str(img_full_output["scaid"]) and make_Neff:  # only do this once
                     save_fits(
                             B_interp, f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_B_{self.obsid}_{self.scaid}_interp', dir=test_image_dir
                         )
 
-                if self.obsid == img_full_output["obsid"] and self.scaid == img_full_output["scaid"] and make_Neff:
+                if self.obsid == str(img_full_output["obsid"]) and self.scaid == str(img_full_output["scaid"]) and make_Neff:
                     save_fits(B_interp, f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_A_{obsid_B}_{scaid_B}_interp', dir=test_image_dir)
 
             this_interp += B_interp
@@ -450,13 +447,13 @@ class Sca_img:
         header = self.w.to_header(relax=True)
         this_interp = np.divide(this_interp, self.g_eff)
 
+        # KL move these to tmp?
         save_fits(
             this_interp,
             self.obsid + "_" + self.scaid + "_interp",
-            dir=self.cfg.ds_outpath + "interpolations/",
+            dir=tempdir + "interpolations/",
             header=header,
         )
-        t_elapsed_a = time.time() - t_a_start
 
         if make_Neff:
             N_eff.flush()
@@ -473,8 +470,6 @@ class Parameters:
     ----------
         cfg : Config object
             built from the configuration file
-        n_rows : Int
-            number of rows in the image
         scalist : list of Strings
             the list of SCAs in this mosaic
 
@@ -484,7 +479,7 @@ class Parameters:
             Which destriping model to use, which then specifies the number of parameters per row.
             Must be a key of the model_params dict
         n_rows : Int
-            Number of rows in the image
+            Number of rows in the image, or number of rows to fit ds model over
         params_per_row : Int
             Number of parameters per row, set by model_params[model]
         params : 2D np array
@@ -492,7 +487,7 @@ class Parameters:
         current_shape : Str
             The current shape (1D or 2D) of SCA params
         scalist : list of Strings
-            the list of SCAs in this mosaic #KL add what format the strings would have
+            the list of SCAs in this mosaic, format: filter_obsid_scaid
 
     Methods
     -------
@@ -503,12 +498,12 @@ class Parameters:
 
     """
 
-    def __init__(self, cfg, n_rows, scalist=[]):
+    def __init__(self, cfg, scalist=[]):
         model_params = {"constant": 1, "linear": 2}
         if cfg.ds_model not in model_params:
             raise ValueError(f"Model {cfg.ds_model} not in model_params dictionary.")
         self.model = cfg.ds_model
-        self.n_rows = n_rows
+        self.n_rows = cfg.ds_rows
         self.params_per_row = model_params[self.model]
         self.params = np.zeros((len(scalist), self.n_rows * self.params_per_row))
         self.current_shape = "2D"
@@ -639,10 +634,6 @@ def apply_object_mask(image, mask=None, threshold_m=2.5, threshold_c=0, inplace=
     neighbor_mask : 2D np.array
         the mask applied
     """
-    # KL input images will have first attempt at sky subtraction done
-    # so threshold probably additive instead of multiplicative
-    # probably put in config file -- mask will be like thresh_m * med + thresh_c 
-    # where thresh_m and thresh_c are in the config file
     if mask is not None and isinstance(mask, np.ndarray):
         neighbor_mask = mask
     else:
@@ -1000,11 +991,12 @@ def residual_function(
         with one row per SCA and one col per parameter
         """
     
-    resids = Parameters(cfg, 4088).params
+    resids = Parameters(cfg, scalist).params
     if extrareturn:
         resids1 = np.zeros_like(resids)
         resids2 = np.zeros_like(resids)
     write_to_file('Residual calculation started')
+    sys.stdout.flush()
     t_r_0 = time.time()
 
     with ProcessPoolExecutor(max_workers=workers) as executor:
@@ -1014,7 +1006,7 @@ def residual_function(
                 k,
                 sca_a,
                 wcslist[k],
-                psi,
+                psi[k,:,:],
                 f_prime,
                 scalist,
                 neighbors,
@@ -1044,7 +1036,7 @@ def residual_function(
         return resids, resids1, resids2
     return resids
 
-def residual_function_single(k, sca_a, wcs_a, psi, f_prime, scalist, neighbors, thresh, cfg):
+def residual_function_single(k, sca_a, wcs_a, psi_a, f_prime, scalist, neighbors, thresh, cfg):
     """
     Calculate the residual for a single SCA image
 
@@ -1084,7 +1076,7 @@ def residual_function_single(k, sca_a, wcs_a, psi, f_prime, scalist, neighbors, 
     obsid_A, scaid_A = get_ids(sca_a)
 
     # Calculate and then transpose the gradient of I_A-J_A
-    gradient_interpolated = f_prime(psi[k, :, :], thresh) if thresh is not None else f_prime(psi[k, :, :])
+    gradient_interpolated = f_prime(psi_a, thresh) if thresh is not None else f_prime(psi_a)
 
     term_1 = transpose_par(gradient_interpolated)
 
@@ -1093,21 +1085,13 @@ def residual_function_single(k, sca_a, wcs_a, psi, f_prime, scalist, neighbors, 
 
     # Avoid dividing by zero
     valid_mask = n_eff_A != 0
-    denom = g_eff_A * n_eff_A
+    # denom = g_eff_A * n_eff_A
     gradient_interpolated[valid_mask] = gradient_interpolated[valid_mask] / (
         g_eff_A[valid_mask] * n_eff_A[valid_mask]
     )
     gradient_interpolated[~valid_mask] = 0
 
-    t1 = time.time()
-    if t1 - t0 > 5:  # If first transpose takes >5 seconds, something's wrong
-        print(f"WARNING: Worker {k} took {t1-t0:.2f}s for first transpose")
-    sys.stdout.flush()
-
     term_2_list = []
-    print(f"Worker {k} starting term 2 calculations with {len(neighbors[k])} neighbors.")
-    print(f"Time so far for worker {k}: {time.time()-t0:.2f}s")
-    sys.stdout.flush()
 
     for j in neighbors[k]:
         sca_b = scalist[j]
@@ -1121,8 +1105,6 @@ def residual_function_single(k, sca_a, wcs_a, psi, f_prime, scalist, neighbors, 
 
         term_2 = transpose_par(gradient_original)
         term_2_list.append((j, term_2))
-        print(f"Worker {k} finished term 2 for neighbor {j}. Time elapsed: {time.time()-t0:.2f}s")
-        sys.stdout.flush()
 
     return k, term_1, term_2_list
 
@@ -1165,8 +1147,8 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg):
     I_A.subtract_parameters(p, j)
     I_A.apply_all_mask()
 
-    if img_full_output["scaid"]!=0:
-        if obsid_A == img_full_output["obsid"] and scaid_A == img_full_output["scaid"]:
+    if img_full_output["scaid"]!=0 and testing:
+        if obsid_A == str(img_full_output["obsid"]) and scaid_A == str(img_full_output["scaid"]):
             hdu = fits.PrimaryHDU(I_A.image)
             hdu.writeto(test_image_dir + 
                         f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_I_A_sub_masked.fits', 
@@ -1180,8 +1162,8 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg):
     result = f(psi, thresh) if thresh is not None else f(psi)
     local_epsilon = np.sum(result)
 
-    if img_full_output["scaid"]!=0:
-        if obsid_A == img_full_output["obsid"] and scaid_A == img_full_output["scaid"]:
+    if img_full_output["scaid"]!=0 and testing:
+        if obsid_A == str(img_full_output["obsid"]) and scaid_A == str(img_full_output["scaid"]):
             hdu = fits.PrimaryHDU(J_A_image * J_A_mask)
             hdu.writeto(test_image_dir + f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_J_A_masked.fits', overwrite=True)
 
@@ -1373,8 +1355,6 @@ def linear_search_general(
         if k == 1:
             write_to_file("### Beginning linear search")
             write_to_file(f"LS Direction: {direction}")
-            hdu = fits.PrimaryHDU(direction)
-            hdu.writeto(test_image_dir + "LSdirection.fits", overwrite=True)
             write_to_file(f"Initial params: {p.params}")
             write_to_file(f"Initial epsilon: {best_epsilon}")
             write_to_file(f"Initial d_cost: {d_cost_init}, d_cost tol: {d_cost_tol}")
@@ -1413,10 +1393,6 @@ def linear_search_general(
         convergence_crit = alpha_max - alpha_min
         conv_params.append([working_epsilon, alpha_test, d_cost])
 
-        if k % 10 == 0:
-            hdu = fits.PrimaryHDU(working_resids)
-            hdu.writeto(test_image_dir + "LS_Residuals_" + str(k) + ".fits", overwrite=True)
-
         write_to_file(f"Ending LS iteration {k}")
         write_to_file(f"Current d_cost = {d_cost}, epsilon = {working_epsilon}")
         write_to_file(f"Working resids: {working_resids}")
@@ -1432,8 +1408,9 @@ def linear_search_general(
             best_psi = working_psi
             best_resids = working_resids
             write_to_file(f"Linear search convergence in {k} iterations")
-            save_fits(best_p.params, "best_p", dir=test_image_dir, overwrite=True)
-            save_fits(np.array(conv_params), "conv_params", dir=test_image_dir, overwrite=True)
+            if testing:
+                save_fits(best_p.params, "best_p", dir=test_image_dir, overwrite=True)
+                save_fits(np.array(conv_params), "conv_params", dir=test_image_dir, overwrite=True)
             return best_p, best_psi, best_resids, best_epsilon
 
         # Updates for next iteration, if convergence isn't yet reached
@@ -1553,7 +1530,8 @@ def linear_search_quadratic(
     sys.stdout.flush()
 
     # Convergence and update criteria and checks
-    save_fits(new_p.params, "best_p", dir=test_image_dir, overwrite=True)
+    if testing:
+        save_fits(new_p.params, "best_p", dir=test_image_dir, overwrite=True)
     return new_p, new_psi, new_resids, new_epsilon
 
 
@@ -1846,17 +1824,18 @@ def conjugate_gradient(
 
 
 def main():
-    # KL add test flag to not make all the intermediate images
-
     CG_models = {"FR", "PR", "HS", "DY"}
 
-    # Import config file
-    # KL make command line argument
-    CFG = Config(
-        cfg_file="/fs/scratch/PCON0003/klaliotis/pyimcom/configs/imdestripe_configs/config_destripe-H.json"
-    )
+    cfg_file = sys.argv[1] if len(sys.argv) > 1 else None
+    if cfg_file is not None:
+        CFG = Config(
+            cfg_file=cfg_file
+        )
+    else:
+        raise ValueError("Please provide a config file as a command line argument.")
+    
     filter_ = filters[CFG.use_filter]
-    outpath = CFG.ds_outpath  # path to put outputs, /fs/scratch/PCON0003/klaliotis/imdestripe/
+    outpath = CFG.ds_outpath  
 
     # Prior on cost function is not yet implemented
     # if CFG.cost_prior != 0:
@@ -1901,7 +1880,7 @@ def main():
 
     neighbors = get_neighbors(all_scas, ov_mat)
     # Initialize parameters
-    p0 = Parameters(cfg=CFG, n_rows=4088, scalist=all_scas)  # KL change n_rows into a cfg param
+    p0 = Parameters(cfg=CFG, scalist=all_scas) 
     cm = Cost_models(cfg=CFG)
 
     # Do it
@@ -1944,9 +1923,8 @@ def main():
         hdu4 = fits.ImageHDU(this_param_set, header=this_sca.header)
         hdu4.header["TYPE"] = "PARAMS_IMAGE"
         hdulist = fits.HDUList([hdu, hdu2, hdu3, hdu4])
-        hdulist.writeto(outpath + filter_ + "_DS_" + obsid + scaid + ".fits", overwrite=True)
+        hdulist.writeto(outpath + filter_ + "_DS_" + obsid + "_" + scaid + ".fits", overwrite=True)
 
-    # KL Fix the out file name with underscore between obs id and sca id
     write_to_file(f"Destriped images saved to {outpath + filter_} _DS_*.fits", filename=outfile)
     write_to_file(f"Total hours elapsed: {(time.time() - t0) / 3600}", filename=outfile)
 

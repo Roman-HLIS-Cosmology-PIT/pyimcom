@@ -43,9 +43,10 @@
     "PMASK": "/users/PCON0003/cond0007/imcom/pyimcom/anlsim/permanent_mask_ft_231228.fits",
     "CMASK": 0.00077,
     "TEMPFILE": "/fs/scratch/PCON0003/cond0007/anl-run-in-prod/simple/",
-    "DSMODEL": "constant",
+    "DSMODEL": ["constant",
+        4088],
     "DSOBSFILE": "/fs/scratch/PCON0003/cond0007/anl-run-in-prod/simple/Roman_WAS_simple_model_",
-    "DSINDATA": "/fs/scratch/PCON0003/cond0007/anl-run-in-prod/labnoise/slope_",
+    "DSNOISEFILE": "/fs/scratch/PCON0003/cond0007/anl-run-in-prod/labnoise/slope_",
     "DSOUT": ["/fs/scratch/PCON0003/klaliotis/imdestripe/mosaic_test_v2/",
         "_ds_out.txt"
     ],
