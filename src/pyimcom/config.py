@@ -532,7 +532,7 @@ class Config:
         self.cg_model, self.cg_maxiter, self.cg_tol = cfg_dict["CGMODEL"]
         self.cost_model, self.cost_prior, self.hub_thresh = cfg_dict["DSCOST"]
         self.ds_obsfile = cfg_dict.get("DSOBSFILE")
-        self.noisefile = cfg_dict.get("DSNOISEFILE", False)
+        self.ds_noisefile = cfg_dict.get("DSNOISEFILE", False)
         self.ds_restart = cfg_dict.get("DSRESTART")
         self.gaindir = cfg_dict.get("GAINDIR", False)
 
