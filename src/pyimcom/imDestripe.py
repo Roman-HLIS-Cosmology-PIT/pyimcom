@@ -696,7 +696,6 @@ def get_scas(filter, obsfile, cfg, indata_type='fits'):
     all_wcs : list of WCS objects
         the WCS object for each SCA in all_scas (same order)
     """
-    # KL could specify a location for all the imdestripe meta stuff
     n_scas = 0
     all_scas = []
     all_wcs = []
