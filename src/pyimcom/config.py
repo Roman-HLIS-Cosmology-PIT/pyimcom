@@ -23,28 +23,9 @@ import json
 from importlib.resources import files
 from time import perf_counter
 
-import matplotlib as mpl
 import numpy as np
 from astropy import units as u
 from astropy.io import fits
-from matplotlib import rcParams
-
-rcParams.update(
-    {
-        "font.family": "serif",
-        "mathtext.fontset": "dejavuserif",
-        "font.size": 12,
-        "text.latex.preamble": r"\usepackage{amsmath}",
-        "xtick.major.pad": 2,
-        "ytick.major.pad": 2,
-        "xtick.major.size": 6,
-        "ytick.major.size": 6,
-        "xtick.minor.size": 3,
-        "ytick.minor.size": 3,
-        "axes.linewidth": 2,
-        "axes.labelpad": 1,
-    }
-)
 
 
 class Timer:
@@ -327,6 +308,9 @@ class Config:
         "cg_maxiter",
         "cg_tol", 
         "gaindir" # SECTION IX
+        "tileschm",
+        "rerun",
+        "mosaic",  # SECTION X
     )
 
     def __init__(self, cfg_file: str = "", inmode=None) -> None:
@@ -351,7 +335,7 @@ class Config:
             try:
                 with open(self.cfg_file) as f:
                     cfg_dict = json.load(f)
-            except FileNotFoundError:
+            except (OSError, FileNotFoundError):
                 cfg_dict = json.loads(self.cfg_file)
             self._from_dict(cfg_dict)
 
@@ -544,6 +528,11 @@ class Config:
         # maximum allowed value of Sigma
         self.sigmamax = cfg_dict.get("SMAX", 0.5)
 
+        ### SECTION IX: PASS THROUGHS ###
+        self.tileschm = cfg_dict.get("TILESCHM", "Not_specified")
+        self.rerun = cfg_dict.get("RERUN", "Not_specified")
+        self.mosaic = cfg_dict.get("MOSAIC", -1)
+
         cfg_dict.clear()
         del cfg_dict
 
@@ -567,7 +556,7 @@ class Config:
         while True:
             try:
                 exec(code)
-            except Exception as error:
+            except ValueError as error:
                 print(error)
                 print("# Invalid input, please try again.", flush=True)
             else:
@@ -614,10 +603,10 @@ class Config:
 
         print("# PSF splitting", flush=True)
         self._get_attrs_wrapper(
-            "self.psfsplit_r1, self.psfsplit_r2, self.psfsplit_eps = input('PSFSPLIT (float float float) "
+            "self.psfsplit_r1, self.psfsplit_r2, self.psfsplit_epsilon = input('PSFSPLIT (float float float) "
             "[default: no split]: ').split(' ')"
             "\n"
-            "self.psfsplit = [self.psfsplit_r1, self.psfsplit_r2, self.psfsplit_eps] if self.psfsplit_r1 "
+            "self.psfsplit = [self.psfsplit_r1, self.psfsplit_r2, self.psfsplit_epsilon] if self.psfsplit_r1 "
             "else ''"
         )
 
@@ -701,14 +690,14 @@ class Config:
         self._get_attrs_wrapper(
             "FADE = input('FADE (int) [default: 3]: ')"
             "\n"
-            "self.fade_kernel = float(FADE) if FADE else 3"
+            "self.fade_kernel = int(FADE) if FADE else 3"
             "\n"
             "assert self.n2 > self.fade_kernel * 2, 'insufficient patch size'"
         )
 
         print("# number of IMCOM postage stamps to pad around each output region", flush=True)
         self._get_attrs_wrapper(
-            "PAD = input('PAD (int) [default: 0]: ')\nself.postage_pad = float(PAD) if PAD else 0"
+            "PAD = input('PAD (int) [default: 0]: ')\nself.postage_pad = int(PAD) if PAD else 0"
         )
 
         print(
@@ -1006,6 +995,29 @@ class Config:
             "SMAX = input('SMAX (float) [default: 0.5]: ')\nself.sigmamax = float(SMAX) if SMAX else 0.5"
         )
 
+        print("### SECTION IX: PASS THROUGHS ###\n", flush=True)
+        # pass throughs: TILESCHM, RERUN, MOSAIC
+        print("# tiling scheme name", flush=True)
+        self._get_attrs_wrapper(
+            "TILESCHM = input('TILESCHM (str) [default: \"Not_specified\"]: ')"
+            "\n"
+            "self.tileschm = TILESCHM if TILESCHM else 'Not_specified'"
+        )
+
+        print("# rerun name", flush=True)
+        self._get_attrs_wrapper(
+            "RERUN = input('RERUN (str) [default: \"Not_specified\"]: ')"
+            "\n"
+            "self.rerun = RERUN if RERUN else 'Not_specified'"
+        )
+
+        print("# mosaic index", flush=True)
+        self._get_attrs_wrapper(
+            "MOSAIC = input('MOSAIC (int) [default: \"-1\"]: ')"
+            "\n"
+            "self.mosaic = int(MOSAIC) if MOSAIC else -1"
+        )
+
         print("# To save this configuration, call Config.to_file.\n", flush=True)
 
     def to_file(self, fname: str = "") -> None:
@@ -1090,6 +1102,11 @@ class Config:
         cfg_dict["UCMIN"] = self.uctarget
         cfg_dict["SMAX"] = self.sigmamax
 
+        ### SECTION IX: PASS THROUGHS ###
+        cfg_dict["TILESCHM"] = self.tileschm
+        cfg_dict["RERUN"] = self.rerun
+        cfg_dict["MOSAIC"] = self.mosaic
+
         if fname is not None:
             if fname == "":
                 print("> Overwriting pyimcom/configs/default_config.json", flush=True)
@@ -1107,7 +1124,26 @@ class Config:
             return res
 
 
-def format_axis(ax: "mpl.axes._axes.Axes", grid_on: bool = True) -> None:
+# Parameters for format_axis.
+# Can be imported for context via
+# with mpl.rc_context(config.format_axis_pars):
+format_axis_pars = {
+    "font.family": "serif",
+    "mathtext.fontset": "dejavuserif",
+    "font.size": 12,
+    "text.latex.preamble": r"\usepackage{amsmath}",
+    "xtick.major.pad": 2,
+    "ytick.major.pad": 2,
+    "xtick.major.size": 6,
+    "ytick.major.size": 6,
+    "xtick.minor.size": 3,
+    "ytick.minor.size": 3,
+    "axes.linewidth": 2,
+    "axes.labelpad": 1,
+}
+
+
+def format_axis(ax, grid_on=True):
     """
     Format a panel (an axis) of a figure.
 

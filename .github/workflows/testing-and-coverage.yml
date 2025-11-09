@@ -16,12 +16,25 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.11', '3.12', '3.13']
+        python-version: ['3.12', '3.13']
 
     steps:
     - uses: actions/checkout@v5
+    - name: Install TeX Live packages
+      run: |
+        sudo apt-get update -y
+        sudo apt-get install -y \
+          texlive-base \
+          texlive-latex-base \
+          texlive-latex-recommended \
+          texlive-latex-extra \
+          texlive-fonts-recommended \
+          latexmk \
+          lmodern \
+          cm-super
+        # use apt-get for ubuntu
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
@@ -30,10 +43,11 @@ jobs:
         python -m pip install --upgrade pip
         pip install -e .[dev]
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-    # - name: Run unit tests with pytest
-    #   run: |
-    #     python -m pytest --cov=pyimcom --cov-report=xml
-    # - name: Upload coverage report to codecov
-    #   uses: codecov/codecov-action@v5
-    #   with:
-    #     token: ${{ secrets.CODECOV_TOKEN }}
+    - name: Run unit tests with pytest
+      run: |
+        python -m pytest --cov=pyimcom --cov-report=xml
+    - name: Upload coverage report to codecov
+      uses: codecov/codecov-action@v5
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        slug: Roman-HLIS-Cosmology-PIT/pyimcom

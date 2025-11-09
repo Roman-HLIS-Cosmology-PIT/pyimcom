@@ -25,6 +25,7 @@ from pathlib import Path
 import asdf
 import astropy  # noqa: F401
 import fitsio
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pytz
@@ -36,7 +37,7 @@ from astropy.table import Table
 from filelock import FileLock, Timeout
 from scipy.special import legendre
 
-from .config import Config, Timer, format_axis
+from .config import Config, Timer, format_axis, format_axis_pars
 from .config import Settings as Stn
 from .lakernel import CholKernel, EigenKernel, EmpirKernel, IterKernel
 from .layer import Mask, check_if_idsca_exists, get_all_data
@@ -218,24 +219,27 @@ class InImage:
                     ] = True
 
         if visualize and self.is_relevant:
-            fig, axs = plt.subplots(2, 2, figsize=(10.8, 9.6))
+            with mpl.rc_context(format_axis_pars):
+                fig, axs = plt.subplots(2, 2, figsize=(10.8, 9.6))
 
-            for i in range(2):
-                ax = axs[0, i]
-                im = ax.imshow(sp_outxys[i] / self.blk.cfg.n2, origin="lower")
-                plt.colorbar(im, ax=ax)
-                ax.contour(sp_outxys[i], levels=[pix_lower, pix_upper], colors="r")
+                for i in range(2):
+                    ax = axs[0, i]
+                    im = ax.imshow(sp_outxys[i] / self.blk.cfg.n2, origin="lower")
+                    plt.colorbar(im, ax=ax)
+                    ax.contour(sp_outxys[i], levels=[pix_lower, pix_upper], colors="r")
 
-            im = axs[1, 0].imshow(relevant_matrix, origin="lower", cmap="YlGn")
-            plt.colorbar(im, ax=axs[1, 0])
+                im = axs[1, 0].imshow(relevant_matrix, origin="lower", cmap="YlGn")
+                plt.colorbar(im, ax=axs[1, 0])
 
-            for ax, title in zip(
-                [*axs[0], axs[1, 0]], ["stamp index $i$", "stamp index $j$", "relevant matrix"], strict=False
-            ):
-                ax.set_xlabel("sparse grid $i$")
-                ax.set_ylabel("sparse grid $j$")
-                ax.set_title(title)
-                format_axis(ax, False)
+                for ax, title in zip(
+                    [*axs[0], axs[1, 0]],
+                    ["stamp index $i$", "stamp index $j$", "relevant matrix"],
+                    strict=False,
+                ):
+                    ax.set_xlabel("sparse grid $i$")
+                    ax.set_ylabel("sparse grid $j$")
+                    ax.set_title(title)
+                    format_axis(ax, False)
 
         del sp_outxys
 
@@ -342,16 +346,17 @@ class InImage:
                 del inxys, outxys
 
         if visualize and self.is_relevant:
-            ax = axs[1, 1]
-            im = ax.imshow(self.pix_count, origin="lower", cmap="plasma")
-            plt.colorbar(im, ax=ax)
+            with mpl.rc_context(format_axis_pars):
+                ax = axs[1, 1]
+                im = ax.imshow(self.pix_count, origin="lower", cmap="plasma")
+                plt.colorbar(im, ax=ax)
 
-            ax.set_xlabel("stamp index $i$")
-            ax.set_ylabel("stamp index $j$")
-            ax.set_title("pixel count")
-            format_axis(ax, False)
+                ax.set_xlabel("stamp index $i$")
+                ax.set_ylabel("stamp index $j$")
+                ax.set_title("pixel count")
+                format_axis(ax, False)
 
-            plt.show()
+                plt.show()
 
         if verbose:
             print("-->", np.sum(self.pix_count), "pixels selected from idsca", self.idsca, end="; ")
@@ -897,18 +902,19 @@ class OutStamp:
         self.inpix_cumsum = np.cumsum([0] + list(self.inpix_count), dtype=np.uint32)
 
         if visualize:
-            fig, ax = plt.subplots(figsize=(4.8, 4.8))
+            with mpl.rc_context(format_axis_pars):
+                fig, ax = plt.subplots(figsize=(4.8, 4.8))
 
-            for idx, instamp, selection in zip(range(9), self.instamps, self.selections, strict=False):
-                if selection is None:
-                    plt.scatter(instamp.x_val, instamp.y_val, s=2, c=f"C{idx}")
-                ax.scatter(instamp.x_val[selection], instamp.y_val[selection], s=2, c=f"C{idx}")
-            ax.axis("equal")
+                for idx, instamp, selection in zip(range(9), self.instamps, self.selections, strict=False):
+                    if selection is None:
+                        plt.scatter(instamp.x_val, instamp.y_val, s=2, c=f"C{idx}")
+                    ax.scatter(instamp.x_val[selection], instamp.y_val[selection], s=2, c=f"C{idx}")
+                ax.axis("equal")
 
-            ax.set_xlabel("output grid $i$")
-            ax.set_ylabel("output grid $j$")
-            format_axis(ax)
-            plt.show()
+                ax.set_xlabel("output grid $i$")
+                ax.set_ylabel("output grid $j$")
+                format_axis(ax)
+                plt.show()
 
         # read input pixel positions and signals
         iny_val = []
@@ -1082,98 +1088,99 @@ class OutStamp:
     def _visualize_system_matrices(self) -> None:
         """Visualize system matrices."""
 
-        print("OutStamp._visualize_system_matrices")
+        with mpl.rc_context(format_axis_pars):
+            print("OutStamp._visualize_system_matrices")
 
-        # the A-matrix first
-        print(f"{self.sysmata.shape=}")  # (n_inpix, n_inpix)
-        print(f"{np.all(self.sysmata == self.sysmata.T)=}")
+            # the A-matrix first
+            print(f"{self.sysmata.shape=}")  # (n_inpix, n_inpix)
+            print(f"{np.all(self.sysmata == self.sysmata.T)=}")
 
-        fig, ax = plt.subplots(figsize=(12.8, 9.6))
-        vmin = self.sysmata.max() / (self.mhalfb.max() / self.mhalfb.min()) ** 2
-        im = ax.imshow(np.log10(np.clip(self.sysmata, a_min=vmin, a_max=None)), vmin=np.log10(vmin))
-        plt.colorbar(im, ax=ax)
-
-        for xy in self.inpix_cumsum[1:-1]:
-            ax.axvline(xy, c="r", ls="--", lw=1.5)
-            ax.axhline(xy, c="r", ls="--", lw=1.5)
-
-        ax.set_xlabel("input pixel $i$")
-        ax.set_ylabel("input pixel $j$")
-        ax.set_title(r"$A$ matrix: $\log_{10} (A_{ij})$")
-        format_axis(ax, False)
-        plt.show()
-
-        # now the mBhalf matrix
-        print(f"{self.mhalfb.shape=}")  # (n_out, n_outpix, n_inpix)
-        n_out, n_outpix, n_inpix = self.mhalfb.shape
-        height = 9.6 / n_inpix * n_outpix
-
-        for mhalfb_ in self.mhalfb:
-            fig, ax = plt.subplots(figsize=(12.8, height))
-            im = ax.imshow(np.log10(mhalfb_))
+            fig, ax = plt.subplots(figsize=(12.8, 9.6))
+            vmin = self.sysmata.max() / (self.mhalfb.max() / self.mhalfb.min()) ** 2
+            im = ax.imshow(np.log10(np.clip(self.sysmata, a_min=vmin, a_max=None)), vmin=np.log10(vmin))
             plt.colorbar(im, ax=ax)
 
-            for x in self.inpix_cumsum[1:-1]:
-                ax.axvline(x, c="r", ls="--", lw=1.5)
+            for xy in self.inpix_cumsum[1:-1]:
+                ax.axvline(xy, c="r", ls="--", lw=1.5)
+                ax.axhline(xy, c="r", ls="--", lw=1.5)
 
             ax.set_xlabel("input pixel $i$")
-            ax.set_ylabel(r"output pixel $\alpha$")
-            ax.set_title(r"$B$ matrix: $\log_{10} (-B_{\alpha i}/2)$")
+            ax.set_ylabel("input pixel $j$")
+            ax.set_title(r"$A$ matrix: $\log_{10} (A_{ij})$")
             format_axis(ax, False)
             plt.show()
 
-        # and C
-        print(f"{self.outovlc.shape=}")  # (n_out,)
-
-    def _visualize_coadd_matrices(self) -> None:
-        """Visualize coaddition matrices."""
-
-        print("OutStamp._visualize_coadd_matrices")
-        fk = self.blk.cfg.fade_kernel  # shortcut
-
-        for j_out, T_ in enumerate(self.T):
-            print(f"output PSF: {j_out}")
-
-            fig, axs = plt.subplots(1, 3, figsize=(14.4, 3.6))
-            for ax, map_, title in zip(
-                axs,
-                [self.UC, self.Sigma, self.kappa],
-                [
-                    r"PSF leakage: $\log_{10} (U/C)$",
-                    r"Noise amplification: $\log_{10} \Sigma$",
-                    r"Lagrange multiplier: $\log_{10} \kappa$",
-                ],
-                strict=False,
-            ):
-                im = ax.imshow(
-                    np.log10(map_[j_out]),
-                    origin="lower",
-                    extent=[self.left - fk, self.right + fk, self.bottom - fk, self.top + fk],
-                )
-                plt.colorbar(im, ax=ax)
-
-                ax.set_title(title)
-                ax.set_xlabel("output grid $i$")
-                ax.set_ylabel("output grid $j$")
-                format_axis(ax, False)
-            plt.show()
-
-            vmin, vmax = np.percentile(T_.ravel(), [1, 99])
+            # now the mBhalf matrix
+            print(f"{self.mhalfb.shape=}")  # (n_out, n_outpix, n_inpix)
             n_out, n_outpix, n_inpix = self.mhalfb.shape
             height = 9.6 / n_inpix * n_outpix
 
-            fig, ax = plt.subplots(figsize=(12.8, height))
-            im = ax.imshow(T_, vmin=vmin, vmax=vmax)
-            plt.colorbar(im, ax=ax)
+            for mhalfb_ in self.mhalfb:
+                fig, ax = plt.subplots(figsize=(12.8, height))
+                im = ax.imshow(np.log10(mhalfb_))
+                plt.colorbar(im, ax=ax)
 
-            for x in self.inpix_cumsum[1:-1]:
-                ax.axvline(x, c="r", ls="--", lw=1.5)
+                for x in self.inpix_cumsum[1:-1]:
+                    ax.axvline(x, c="r", ls="--", lw=1.5)
 
-            ax.set_xlabel("input pixel $i$")
-            ax.set_ylabel(r"output pixel $\alpha$")
-            ax.set_title(r"$T$ matrix: $T_{\alpha i}$")
-            format_axis(ax, False)
-            plt.show()
+                ax.set_xlabel("input pixel $i$")
+                ax.set_ylabel(r"output pixel $\alpha$")
+                ax.set_title(r"$B$ matrix: $\log_{10} (-B_{\alpha i}/2)$")
+                format_axis(ax, False)
+                plt.show()
+
+            # and C
+            print(f"{self.outovlc.shape=}")  # (n_out,)
+
+    def _visualize_coadd_matrices(self) -> None:
+        """Visualize coaddition matrices."""
+        with mpl.rc_context(format_axis_pars):
+            print("OutStamp._visualize_coadd_matrices")
+            fk = self.blk.cfg.fade_kernel  # shortcut
+
+            for j_out, T_ in enumerate(self.T):
+                print(f"output PSF: {j_out}")
+
+                fig, axs = plt.subplots(1, 3, figsize=(14.4, 3.6))
+                for ax, map_, title in zip(
+                    axs,
+                    [self.UC, self.Sigma, self.kappa],
+                    [
+                        r"PSF leakage: $\log_{10} (U/C)$",
+                        r"Noise amplification: $\log_{10} \Sigma$",
+                        r"Lagrange multiplier: $\log_{10} \kappa$",
+                    ],
+                    strict=False,
+                ):
+                    im = ax.imshow(
+                        np.log10(map_[j_out]),
+                        origin="lower",
+                        extent=[self.left - fk, self.right + fk, self.bottom - fk, self.top + fk],
+                    )
+                    plt.colorbar(im, ax=ax)
+
+                    ax.set_title(title)
+                    ax.set_xlabel("output grid $i$")
+                    ax.set_ylabel("output grid $j$")
+                    format_axis(ax, False)
+                plt.show()
+
+                vmin, vmax = np.percentile(T_.ravel(), [1, 99])
+                n_out, n_outpix, n_inpix = self.mhalfb.shape
+                height = 9.6 / n_inpix * n_outpix
+
+                fig, ax = plt.subplots(figsize=(12.8, height))
+                im = ax.imshow(T_, vmin=vmin, vmax=vmax)
+                plt.colorbar(im, ax=ax)
+
+                for x in self.inpix_cumsum[1:-1]:
+                    ax.axvline(x, c="r", ls="--", lw=1.5)
+
+                ax.set_xlabel("input pixel $i$")
+                ax.set_ylabel(r"output pixel $\alpha$")
+                ax.set_title(r"$T$ matrix: $T_{\alpha i}$")
+                format_axis(ax, False)
+                plt.show()
 
     @staticmethod
     def trapezoid(
@@ -1321,168 +1328,168 @@ class OutStamp:
 
     def _visualize_weight_computations(self) -> None:
         """Display weight computations."""
+        with mpl.rc_context(format_axis_pars):
+            print("OutStamp._visualize_weight_computations")
+            fk = self.blk.cfg.fade_kernel  # shortcut
 
-        print("OutStamp._visualize_weight_computations")
-        fk = self.blk.cfg.fade_kernel  # shortcut
+            for j_out in range(self.blk.outpsfgrp.n_psf):
+                print(f"output PSF: {j_out}")
 
-        for j_out in range(self.blk.outpsfgrp.n_psf):
-            print(f"output PSF: {j_out}")
+                fig, axs = plt.subplots(1, 3, figsize=(14.4, 3.6))
 
-            fig, axs = plt.subplots(1, 3, figsize=(14.4, 3.6))
-
-            ax = axs[0]
-            ax.barh(
-                [f"${inimage.idsca}$" for inimage in self.blk.inimages],
-                self.Tsum_stamp[0],
-                color=[f"C{i}" for i in range(self.blk.n_inimage)],
-            )
-
-            ax.set_title("Total contribution")
-            ax.set_xlabel(r"$\sum {}_\alpha \sum {}_{i \in \bar{i}} T_{\alpha i}$")
-            ax.set_ylabel("input image")
-            format_axis(ax, False)
-
-            for ax, map_, title in zip(
-                axs[1:],
-                [self.Tsum_inpix, self.Neff],
-                [r"Total weight: $T_{\rm tot}$", r"Effective coverage: $\bar{n}_{\rm eff}$"],
-                strict=False,
-            ):
-                im = ax.imshow(
-                    map_[j_out],
-                    origin="lower",
-                    extent=[self.left - fk, self.right + fk, self.bottom - fk, self.top + fk],
+                ax = axs[0]
+                ax.barh(
+                    [f"${inimage.idsca}$" for inimage in self.blk.inimages],
+                    self.Tsum_stamp[0],
+                    color=[f"C{i}" for i in range(self.blk.n_inimage)],
                 )
-                plt.colorbar(im, ax=ax)
 
-                ax.set_title(title)
-                ax.set_xlabel("output grid $i$")
-                ax.set_ylabel("output grid $j$")
+                ax.set_title("Total contribution")
+                ax.set_xlabel(r"$\sum {}_\alpha \sum {}_{i \in \bar{i}} T_{\alpha i}$")
+                ax.set_ylabel("input image")
                 format_axis(ax, False)
-            plt.show()
+
+                for ax, map_, title in zip(
+                    axs[1:],
+                    [self.Tsum_inpix, self.Neff],
+                    [r"Total weight: $T_{\rm tot}$", r"Effective coverage: $\bar{n}_{\rm eff}$"],
+                    strict=False,
+                ):
+                    im = ax.imshow(
+                        map_[j_out],
+                        origin="lower",
+                        extent=[self.left - fk, self.right + fk, self.bottom - fk, self.top + fk],
+                    )
+                    plt.colorbar(im, ax=ax)
+
+                    ax.set_title(title)
+                    ax.set_xlabel("output grid $i$")
+                    ax.set_ylabel("output grid $j$")
+                    format_axis(ax, False)
+                plt.show()
 
     def _show_in_and_out_images(self) -> None:
         """Display input and output images."""
+        with mpl.rc_context(format_axis_pars):
+            print("OutStamp._show_in_and_out_images")
+            fk = self.blk.cfg.fade_kernel  # shortcut
 
-        print("OutStamp._show_in_and_out_images")
-        fk = self.blk.cfg.fade_kernel  # shortcut
+            for j_in in range(self.blk.cfg.n_inframe):
+                n_out = self.blk.outpsfgrp.n_psf
+                fig, axs = plt.subplots(1, 1 + n_out, figsize=(4.8 * (1 + n_out), 3.6))
 
-        for j_in in range(self.blk.cfg.n_inframe):
-            n_out = self.blk.outpsfgrp.n_psf
-            fig, axs = plt.subplots(1, 1 + n_out, figsize=(4.8 * (1 + n_out), 3.6))
+                ax = axs[0]
+                im = ax.scatter(self.inx_val, self.iny_val, c=self.indata[j_in], cmap="viridis", s=5)
+                plt.colorbar(im, ax=ax)
+                for x in [self.left - 0.5, self.right + 0.5]:
+                    ax.axvline(x, c="r", ls="--")
+                for y in [self.bottom - 0.5, self.top + 0.5]:
+                    ax.axhline(y, c="r", ls="--")
 
-            ax = axs[0]
-            im = ax.scatter(self.inx_val, self.iny_val, c=self.indata[j_in], cmap="viridis", s=5)
-            plt.colorbar(im, ax=ax)
-            for x in [self.left - 0.5, self.right + 0.5]:
-                ax.axvline(x, c="r", ls="--")
-            for y in [self.bottom - 0.5, self.top + 0.5]:
-                ax.axhline(y, c="r", ls="--")
+                ax.axis("equal")
+                ax.set_xlabel("output grid $i$")
+                ax.set_ylabel("output grid $j$")
+                ax.set_title("layer: " + ("SCI" if j_in == 0 else self.blk.cfg.extrainput[j_in]))
+                format_axis(ax)
 
-            ax.axis("equal")
-            ax.set_xlabel("output grid $i$")
-            ax.set_ylabel("output grid $j$")
-            ax.set_title("layer: " + ("SCI" if j_in == 0 else self.blk.cfg.extrainput[j_in]))
-            format_axis(ax)
+                for j_out in range(n_out):
+                    ax = axs[1 + j_out]
+                    im = ax.imshow(
+                        self.outimage[j_out, j_in],
+                        origin="lower",
+                        extent=[self.left - fk, self.right + fk, self.bottom - fk, self.top + fk],
+                    )
+                    plt.colorbar(im, ax=ax)
 
-            for j_out in range(n_out):
-                ax = axs[1 + j_out]
+                    ax.set_xlabel("output grid $i$")
+                    ax.set_ylabel("output grid $j$")
+                    ax.set_title(f"output PSF: {j_out}")
+                    format_axis(ax, False)
+
+                plt.show()
+
+    def _study_individual_pixels(self) -> None:
+        """Study individual input and output pixels."""
+        with mpl.rc_context(format_axis_pars):
+            print("OutStamp._study_individual_pixels")
+
+            accrad = np.arange(15, 140, 5)  # acceptance radius in units of output pixels
+            closest_inpix = []  # indices of input pixels closest to the corners and the center
+
+            fk = self.blk.cfg.fade_kernel
+            fk2 = fk * 2
+            n2f = self.blk.cfg.n2f  # shortcuts
+            for j_out, i_out in [
+                (fk2, fk2),
+                (fk2, n2f - 1 - fk2),
+                (n2f - 1 - fk2, fk2),
+                (n2f - 1 - fk2, n2f - 1 - fk2),
+                ((n2f - 1) // 2, (n2f - 1) // 2),
+            ]:
+                out_idx = j_out * self.blk.cfg.n2f + i_out
+                T_elems = self.T[0, out_idx, :]
+
+                plt.figure(figsize=(10.8, 3.6))
+                ax0 = plt.subplot(1, 2, 1)
+                im = ax0.scatter(self.inx_val, self.iny_val, c=T_elems, cmap="viridis", s=5)
+                plt.colorbar(im, ax=ax0)
+
+                ax0.axis("equal")
+                ax0.set_xlabel("output grid $i$")
+                ax0.set_ylabel("output grid $j$")
+                ax0.set_title(r"$T_{\alpha i}$")
+                format_axis(ax0)
+
+                # print(j_out-fk + self.bottom, i_out-fk + self.left)
+                dist = np.sqrt(
+                    np.square(j_out - fk + self.bottom - self.iny_val)
+                    + np.square(i_out - fk + self.left - self.inx_val)
+                )
+                closest_inpix.append(np.argmin(dist))
+
+                ax1 = plt.subplot(2, 2, 2)
+                ax1.scatter(dist, T_elems, c=T_elems, cmap="viridis", s=5)
+                ax1.axhline(0, c="b", ls="--")
+                ax1.axvline(self.blk.cfg.n2, c="r", ls="--")
+
+                ax1.xaxis.set_ticklabels([])
+                ax1.set_ylabel(r"$T_{\alpha i}$")
+                format_axis(ax1)
+
+                signal = np.empty_like(accrad, dtype=np.float64)
+                for i in range(accrad.shape[0]):
+                    T_arr = np.where(dist <= accrad[i], T_elems, 0.0)
+                    signal[i] = T_arr @ self.indata[0]
+
+                ax2 = plt.subplot(2, 2, 4)
+                ax2.plot(accrad, signal, "go-")
+                ax2.axvline(self.blk.cfg.n2, c="r", ls="--")
+                ax2.axhline(self.outimage[0, 0].ravel()[out_idx], c="b", ls="--")
+
+                ax2.set_xlim(ax1.get_xlim())
+                ax2.set_xlabel("acceptance radius")
+                ax2.set_ylabel("signal")
+                format_axis(ax2)
+
+                plt.show()
+
+            for in_idx in closest_inpix:
+                print(f"{(self.inx_val[in_idx], self.iny_val[in_idx])=}")
+                fig, ax = plt.subplots(figsize=(4.2, 4.2))
                 im = ax.imshow(
-                    self.outimage[j_out, j_in],
+                    self.T[0, :, in_idx].reshape(n2f, n2f),
                     origin="lower",
                     extent=[self.left - fk, self.right + fk, self.bottom - fk, self.top + fk],
                 )
                 plt.colorbar(im, ax=ax)
+                ax.scatter(self.inx_val[in_idx] - self.left, self.iny_val[in_idx] - self.bottom, c="r", s=2)
 
                 ax.set_xlabel("output grid $i$")
                 ax.set_ylabel("output grid $j$")
-                ax.set_title(f"output PSF: {j_out}")
+                ax.set_title(r"$T_{\alpha i}$")
                 format_axis(ax, False)
 
-            plt.show()
-
-    def _study_individual_pixels(self) -> None:
-        """Study individual input and output pixels."""
-
-        print("OutStamp._study_individual_pixels")
-
-        accrad = np.arange(15, 140, 5)  # acceptance radius in units of output pixels
-        closest_inpix = []  # indices of input pixels closest to the corners and the center
-
-        fk = self.blk.cfg.fade_kernel
-        fk2 = fk * 2
-        n2f = self.blk.cfg.n2f  # shortcuts
-        for j_out, i_out in [
-            (fk2, fk2),
-            (fk2, n2f - 1 - fk2),
-            (n2f - 1 - fk2, fk2),
-            (n2f - 1 - fk2, n2f - 1 - fk2),
-            ((n2f - 1) // 2, (n2f - 1) // 2),
-        ]:
-            out_idx = j_out * self.blk.cfg.n2f + i_out
-            T_elems = self.T[0, out_idx, :]
-
-            plt.figure(figsize=(10.8, 3.6))
-            ax0 = plt.subplot(1, 2, 1)
-            im = ax0.scatter(self.inx_val, self.iny_val, c=T_elems, cmap="viridis", s=5)
-            plt.colorbar(im, ax=ax0)
-
-            ax0.axis("equal")
-            ax0.set_xlabel("output grid $i$")
-            ax0.set_ylabel("output grid $j$")
-            ax0.set_title(r"$T_{\alpha i}$")
-            format_axis(ax0)
-
-            # print(j_out-fk + self.bottom, i_out-fk + self.left)
-            dist = np.sqrt(
-                np.square(j_out - fk + self.bottom - self.iny_val)
-                + np.square(i_out - fk + self.left - self.inx_val)
-            )
-            closest_inpix.append(np.argmin(dist))
-
-            ax1 = plt.subplot(2, 2, 2)
-            ax1.scatter(dist, T_elems, c=T_elems, cmap="viridis", s=5)
-            ax1.axhline(0, c="b", ls="--")
-            ax1.axvline(self.blk.cfg.n2, c="r", ls="--")
-
-            ax1.xaxis.set_ticklabels([])
-            ax1.set_ylabel(r"$T_{\alpha i}$")
-            format_axis(ax1)
-
-            signal = np.empty_like(accrad, dtype=np.float64)
-            for i in range(accrad.shape[0]):
-                T_arr = np.where(dist <= accrad[i], T_elems, 0.0)
-                signal[i] = T_arr @ self.indata[0]
-
-            ax2 = plt.subplot(2, 2, 4)
-            ax2.plot(accrad, signal, "go-")
-            ax2.axvline(self.blk.cfg.n2, c="r", ls="--")
-            ax2.axhline(self.outimage[0, 0].ravel()[out_idx], c="b", ls="--")
-
-            ax2.set_xlim(ax1.get_xlim())
-            ax2.set_xlabel("acceptance radius")
-            ax2.set_ylabel("signal")
-            format_axis(ax2)
-
-            plt.show()
-
-        for in_idx in closest_inpix:
-            print(f"{(self.inx_val[in_idx], self.iny_val[in_idx])=}")
-            fig, ax = plt.subplots(figsize=(4.2, 4.2))
-            im = ax.imshow(
-                self.T[0, :, in_idx].reshape(n2f, n2f),
-                origin="lower",
-                extent=[self.left - fk, self.right + fk, self.bottom - fk, self.top + fk],
-            )
-            plt.colorbar(im, ax=ax)
-            ax.scatter(self.inx_val[in_idx] - self.left, self.iny_val[in_idx] - self.bottom, c="r", s=2)
-
-            ax.set_xlabel("output grid $i$")
-            ax.set_ylabel("output grid $j$")
-            ax.set_title(r"$T_{\alpha i}$")
-            format_axis(ax, False)
-
-            plt.show()
+                plt.show()
 
     def clear(self) -> None:
         """Free up memory space."""
@@ -1631,6 +1638,8 @@ class Block:
 
         # block information
         ibx, iby = divmod(self.this_sub, self.cfg.nblock)
+        self.ibx = ibx  # save this information
+        self.iby = iby
         print(
             f"sub-block {self.this_sub:4d} <{ibx:2d},{iby:2d}> of "
             f"{self.cfg.nblock:2d}x{self.cfg.nblock:2d}={self.cfg.nblock**2:2d}"
@@ -2130,6 +2139,12 @@ class Block:
             [fits.Column(name="text", array=self.cfg.to_file(None).splitlines(), format="A512", ascii=True)]
         )
         config_hdu.header["EXTNAME"] = "CONFIG"
+        config_hdu.header["TILESCHM"] = (self.cfg.tileschm, "Tiling scheme name")
+        config_hdu.header["RERUN"] = (self.cfg.rerun, "Rerun name")
+        config_hdu.header["MOSAIC"] = (self.cfg.mosaic, "Mosaic number")
+        config_hdu.header["FILTER"] = (Stn.RomanFilters[self.cfg.use_filter], "Filter code")
+        config_hdu.header["BLOCKX"] = self.ibx
+        config_hdu.header["BLOCKY"] = self.iby
         if is_final:
             for package in ["numpy", "scipy", "astropy", "fitsio", "asdf"]:
                 keyword = "V" + package.upper()[:7]

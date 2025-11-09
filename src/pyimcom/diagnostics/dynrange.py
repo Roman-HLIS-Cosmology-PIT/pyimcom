@@ -140,7 +140,7 @@ def gen_dynrange_data(inpath, outstem, rpix_try=50, nblockmax=100):
                 # now extract histogram information
                 try:
                     sigma_ = 10 ** (
-                        -0.5 * HDU_to_bels(f["SIGMA"]) * f["SIGMA"].data[0, bd:-bd, bd:-bd]
+                        -0.5 * HDU_to_bels(f["SIGMA"]) * f["SIGMA"].data[0, bd : n - bd, bd : n - bd]
                     )  # noise standard deviation in units of input noise
                     for j in range(N_noise):
                         countnoise[j, 1] = countnoise[j, 1] + np.count_nonzero(
@@ -153,7 +153,7 @@ def gen_dynrange_data(inpath, outstem, rpix_try=50, nblockmax=100):
 
                 try:
                     neff_ = 10 ** (
-                        HDU_to_bels(f["EFFCOVER"]) * f["EFFCOVER"].data[0, bd:-bd, bd:-bd] * nscale
+                        HDU_to_bels(f["EFFCOVER"]) * f["EFFCOVER"].data[0, bd : n - bd, bd : n - bd] * nscale
                     )  # effective coverage
                     for j in range(N_neff):
                         countneff[j, 1] = countneff[j, 1] + np.count_nonzero(

@@ -8,6 +8,8 @@ CompressedOutput
 
 Functions
 ---------
+_parser
+    File name parser; only needed for file names with regular expressions.
 ReadFile
     Stand-alone function to read a compressed FITS file.
 test
@@ -17,8 +19,8 @@ test1
 
 """
 
-import sys
-import time
+import re
+from urllib.parse import urlparse
 
 import numpy as np
 from astropy.io import fits
@@ -38,6 +40,8 @@ class CompressedOutput:
         File name for uncompressed file.
     format : str or None, optional
         Compression format.
+    extraargs : dict, optional
+        Extra arguments for astropy.io.fits.
 
     Attributes
     ----------
@@ -60,6 +64,8 @@ class CompressedOutput:
         Constructor.
     compress_2d_image
         Wrapper for 2d image compression (staticmethod).
+    get_compression_dict
+        Extract compression scheme for a PyIMCOM layer as a dictionary.
     decompress_2d_image
         Wrapper for 2d image decompression (staticmethod).
     compress_layer
@@ -82,7 +88,7 @@ class CompressedOutput:
 
     """
 
-    def __init__(self, fname, format=None):
+    def __init__(self, fname, format=None, extraargs={}):
         self.origfile = fname
 
         # figure out what type of file it is, and if it is gzipped
@@ -95,8 +101,7 @@ class CompressedOutput:
             # right now supports fits files
             if pref[-5:] == ".fits":
                 self.ftype = "fits"
-                self.hdul = fits.open(fname, mode="readonly", decompress_in_memory=True)
-
+                self.hdul = fits.open(fname, mode="readonly", decompress_in_memory=True, **extraargs)
                 if "CPRSTYPE" in self.hdul[0].header:
                     self.cprstype = self.hdul[0].header["CPRSTYPE"]
                 else:
@@ -136,6 +141,43 @@ class CompressedOutput:
 
         # unrecognized scheme or NULL
         return np.copy(im), None
+
+    @classmethod
+    def get_compression_dict(cls, hdulist, ilayer):
+        """Extract compression scheme for a PyIMCOM layer as a dictionary.
+
+        Parameters
+        ----------
+        hdulist : astropy.io.fits.HDUList
+            The FITS file as an HDUList.
+        ilayer : int
+            The layer number to extract.
+
+        Returns
+        -------
+        dict
+            The compression scheme parameter dictionary. Note that all values are
+            returned as strings, the calling routine must typecast them as appropriate.
+
+            If the layer was not
+            compressed, returns an empty list, ``{}``.
+
+        """
+
+        # extract the compression data if that HDU is present
+        try:
+            cprs = [x.strip().split(":") for x in hdulist["CPRESS"].data["text"]]
+        except KeyError:
+            return {}  # stop here for uncompressed files
+
+        cprs_thislayer = [item for item in cprs if int(item[0], 16) == ilayer]
+        return dict(
+            zip(
+                [item[1].strip() for item in cprs_thislayer],
+                [item[2].strip() for item in cprs_thislayer],
+                strict=False,
+            )
+        )
 
     @staticmethod
     def decompress_2d_image(im, scheme, pars, overflow=None):
@@ -337,6 +379,55 @@ class CompressedOutput:
         return False  # do not suppress exception
 
 
+def _parser(fname):
+    """
+    Re-formats a file name containing a regular expression.
+
+    Regular expressions are separated with the ^ character and contain a row and column index,
+    followed by the suffix. For example::
+
+        >>> _parser('hello_world/Q_02_31.fits') # no ^, regular file name
+        'hello_world/Q_02_31.fits'
+        >>> _parser('hello_world/Row{1:2d}/Q_{0:02d}_{1:02d}^_02_31.fits') # FITS file
+        'hello_world/Row31/Q_02_31.fits'
+        >>> _parser('hello_world/Row{1:2d}/Q_{0:02d}_{1:02d}^_02_12.fits.gz') # gzipped; suffix is copied over
+        'hello_world/Row12/Q_02_12.fits.gz'
+
+    This is useful if the files are not all in the same directory.
+
+    Parameters
+    ----------
+    fname : str or str-like
+        Regular file name (not including ^) or regular expression.
+
+    Returns
+    -------
+    str
+        The formatted file name.
+
+    """
+
+    fname = str(fname)  # converts other objects, e.g., pathlib.Path, to a string
+
+    # normal file name: nothing to be done
+    if "^" not in fname:
+        return fname
+
+    # pattern match
+    parts = fname.split("^")
+    sub = parts[1].split(".")
+    coordstring = sub[0]
+    m = re.match(r"_(\d+)_(\d+)(\D*)", coordstring)
+    if m is not None:
+        ix = int(m.group(1))
+        iy = int(m.group(2))
+        term = m.group(3)
+    suffix = term + "." + ".".join(sub[1:])
+    outname = "^".join(parts[:-1])
+    outname = outname.format(ix, iy) + suffix
+    return outname
+
+
 def ReadFile(fname):
     """Wrapper to read a compressed file.
 
@@ -345,7 +436,7 @@ def ReadFile(fname):
 
     Parameters
     ----------
-    fname : str
+    fname : str or str-like
         File name to read.
 
     Notes
@@ -355,247 +446,46 @@ def ReadFile(fname):
         with ReadFile('my.fits.gz') as f:
           ...
 
+    File names with sepcific types of regular expressions are allowed, and unpacked by the ``_parser``
+    function. Regular expressions are separated with the ^ character and contain a row and column index,
+    followed by the suffix. For example::
+
+        >>> _parser('hello_world/Q_02_31.fits') # no ^, regular file name
+        'hello_world/Q_02_31.fits'
+        >>> _parser('hello_world/Row{1:2d}/Q_{0:02d}_{1:02d}^_02_31.fits') # FITS file
+        'hello_world/Row31/Q_02_31.fits'
+        >>> _parser('hello_world/Row{1:2d}/Q_{0:02d}_{1:02d}^_02_12.fits.gz') # gzipped; suffix is copied over
+        'hello_world/Row12/Q_02_12.fits.gz'
+
     """
 
-    # if this file hasn't been compressed, just pass the handle:
-    f = fits.open(fname)
+    fname = _parser(fname)  # if the file name is a regular expression.
+
+    _o = urlparse(fname)
+
+    extraargs = {}
+    match _o.scheme:
+        case "" | "file":
+            pass
+        case "http" | "https":
+            extraargs["use_fsspec"] = True
+        case "s3":
+            extraargs["use_fsspec"] = True
+            extraargs["fsspec_kwargs"] = {"anon": True}
+            # extraargs["fsspec_kwargs"] = {"key": "YOUR-SECRET-KEY-ID", "secret": "YOUR-SECRET-KEY"}
+        case _:
+            raise ValueError(f"Scheme {_o.scheme} not supported")
+
+    _url = _o.geturl()
+
+    f = fits.open(_url, **extraargs)
+
     if "CPRESS" not in [hdu.name for hdu in f]:
         return f
     else:
         f.close()
 
     # otherwise, make a decompressed version
-    x = CompressedOutput(fname)
+    x = CompressedOutput(fname, extraargs=extraargs)
     x.decompress()
     return fits.HDUList(x.hdul)
-
-
-### Test functions below here ###
-
-
-def test(argv):
-    """Test function, meant to be driven from the command line.
-
-    Parameters
-    ----------
-    argv : list of str
-        List of file names: [input_file, out_file_compressed, recovered_file, recompressed_file].
-
-    Returns
-    -------
-    None
-
-    """
-
-    t_ = [time.time()]
-    with CompressedOutput(argv[1]) as f:
-        print("ftype =", f.ftype)
-        print("gzip =", f.gzip)
-        print("cprstype =", f.cprstype)
-        print(f.hdul.info())
-        print(f.cfg.to_file(fname=None))
-
-        for j in range(1, len(f.cfg.extrainput)):
-            if (
-                f.cfg.extrainput[j][:6].lower() == "gsstar"
-                or f.cfg.extrainput[j][:5].lower() == "cstar"
-                or f.cfg.extrainput[j][:8].lower() == "gstrstar"
-                or f.cfg.extrainput[j][:8].lower() == "gsfdstar"
-            ):
-                f.compress_layer(
-                    j,
-                    scheme="I24B",
-                    pars={
-                        "VMIN": -1.0 / 64.0,
-                        "VMAX": 7.0 / 64.0,
-                        "BITKEEP": 20,
-                        "DIFF": True,
-                        "SOFTBIAS": -1,
-                    },
-                )
-            if f.cfg.extrainput[j][:5].lower() == "nstar":
-                f.compress_layer(
-                    j,
-                    scheme="I24B",
-                    pars={"VMIN": -1500.0, "VMAX": 10500.0, "BITKEEP": 20, "DIFF": True, "SOFTBIAS": -1},
-                )
-            if f.cfg.extrainput[j][:5].lower() == "gsext":
-                f.compress_layer(
-                    j,
-                    scheme="I24B",
-                    pars={
-                        "VMIN": -1.0 / 64.0,
-                        "VMAX": 7.0 / 64.0,
-                        "BITKEEP": 20,
-                        "DIFF": True,
-                        "SOFTBIAS": -1,
-                    },
-                )
-            if f.cfg.extrainput[j][:8].lower() == "labnoise":
-                f.compress_layer(
-                    j,
-                    scheme="I24B",
-                    pars={"VMIN": -5, "VMAX": 5, "BITKEEP": 16, "DIFF": True, "SOFTBIAS": -1},
-                )
-            if f.cfg.extrainput[j][:10].lower() == "whitenoise":
-                f.compress_layer(
-                    j,
-                    scheme="I24B",
-                    pars={"VMIN": -8, "VMAX": 8, "BITKEEP": 16, "DIFF": True, "SOFTBIAS": -1},
-                )
-            if f.cfg.extrainput[j][:7].lower() == "1fnoise":
-                f.compress_layer(
-                    j,
-                    scheme="I24B",
-                    pars={"VMIN": -32, "VMAX": 32, "BITKEEP": 16, "DIFF": True, "SOFTBIAS": -1},
-                )
-        f.to_file(argv[2], overwrite=True)
-    t_.append(time.time())
-    print(f"Delta t = {t_[-1] - t_[-2]:6.2f} s")
-
-    with CompressedOutput(sys.argv[2]) as g:
-        print(g.hdul.info())
-        g.decompress()
-        print(g.hdul.info())
-        # print(g.hdul['CPRESS'].data['text'])
-        g.to_file(argv[3], overwrite=True)
-    t_.append(time.time())
-    print(f"Delta t = {t_[-1] - t_[-2]:6.2f} s")
-
-    with CompressedOutput(sys.argv[3]) as h:
-        h.recompress()
-        h.to_file(argv[4], overwrite=True)
-    t_.append(time.time())
-    print(f"Delta t = {t_[-1] - t_[-2]:6.2f} s")
-
-    with ReadFile(sys.argv[4]) as i:
-        print("-- COMPRESSED/DECOMPRESSED/RECOMPRESSED --")
-        print(i.info())
-        t_.append(time.time())
-        print(f"Delta t = {t_[-1] - t_[-2]:6.2f} s")
-
-        ior = ReadFile(sys.argv[1])
-        print("-- ORIGINAL INPUT --")
-        print(ior.info())
-
-        print("")
-        for j in range(np.shape(ior[0].data)[-3]):
-            print(
-                f"slice {j:3d} max {np.amax(np.abs(ior[0].data[0, j, :, :])):11.5E} "
-                f"maxerr {np.amax(np.abs(i[0].data[0, j, :, :] - ior[0].data[0, j, :, :])):11.5E}"
-            )
-        ior.close()
-
-
-def test1(fname):
-    """
-    Test compression of a file.
-
-    Parameters
-    ----------
-    fname : str
-        The file to compress/decompress. Order of conversions is
-        `fname` -> ... .cpr.fits.gz -> ... _recovered.fits.
-
-    Returns
-    -------
-    None
-
-    """
-
-    fout = fname[:-5] + ".cpr.fits.gz"
-    frec = fname[:-5] + "_recovered.fits"
-
-    t_ = [time.time()]
-    with CompressedOutput(fname) as f:
-        for j in range(1, len(f.cfg.extrainput)):
-            if (
-                f.cfg.extrainput[j][:6].lower() == "gsstar"
-                or f.cfg.extrainput[j][:5].lower() == "cstar"
-                or f.cfg.extrainput[j][:8].lower() == "gstrstar"
-                or f.cfg.extrainput[j][:8].lower() == "gsfdstar"
-            ):
-                f.compress_layer(
-                    j,
-                    scheme="I24B",
-                    pars={
-                        "VMIN": -1.0 / 64.0,
-                        "VMAX": 7.0 / 64.0,
-                        "BITKEEP": 20,
-                        "DIFF": True,
-                        "SOFTBIAS": -1,
-                    },
-                )
-            if f.cfg.extrainput[j][:5].lower() == "nstar":
-                f.compress_layer(
-                    j,
-                    scheme="I24B",
-                    pars={"VMIN": -1500.0, "VMAX": 10500.0, "BITKEEP": 20, "DIFF": True, "SOFTBIAS": -1},
-                )
-            if f.cfg.extrainput[j][:5].lower() == "gsext":
-                f.compress_layer(
-                    j,
-                    scheme="I24B",
-                    pars={
-                        "VMIN": -1.0 / 64.0,
-                        "VMAX": 7.0 / 64.0,
-                        "BITKEEP": 20,
-                        "DIFF": True,
-                        "SOFTBIAS": -1,
-                    },
-                )
-            if f.cfg.extrainput[j][:8].lower() == "labnoise":
-                f.compress_layer(
-                    j,
-                    scheme="I24B",
-                    pars={"VMIN": -5, "VMAX": 5, "BITKEEP": 16, "DIFF": True, "SOFTBIAS": -1},
-                )
-            if f.cfg.extrainput[j][:10].lower() == "whitenoise":
-                f.compress_layer(
-                    j,
-                    scheme="I24B",
-                    pars={"VMIN": -8, "VMAX": 8, "BITKEEP": 16, "DIFF": True, "SOFTBIAS": -1},
-                )
-            if f.cfg.extrainput[j][:7].lower() == "1fnoise":
-                f.compress_layer(
-                    j,
-                    scheme="I24B",
-                    pars={"VMIN": -32, "VMAX": 32, "BITKEEP": 16, "DIFF": True, "SOFTBIAS": -1},
-                )
-        f.to_file(fout, overwrite=True)
-    t_.append(time.time())
-    print(f"Delta t = {t_[-1] - t_[-2]:6.2f} s")
-
-    ReadFile(fout).writeto(frec, overwrite=True)
-    t_.append(time.time())
-    print(f"Delta t = {t_[-1] - t_[-2]:6.2f} s")
-
-    with ReadFile(fname) as f1, ReadFile(frec) as f2:
-        print("")
-        for j in range(np.shape(f1[0].data)[-3]):
-            print(
-                f"slice {j:3d} max {np.amax(np.abs(f1[0].data[0, j, :, :])):11.5E} "
-                f"maxerr {np.amax(np.abs(f1[0].data[0, j, :, :] - f2[0].data[0, j, :, :])):11.5E}"
-            )
-
-
-if __name__ == "__main__":
-    """Command line test.
-
-   With 1 argument: makes compressed version of a file. .fits input only (no gz).
-
-   With 5 arguments: main program arguments are::
-
-     input_file out_file_compressed recovered recompressed ncycle
-
-   ncycle=1 is sufficient to test functionality, but can do more than once to
-   test for memory leaks.
-
-   """
-
-    if len(sys.argv) == 2:
-        test1(sys.argv[1])
-
-    if len(sys.argv) == 6:
-        for _ in range(int(sys.argv[5])):
-            test(sys.argv[:5])
