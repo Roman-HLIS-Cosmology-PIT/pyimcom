@@ -610,7 +610,7 @@ def save_fits(image, filename, dir=None, overwrite=True, s=False, header=None, r
                 raise RuntimeError(f"Failed to write {filepath} after {retries} attempts. Last error: {e}")
 
 
-def apply_object_mask(image, mask=None, threshold_m=2.5, threshold_c=0, inplace=False):
+def apply_object_mask(image, mask=None, threshold_m=0, threshold_c=0.3, inplace=False):
     """
     Apply a bright object mask to an image.
 
