@@ -155,7 +155,7 @@ class Sca_img:
         scaid : Str
             SCA ID (position on focal plane) of this SCA image
         mask : 2D np array
-            The full pixel mask that is used on this image. Is correct only after calling apply_permanent_mask
+            The full pixel mask that is used on this image. Is correct only after applying masks to image
         g_eff : 2D np array
             Effective gain in each pixel of the image
         params_subtracted : Bool
@@ -169,6 +169,8 @@ class Sca_img:
             Apply the appropriate lab noise frame to the SCA image
         apply_permanent_mask
             Apply the SCA permanent pixel mask to the image
+        apply_asdf_mask
+            Apply the SCA ASDF file mask to the image
         apply_all_mask
             Apply the full SCA mask to the image
         subtract_parameters
@@ -260,7 +262,7 @@ class Sca_img:
 
         if add_objmask:
             _, object_mask = apply_object_mask(self.image)
-            self.apply_permanent_mask()
+            self.apply_asdf_mask()
             self.mask *= np.logical_not(
                 object_mask
             )  # self.mask = True for good pixels, so set object_mask'ed pixels to False
@@ -295,6 +297,16 @@ class Sca_img:
         pm = fits.open(self.cfg.permanent_mask)[0].data[int(self.scaid) - 1].astype(bool)
         self.image *= ~pm
         self.mask *= ~pm
+    
+    def apply_asdf_mask(self):
+        """
+        Apply ASDF file mask. Updates self.image and self.mask
+        """
+        mask = fits.open(self.cfg.ds_obsfile + filters[self.cfg.use_filter] + "_" + self.obsid 
+                         + "_" + self.scaid + "_mask.fits", memmap=True)[1].data.astype(bool)
+        self.image *= ~mask
+        self.mask *= ~mask 
+        
 
     def get_permanent_mask(self):
         """
@@ -1911,17 +1923,14 @@ def main():
         this_sca = Sca_img(obsid, scaid, CFG, add_objmask=False)
         this_param_set = p.forward_par(i)
         ds_image = this_sca.image - this_param_set
-        pm = this_sca.get_permanent_mask()
 
         hdu = fits.PrimaryHDU(ds_image, header=this_sca.header)
         hdu.header["TYPE"] = "DESTRIPED_IMAGE"
         hdu2 = fits.ImageHDU(this_sca.image, header=this_sca.header)
         hdu2.header["TYPE"] = "SCA_IMAGE"
-        hdu3 = fits.ImageHDU(pm, header=this_sca.header)
-        hdu3.header["TYPE"] = "PERMANENT_MASk"
-        hdu4 = fits.ImageHDU(this_param_set, header=this_sca.header)
-        hdu4.header["TYPE"] = "PARAMS_IMAGE"
-        hdulist = fits.HDUList([hdu, hdu2, hdu3, hdu4])
+        hdu3 = fits.ImageHDU(this_param_set, header=this_sca.header)
+        hdu3.header["TYPE"] = "PARAMS_IMAGE"
+        hdulist = fits.HDUList([hdu, hdu2, hdu3])
         hdulist.writeto(outpath + filter_ + "_DS_" + obsid + "_" + scaid + ".fits", overwrite=True)
 
     write_to_file(f"Destriped images saved to {outpath + filter_} _DS_*.fits", filename=outfile)
