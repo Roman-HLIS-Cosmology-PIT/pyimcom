@@ -268,7 +268,7 @@ def gridD5512C(infunc: np.array, xpos: np.array, ypos: np.array, fhatout: np.arr
     xpos : np.array
         Input x values. Shape (npi, nxo).
     ypos : np.array
-        Input y values. Shape (npi, nxo).
+        Input y values. Shape (npi, nyo).
     fhatout : np.array
         Location to put the output values. Shape (npi, nyo*nxo).
 

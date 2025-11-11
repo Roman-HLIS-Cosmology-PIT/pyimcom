@@ -12,10 +12,6 @@ _parser
     File name parser; only needed for file names with regular expressions.
 ReadFile
     Stand-alone function to read a compressed FITS file.
-test
-    Long version of the test.
-test1
-    Short version of the test.
 
 """
 
