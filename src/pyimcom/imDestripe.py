@@ -83,8 +83,8 @@ from config import Config, Settings
 from filelock import FileLock, Timeout
 from memory_profiler import memory_usage
 from scipy.ndimage import binary_dilation
-from utils import compareutils
-from wcsutil import PyIMCOM_WCS
+from .utils import compareutils
+from .wcsutil import PyIMCOM_WCS
 try:
     import furry_parakeet.pyimcom_croutines as pyimcom_croutines
 except ImportError:
