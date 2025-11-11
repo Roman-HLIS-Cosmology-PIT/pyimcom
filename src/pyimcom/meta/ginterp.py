@@ -16,7 +16,6 @@ import time
 
 import numpy as np
 import scipy
-from astropy.io import fits
 
 
 def InterpMatrix(Rsearch, samp, x_out, y_out, Cov, epsilon=1.0e-7, stest=1, verbose=False):
@@ -350,94 +349,3 @@ def MultiInterp(
     out_mask = out_mask.reshape((ny, nx))
 
     return out_array, out_mask, Umax, Smax
-
-
-# This is a stand-alone test routine
-def test():
-    """Test for InterpMatrix."""
-
-    ### Test for InterpMatrix ###
-    ng = 17
-    delta = np.linspace(0, 1.0, ng)
-    x_out, y_out = np.meshgrid(delta, delta)
-    x_out = x_out.flatten()
-    y_out = y_out.flatten()
-    x_in, y_in, T_, U_, S_ = InterpMatrix(6, 5.0, x_out, y_out, [0.05, 0, 0.025])
-    print("# U:", np.amin(U_), np.amax(U_))
-    print(np.vstack((x_in, y_in)))
-    fits.PrimaryHDU(T_).writeto("T.fits", overwrite=True)
-    print("Asymmetries:")
-    NN = len(x_in)
-    hflip = np.zeros(NN, dtype=np.int16)
-    for i in range(NN):
-        for j in range(NN):
-            if x_in[i] == 1 - x_in[j] and y_in[i] == y_in[j]:
-                hflip[i] = j
-    for j in range(ng // 2):
-        print(np.amax(np.abs(T_[j, :] - T_[-1 - j, ::-1])), np.amax(np.abs(T_[j, :] - T_[ng - 1 - j, hflip])))
-
-    ### Test for MultiInterp ###
-    samp = 4.5
-    sigma = samp / np.sqrt(8 * np.log(2))
-    n = 1024
-    x, y = np.meshgrid(np.linspace(0, n - 1, n), np.linspace(0, n - 1, n))
-    nf = 4
-    nf2 = 6
-    u0 = 0.243
-    v0 = 0.128
-    InArr = np.zeros((nf2, n, n), dtype=np.float32)
-    for j in range(nf):
-        InArr[j, :, :] = 1.0 + 0.1 * np.cos(2 * np.pi * (u0 * x + v0 * y) / 2.0**j)
-    InArr[-2, :, :] = np.sum(InArr[:-2, :, :], axis=0) - 3.6
-    for k in range(128):
-        xc = 500 + 400 * np.cos(k / 64 * np.pi)
-        yc = 500 + 400 * np.sin(k / 64 * np.pi)
-        InArr[-1, :, :] += np.exp(-0.5 * ((x - xc) ** 2 + (y - yc) ** 2) / sigma**2)
-    InMask = np.zeros((n, n), dtype=bool)
-    mat = np.array([[0.52, 0.005], [-0.015, 0.51]])
-    sc = 0.5
-    nout = 1950
-    eC = (mat @ mat.T / sc**2 - np.identity(2)) * sigma**2
-    C = [eC[0, 0], eC[0, 1], eC[1, 1]]
-    pos_offset = [6.0, 3.0]
-    OutArr, OutMask, Umax, Smax = MultiInterp(
-        InArr, InMask, (nout, nout), pos_offset, mat, 6.0, samp, C, stest=100
-    )
-    print("Umax =", Umax, "Smax = ", Smax)
-    fits.PrimaryHDU(InArr).writeto("InArr.fits", overwrite=True)
-    fits.PrimaryHDU(OutArr).writeto("OutArr.fits", overwrite=True)
-
-    TargetArr = np.zeros((nf2, nout, nout))
-    xo, yo = np.meshgrid(np.linspace(0, nout - 1, nout), np.linspace(0, nout - 1, nout))
-    W = np.exp(-2 * np.pi**2 * (u0**2 * C[0] + 2 * u0 * v0 * C[1] + v0**2 * C[2]))
-    tf0 = np.exp(-2 * np.pi**2 * (u0**2 + v0**2) * sigma**2)
-    for j in range(nf):
-        print(j, tf0 ** (0.25**j), W ** (0.25**j))
-        TargetArr[j, :, :] = 1.0 + 0.1 * np.cos(
-            2
-            * np.pi
-            * (
-                (mat[0][0] * xo + mat[0][1] * yo + pos_offset[0]) * u0
-                + (mat[1][0] * xo + mat[1][1] * yo + pos_offset[1]) * v0
-            )
-            / 2.0**j
-        ) * W ** (0.25**j)
-    TargetArr[-2, :, :] = np.sum(TargetArr[:-2, :, :], axis=0) - 3.6
-    for k in range(128):
-        xc = 500 + 400 * np.cos(k / 64 * np.pi)
-        yc = 500 + 400 * np.sin(k / 64 * np.pi)
-        v = np.array([xc, yc]) - pos_offset
-        tt = np.linalg.solve(mat, v)
-        xt = tt[0]
-        yt = tt[1]
-        TargetArr[-1, :, :] += np.exp(
-            -0.5 * ((xo - xt) ** 2 + (yo - yt) ** 2) / (sigma / sc) ** 2
-        ) / np.linalg.det(mat / sc)
-    fits.PrimaryHDU(np.where(OutMask, 0.0, OutArr - TargetArr).astype(np.float32)).writeto(
-        "DiffArr.fits", overwrite=True
-    )
-    return
-
-
-if __name__ == "__main__":
-    test()

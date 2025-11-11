@@ -29,7 +29,6 @@ _stand_alone_test
 
 """
 
-import sys
 from copy import deepcopy
 
 import asdf
@@ -158,7 +157,7 @@ class LocWCS:
         2x2 Jacobian from detector to tangent plane coordinates in radians.
     approx_wcs : astropy.wcs.WCS
         The best-fit TAN-SIP approximation (if set).
-    max_wcs_err : float
+    wcs_max_err : float
         The worst error (in pixels) from the approx_wcs (if set).
     errmap : np.array
         The error map (in pixels) from the approx_wcs (if set). Shape (2, `N`, `N`).
@@ -780,6 +779,8 @@ def _stand_alone_test(infile):
     """
     Simple tests of the above routines.
 
+    The `infile` should be near Roman pixel scale (0.11+/-0.01 arcsec).
+
     Parameters
     ----------
     infile : str
@@ -788,7 +789,8 @@ def _stand_alone_test(infile):
 
     Returns
     -------
-    None
+    bool
+        Test passed?
 
     """
 
@@ -816,9 +818,7 @@ def _stand_alone_test(infile):
     jac = local_partial_pixel_derivatives2(wcsobj, 0.0, 0.0)
     print(jac * 3600)
     print(np.linalg.det(jac * 3600))
+    scale = np.sqrt(np.abs(np.linalg.det(jac * 3600)))
+    print(scale)
 
-
-if __name__ == "__main__":
-    """Command-line test, with input file as an argument."""
-
-    _stand_alone_test(sys.argv[1])
+    return np.amax(np.abs(inpos - recovered)) < 0.005 and np.abs(scale - 0.11) < 0.01
