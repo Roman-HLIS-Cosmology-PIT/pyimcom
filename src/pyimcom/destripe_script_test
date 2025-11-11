@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH --nodes=1
 #SBATCH --exclusive
-#SBATCH --time=72:00:00
-#SBATCH --job-name=imdestripe_H_mosaictest_v2
+#SBATCH --time=24:00:00
+#SBATCH --job-name=imdestripe_H_mosaictest_v3
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --mail-user=laliotis.2@osu.edu
-#SBATCH --output=/fs/scratch/PCON0003/klaliotis/imdestripe/mosaic_test_v2/imdestripe_test_v2.out.%j
+#SBATCH --output=/fs/scratch/PCON0003/klaliotis/imdestripe/mosaic_test_v3/imdestripe_test_v3.out.%j
 #SBATCH --account=PAS2340
 
 #Set echo
@@ -27,4 +27,4 @@ echo "OMP_NUM_THREADS: $OMP_NUM_THREADS"
 #Run programs
 cd /fs/scratch/PCON0003/klaliotis/pyimcom/src/pyimcom
 
-python3 imDestripe.py /fs/scratch/PCON0003/klaliotis/pyimcom/configs/imdestripe_configs/config_destripe-H.json
+python3 -m pyimcom.imDestripe /fs/scratch/PCON0003/klaliotis/pyimcom/configs/imdestripe_configs/config_destripe-H.json
