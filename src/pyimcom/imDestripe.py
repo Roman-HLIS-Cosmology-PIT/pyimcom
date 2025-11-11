@@ -183,7 +183,7 @@ class Sca_img:
     """
 
     def __init__(self, obsid, scaid, cfg, tempdir=tempdir, interpolated=False,
-                 add_objmask=True, indata_type = 'fits'):
+                 add_objmask=True, indata_type = 'asdf'):
 
         if interpolated:
             file = fits.open(
