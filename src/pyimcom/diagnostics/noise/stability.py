@@ -88,13 +88,14 @@ def plot_row_stability_summary(row_profiles, SCA):
     plt.savefig(f"plots/row_stability_summary_{SCA}.png", bbox_inches="tight")
 
 
-# --- Configuration ---
-directory = sys.argv[1]  # Set this
-output_csv = "stripe_stability.csv"
+if __name__ == "__main__":
+    # --- Configuration ---
+    directory = sys.argv[1]  # Set this
+    output_csv = "stripe_stability.csv"
 
-# --- Run Analysis ---
-for i in range(18):
-    SCA = str(i + 1)
-    name_pattern = r"slope_(\d*)_(" + SCA + ").fits"
-    row_profiles, filenames = load_row_profiles(directory, name_pattern, SCA=SCA)
-    plot_row_stability_summary(row_profiles, SCA=SCA)
+    # --- Run Analysis ---
+    for i in range(18):
+        SCA = str(i + 1)
+        name_pattern = r"slope_(\d*)_(" + SCA + ").fits"
+        row_profiles, filenames = load_row_profiles(directory, name_pattern, SCA=SCA)
+        plot_row_stability_summary(row_profiles, SCA=SCA)

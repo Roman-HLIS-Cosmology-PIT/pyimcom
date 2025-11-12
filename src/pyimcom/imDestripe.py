@@ -79,7 +79,7 @@ import numpy as np
 import asdf
 from astropy import wcs
 from astropy.io import fits
-from config import Config, Settings
+from .config import Config, Settings
 from filelock import FileLock, Timeout
 from memory_profiler import memory_usage
 from scipy.ndimage import binary_dilation
@@ -97,7 +97,7 @@ t0_global = time.time()  # after imports
 # Module settings
 testing = True
 use_output_float = np.float32
-tempdir = str(os.environ["TMPDIR"]) if "TMPDIR" in os.environ else os.getenv("TMPDIR") + "/"
+tempdir = str(os.environ["TMPDIR"]) if "TMPDIR" in os.environ else "./"
 
 # For test outputs: set sca=0 to not produce test outputs.
 img_full_output = {"obsid": 670, "scaid": 10}
