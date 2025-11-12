@@ -1861,9 +1861,9 @@ def main():
     t0 = time.time()
 
     workers = os.cpu_count() // int(os.environ["OMP_NUM_THREADS"]) if "OMP_NUM_THREADS" in os.environ else 12
-    write_to_file(f"## Using {workers} workers for parallel processing.")
+    write_to_file(f"## Using {workers} workers for parallel processing.", filename=outfile)
 
-    all_scas, all_wcs = get_scas(filter_, CFG.ds_obsfile, CFG)
+    all_scas, all_wcs = get_scas(filter_, CFG.ds_obsfile, CFG, indata_type="asdf")
     write_to_file(f"{len(all_scas)} SCAs in this mosaic", filename=outfile)
 
     if testing:
