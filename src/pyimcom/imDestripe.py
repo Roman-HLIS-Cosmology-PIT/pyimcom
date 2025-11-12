@@ -712,23 +712,26 @@ def get_scas(filter, obsfile, cfg, indata_type='asdf'):
     all_scas = []
     all_wcs = []
     for f in glob.glob(obsfile + filter + "_*"):
-        n_scas += 1
         m = re.search(r"(\w\d+)_(\d+)_(\d+)", f)
         if m:
-            this_obsfile = str(m.group(0))
-            all_scas.append(this_obsfile)
             if indata_type=="fits":
+                n_scas += 1
+                this_obsfile = str(m.group(0))
+                all_scas.append(this_obsfile)
                 this_file = fits.open(f, memmap=True)
                 this_wcs = wcs.WCS(this_file["SCI"].header)
                 all_wcs.append(this_wcs)
                 this_file.close()
             elif indata_type=="asdf":
                 if ("noise" not in f) and ("mask" not in f):
+                    n_scas += 1
+                    this_obsfile = str(m.group(0))
+                    all_scas.append(this_obsfile)
                     this_file = asdf.open(f, memmap=True)
                     this_wcs = PyIMCOM_WCS(this_file["roman"]["meta"]["wcs"])
                     all_wcs.append(this_wcs)
                     this_file.close()
-    write_to_file(f"N SCA images in this mosaic: {str(n_scas)}")
+    write_to_file(f"N SCA images in this mosaic: {str(n_scas)}", cfg.ds_outpath)
     write_to_file("SCA List:", cfg.ds_outpath+"SCA_list.txt")
     for i, s in enumerate(all_scas):
         write_to_file(f"SCA {i}: {s}", cfg.ds_outpath+"SCA_list.txt") 
