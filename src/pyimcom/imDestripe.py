@@ -79,7 +79,7 @@ import numpy as np
 import asdf
 from astropy import wcs
 from astropy.io import fits
-from config import Config, Settings
+from .config import Config, Settings
 from filelock import FileLock, Timeout
 from memory_profiler import memory_usage
 from scipy.ndimage import binary_dilation
