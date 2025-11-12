@@ -723,10 +723,11 @@ def get_scas(filter, obsfile, cfg, indata_type='asdf'):
                 all_wcs.append(this_wcs)
                 this_file.close()
             elif indata_type=="asdf":
-                this_file = asdf.open(f, memmap=True)
-                this_wcs = PyIMCOM_WCS(this_file["roman"]["meta"]["wcs"])
-                all_wcs.append(this_wcs)
-                this_file.close()
+                if ("noise" not in f) and ("mask" not in f):
+                    this_file = asdf.open(f, memmap=True)
+                    this_wcs = PyIMCOM_WCS(this_file["roman"]["meta"]["wcs"])
+                    all_wcs.append(this_wcs)
+                    this_file.close()
     write_to_file(f"N SCA images in this mosaic: {str(n_scas)}")
     write_to_file("SCA List:", cfg.ds_outpath+"SCA_list.txt")
     for i, s in enumerate(all_scas):
