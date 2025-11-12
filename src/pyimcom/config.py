@@ -307,7 +307,7 @@ class Config:
         "hub_thresh",
         "cg_maxiter",
         "cg_tol", 
-        "gaindir" # SECTION IX
+        "gaindir", # SECTION IX
         "tileschm",
         "rerun",
         "mosaic",  # SECTION X

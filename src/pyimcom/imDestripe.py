@@ -690,7 +690,7 @@ def huber_prime(x, d):
     return np.where(np.abs(x) <= d, quad_prime(x), 2 * d * np.sign(x))
 
 
-def get_scas(filter, obsfile, cfg, indata_type='fits'):
+def get_scas(filter, obsfile, cfg, indata_type='asdf'):
     """
     Function to get a list of all SCA images and their WCSs for this mosaic
 

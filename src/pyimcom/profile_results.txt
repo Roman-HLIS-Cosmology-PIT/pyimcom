@@ -1,0 +1,404 @@
+         28972 function calls (28869 primitive calls) in 0.101 seconds
+
+   Ordered by: cumulative time
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.000    0.000    0.101    0.101 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/memory_profiler.py:269(memory_usage)
+        1    0.000    0.000    0.077    0.077 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/pyimcom/imDestripe.py:1837(main)
+        1    0.000    0.000    0.074    0.074 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/pyimcom/imDestripe.py:693(get_scas)
+        1    0.000    0.000    0.060    0.060 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/io/fits/hdu/hdulist.py:44(fitsopen)
+        1    0.000    0.000    0.060    0.060 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/io/fits/hdu/hdulist.py:465(fromfile)
+        1    0.000    0.000    0.060    0.060 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/io/fits/hdu/hdulist.py:1162(_readfrom)
+        1    0.000    0.000    0.058    0.058 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/io/fits/file.py:150(__init__)
+        1    0.000    0.000    0.057    0.057 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/io/fits/file.py:687(_open_filename)
+     1156    0.037    0.000    0.037    0.000 {method 'read' of '_io.BufferedReader' objects}
+     1160    0.028    0.000    0.028    0.000 {method '__exit__' of '_io._IOBase' objects}
+        1    0.000    0.000    0.019    0.019 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/psutil/__init__.py:950(children)
+        1    0.002    0.002    0.018    0.018 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/psutil/_pslinux.py:1601(ppid_map)
+        1    0.000    0.000    0.013    0.013 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/glob.py:13(glob)
+     1447    0.000    0.000    0.012    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/glob.py:60(_iglob)
+        1    0.000    0.000    0.009    0.009 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/glob.py:105(_glob1)
+     1160    0.008    0.000    0.008    0.000 {built-in method _io.open}
+        1    0.000    0.000    0.007    0.007 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/glob.py:176(_listdir)
+     1448    0.002    0.000    0.007    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/glob.py:142(_iterdir)
+     1156    0.000    0.000    0.006    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/psutil/_common.py:763(open_binary)
+        1    0.005    0.005    0.005    0.005 {built-in method posix.scandir}
+        1    0.000    0.000    0.003    0.003 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/multiprocessing/process.py:110(start)
+        1    0.000    0.000    0.003    0.003 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/multiprocessing/context.py:222(_Popen)
+        1    0.000    0.000    0.003    0.003 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/multiprocessing/context.py:279(_Popen)
+     1446    0.002    0.000    0.003    0.000 <frozen posixpath>:71(join)
+        1    0.000    0.000    0.002    0.002 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/psutil/_pslinux.py:1562(pids)
+        1    0.001    0.001    0.002    0.002 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/fnmatch.py:48(filter)
+        1    0.000    0.000    0.002    0.002 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/multiprocessing/popen_fork.py:15(__init__)
+        1    0.000    0.000    0.002    0.002 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/multiprocessing/popen_fork.py:62(_launch)
+        1    0.002    0.002    0.002    0.002 {built-in method posix.listdir}
+        1    0.002    0.002    0.002    0.002 {built-in method posix.fork}
+        1    0.000    0.000    0.002    0.002 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/io/fits/file.py:314(read)
+        1    0.000    0.000    0.001    0.001 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/pyimcom/imDestripe.py:549(write_to_file)
+        1    0.000    0.000    0.001    0.001 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/multiprocessing/connection.py:246(recv)
+        1    0.000    0.000    0.001    0.001 /fs/scratch/PCON0003/klaliotis/pyimcom/src/pyimcom/config.py:316(__init__)
+        1    0.000    0.000    0.001    0.001 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/multiprocessing/connection.py:429(_recv_bytes)
+        3    0.000    0.000    0.001    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/__init__.py:280(_compile)
+        2    0.000    0.000    0.001    0.001 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/multiprocessing/connection.py:390(_recv)
+        2    0.001    0.001    0.001    0.001 {built-in method posix.read}
+        3    0.000    0.000    0.001    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/_compiler.py:745(compile)
+        1    0.000    0.000    0.001    0.001 <frozen importlib._bootstrap>:1349(_find_and_load)
+        1    0.000    0.000    0.001    0.001 <frozen importlib._bootstrap>:1304(_find_and_load_unlocked)
+     1156    0.001    0.000    0.001    0.000 {method 'split' of 'bytes' objects}
+        1    0.000    0.000    0.001    0.001 <frozen importlib._bootstrap>:911(_load_unlocked)
+        1    0.000    0.000    0.001    0.001 <frozen importlib._bootstrap_external>:993(exec_module)
+        1    0.000    0.000    0.001    0.001 <frozen importlib._bootstrap_external>:1066(get_code)
+        3    0.000    0.000    0.001    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/_parser.py:969(parse)
+      7/3    0.000    0.000    0.001    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/_parser.py:452(_parse_sub)
+        5    0.001    0.000    0.001    0.000 {built-in method posix.stat}
+     13/8    0.000    0.000    0.001    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/psutil/_pslinux.py:1628(wrapper)
+        1    0.000    0.000    0.001    0.001 <frozen importlib._bootstrap_external>:1187(get_data)
+      7/3    0.000    0.000    0.001    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/_parser.py:512(_parse)
+     1662    0.000    0.000    0.001    0.000 {built-in method builtins.isinstance}
+        7    0.000    0.000    0.001    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/psutil/_pslinux.py:1885(create_time)
+        1    0.000    0.000    0.001    0.001 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/__init__.py:174(search)
+        1    0.000    0.000    0.001    0.001 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/fnmatch.py:38(_compile_pattern)
+        2    0.000    0.000    0.001    0.000 <frozen genericpath>:16(exists)
+        2    0.000    0.000    0.001    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/config/configuration.py:340(__get__)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/__init__.py:226(compile)
+        2    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/config/configuration.py:449(__call__)
+     1448    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/glob.py:108(<genexpr>)
+     1447    0.000    0.000    0.000    0.000 <frozen posixpath>:41(_get_sep)
+        2    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/config/configuration.py:345(set)
+       10    0.000    0.000    0.000    0.000 <frozen abc>:117(__instancecheck__)
+        1    0.000    0.000    0.000    0.000 /fs/scratch/PCON0003/klaliotis/pyimcom/src/pyimcom/config.py:396(_from_dict)
+       10    0.000    0.000    0.000    0.000 {built-in method _abc._abc_instancecheck}
+        5    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/psutil/__init__.py:312(__init__)
+        2    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/psutil/__init__.py:774(create_time)
+        5    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/psutil/__init__.py:315(_init)
+     1450    0.000    0.000    0.000    0.000 {method 'match' of 're.Pattern' objects}
+        2    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/psutil/_pslinux.py:1546(boot_time)
+        3    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/_compiler.py:578(_code)
+        2    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/extern/configobj/configobj.py:567(__setitem__)
+     35/8    0.000    0.000    0.000    0.000 <frozen abc>:121(__subclasscheck__)
+     35/8    0.000    0.000    0.000    0.000 {built-in method _abc._abc_subclasscheck}
+       46    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/_parser.py:261(get)
+     2851    0.000    0.000    0.000    0.000 {method 'append' of 'list' objects}
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/__init__.py:164(match)
+        5    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/psutil/__init__.py:362(_get_ident)
+     1153    0.000    0.000    0.000    0.000 {method 'rfind' of 'bytes' objects}
+     1447    0.000    0.000    0.000    0.000 {method 'endswith' of 'str' objects}
+        6    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/psutil/_common.py:451(wrapper)
+     1451    0.000    0.000    0.000    0.000 {method 'startswith' of 'str' objects}
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/memory_profiler.py:229(__init__)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:1240(_find_spec)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/units/core.py:618(to)
+        1    0.000    0.000    0.000    0.000 {built-in method _io.open_code}
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:1524(find_spec)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:1495(_get_spec)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/memory_profiler.py:117(_get_memory)
+        5    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/psutil/_pslinux.py:1711(_parse_stat_file)
+     13/3    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/_compiler.py:37(_compile)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:1597(find_spec)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/memory_profiler.py:132(ps_util_tool)
+     1448    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/glob.py:230(_ishidden)
+        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:140(_path_stat)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/json/__init__.py:274(load)
+        3    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/_compiler.py:516(_compile_info)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/multiprocessing/process.py:142(join)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:159(_path_isfile)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:150(_path_is_mode_type)
+        5    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/psutil/_common.py:810(bcat)
+     1453    0.000    0.000    0.000    0.000 {built-in method posix.fspath}
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/multiprocessing/popen_fork.py:36(wait)
+        5    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/psutil/_common.py:793(cat)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/multiprocessing/connection.py:1122(wait)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/units/core.py:1998(__call__)
+     1211    0.000    0.000    0.000    0.000 {method 'isdigit' of 'bytes' objects}
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/utils/data.py:158(is_url)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/json/__init__.py:299(loads)
+        6    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/enum.py:1561(__and__)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/urllib/parse.py:374(urlparse)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/json/decoder.py:333(decode)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/multiprocessing/context.py:60(Pipe)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/units/core.py:517(get_converter)
+        8    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/_compiler.py:243(_optimize_charset)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/units/core.py:583(_to)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/psutil/__init__.py:458(_raise_if_pid_reused)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/multiprocessing/connection.py:533(Pipe)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/fnmatch.py:74(translate)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/psutil/__init__.py:624(is_running)
+        4    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/config/configuration.py:520(_validate_val)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/multiprocessing/util.py:189(__init__)
+     16/6    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/_parser.py:178(getwidth)
+        4    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/config/configuration.py:554(get_config)
+       97    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/_parser.py:168(__getitem__)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:416(__enter__)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/psutil/__init__.py:1128(memory_info)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:806(module_from_spec)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/urllib/parse.py:469(urlsplit)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/io/fits/file.py:499(close)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:755(_compile_bytecode)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/psutil/_pslinux.py:1902(memory_info)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/json/decoder.py:344(raw_decode)
+      221    0.000    0.000    0.000    0.000 {method 'startswith' of 'bytes' objects}
+        4    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/extern/configobj/validate.py:593(check)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/selectors.py:351(register)
+        2    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/io/fits/file.py:111(_is_bz2file)
+        1    0.000    0.000    0.000    0.000 {method 'read' of '_io.TextIOWrapper' objects}
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/logging/__init__.py:243(_releaseLock)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/io/fits/util.py:395(fileobj_mode)
+        1    0.000    0.000    0.000    0.000 {built-in method marshal.loads}
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:733(_init_module_attrs)
+        2    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:480(_call_with_frames_removed)
+  168/155    0.000    0.000    0.000    0.000 {built-in method builtins.len}
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/socket.py:653(socketpair)
+       22    0.000    0.000    0.000    0.000 {built-in method builtins.hasattr}
+        2    0.000    0.000    0.000    0.000 /fs/scratch/PCON0003/klaliotis/pyimcom/src/pyimcom/config.py:347(__call__)
+        1    0.000    0.000    0.000    0.000 {method 'close' of '_io.BufferedReader' objects}
+        1    0.000    0.000    0.000    0.000 {built-in method numpy.array}
+        1    0.000    0.000    0.000    0.000 {built-in method builtins.exec}
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:304(acquire)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/multiprocessing/popen_fork.py:1(<module>)
+        1    0.000    0.000    0.000    0.000 <frozen posixpath>:117(splitext)
+        6    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/enum.py:720(__call__)
+        1    0.000    0.000    0.000    0.000 <frozen _collections_abc>:811(__contains__)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/units/format/generic.py:407(_validate_unit)
+        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:1390(_handle_fromlist)
+        2    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:632(cached)
+        2    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:486(cache_from_source)
+        1    0.000    0.000    0.000    0.000 {method 'disable' of '_lsprof.Profiler' objects}
+      5/3    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/_compiler.py:441(_get_literal_prefix)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/multiprocessing/process.py:80(__init__)
+        2    0.000    0.000    0.000    0.000 <frozen os>:709(__getitem__)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:615(_get_cached)
+        2    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/io/fits/file.py:118(_is_lzmafile)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/selectors.py:347(__init__)
+        1    0.000    0.000    0.000    0.000 {built-in method _struct.unpack}
+        3    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/glob.py:223(has_magic)
+       49    0.000    0.000    0.000    0.000 {method 'get' of 'dict' objects}
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/_compiler.py:391(_mk_bitmap)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/selectors.py:234(register)
+       54    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/_parser.py:240(__next)
+        2    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/units/core.py:2216(decompose)
+       12    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/__init__.py:255(escape)
+       18    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/enum.py:1543(_get_value)
+        5    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/psutil/_pslinux.py:1662(__init__)
+        1    0.000    0.000    0.000    0.000 {built-in method builtins.__build_class__}
+       34    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/_parser.py:176(append)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/io/fits/hdu/hdulist.py:241(__init__)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/io/fits/util.py:427(_fileobj_normalize_mode)
+        4    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/extern/configobj/configobj.py:550(__getitem__)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:1592(_get_spec)
+        4    0.000    0.000    0.000    0.000 {method 'search' of 're.Pattern' objects}
+        1    0.000    0.000    0.000    0.000 {built-in method builtins.print}
+        1    0.000    0.000    0.000    0.000 {built-in method posix.cpu_count}
+        1    0.000    0.000    0.000    0.000 {built-in method _socket.socketpair}
+        4    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/extern/configobj/validate.py:651(_check_value)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/glob.py:31(iglob)
+        3    0.000    0.000    0.000    0.000 {built-in method _sre.compile}
+        8    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/_compiler.py:216(_compile_charset)
+        8    0.000    0.000    0.000    0.000 {built-in method builtins.next}
+        3    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/_parser.py:98(closegroup)
+        6    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:126(_path_join)
+        1    0.000    0.000    0.000    0.000 {method 'write' of '_io.TextIOWrapper' objects}
+        1    0.000    0.000    0.000    0.000 {built-in method _pickle.loads}
+      4/3    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/io/fits/util.py:330(isfile)
+        6    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/_compiler.py:403(_simple)
+        1    0.000    0.000    0.000    0.000 <frozen posixpath>:100(split)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/memory_profiler.py:1201(choose_backend)
+        5    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:645(parent)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:162(__enter__)
+        1    0.000    0.000    0.000    0.000 <frozen codecs>:319(decode)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/io/fits/file.py:551(_try_read_compressed)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/selectors.py:202(__exit__)
+       25    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/_parser.py:164(__len__)
+       18    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/_parser.py:293(tell)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/selectors.py:209(__init__)
+        7    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/_parser.py:372(_escape)
+        3    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/_parser.py:231(__init__)
+       31    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/_parser.py:256(match)
+       26    0.000    0.000    0.000    0.000 {built-in method builtins.min}
+        4    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/extern/configobj/validate.py:637(_parse_with_caching)
+        2    0.000    0.000    0.000    0.000 {built-in method posix.pipe}
+        2    0.000    0.000    0.000    0.000 <frozen codecs>:309(__init__)
+        2    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:132(_path_split)
+       14    0.000    0.000    0.000    0.000 {method 'join' of 'str' objects}
+        3    0.000    0.000    0.000    0.000 {method 'seek' of '_io.BufferedReader' objects}
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:806(spec_from_file_location)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:426(_get_module_lock)
+        2    0.000    0.000    0.000    0.000 {built-in method posix.close}
+        9    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/psutil/_common.py:834(get_procfs_path)
+        6    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/enum.py:1128(__new__)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/selectors.py:402(select)
+       12    0.000    0.000    0.000    0.000 {method 'translate' of 'str' objects}
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/_parser.py:893(_parse_flags)
+       10    0.000    0.000    0.000    0.000 {method 'rpartition' of 'str' objects}
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:420(__exit__)
+        2    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/socket.py:221(__init__)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:124(setdefault)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/_parser.py:449(_uniq)
+        5    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/threading.py:124(RLock)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/contextlib.py:359(__exit__)
+        2    0.000    0.000    0.000    0.000 <frozen os>:791(encode)
+        1    0.000    0.000    0.000    0.000 {built-in method builtins.all}
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/multiprocessing/util.py:436(_flush_std_streams)
+        8    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/psutil/_pslinux.py:1916(<genexpr>)
+       28    0.000    0.000    0.000    0.000 <frozen _collections_abc>:435(__subclasshook__)
+        2    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/_compiler.py:412(_generate_overlap_table)
+       12    0.000    0.000    0.000    0.000 {method 'find' of 'bytearray' objects}
+        2    0.000    0.000    0.000    0.000 {built-in method builtins.max}
+        3    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/_parser.py:86(opengroup)
+        1    0.000    0.000    0.000    0.000 {method 'getbuffer' of '_io.BytesIO' objects}
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/units/core.py:1457(get_current_unit_registry)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/contextlib.py:355(__init__)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:173(__exit__)
+        1    0.000    0.000    0.000    0.000 <frozen genericpath>:133(_splitext)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:670(_classify_pyc)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/psutil/__init__.py:450(__ne__)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/selectors.py:215(_fileobj_lookup)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:1206(path_stats)
+        2    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/urllib/parse.py:119(_coerce_args)
+       12    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/_parser.py:83(groups)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/units/core.py:560(<lambda>)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:372(release)
+        6    0.000    0.000    0.000    0.000 {built-in method posix.getpid}
+        1    0.000    0.000    0.000    0.000 {built-in method posix.kill}
+        2    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/units/core.py:2369(powers)
+        5    0.000    0.000    0.000    0.000 {built-in method psutil._psutil_linux.check_pid_range}
+        3    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:84(_unpack_uint32)
+        2    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/units/core.py:2359(scale)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/logging/__init__.py:234(_acquireLock)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/utils/data.py:184(_requires_fsspec)
+        2    0.000    0.000    0.000    0.000 <frozen os>:795(decode)
+        5    0.000    0.000    0.000    0.000 {method 'rfind' of 'str' objects}
+       13    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/_parser.py:113(__init__)
+       24    0.000    0.000    0.000    0.000 {built-in method builtins.ord}
+        6    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/_compiler.py:575(isstring)
+        7    0.000    0.000    0.000    0.000 {method 'extend' of 'list' objects}
+        4    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/extern/configobj/validate.py:897(is_boolean)
+        2    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/multiprocessing/connection.py:118(__init__)
+        5    0.000    0.000    0.000    0.000 {built-in method __new__ of type object at 0x935960}
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:703(_validate_timestamp_pyc)
+        1    0.000    0.000    0.000    0.000 {method 'poll' of 'select.poll' objects}
+        2    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/units/core.py:608(<genexpr>)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:1128(find_spec)
+        1    0.000    0.000    0.000    0.000 <frozen codecs>:327(reset)
+        4    0.000    0.000    0.000    0.000 {function Section.__getitem__ at 0x1492324b2520}
+        1    0.000    0.000    0.000    0.000 {method 'readline' of '_io.BufferedReader' objects}
+        1    0.000    0.000    0.000    0.000 {built-in method select.poll}
+        2    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/socket.py:507(detach)
+        1    0.000    0.000    0.000    0.000 {method 'release' of '_thread.RLock' objects}
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/_weakrefset.py:85(add)
+       15    0.000    0.000    0.000    0.000 {method 'rstrip' of 'str' objects}
+        4    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:134(<genexpr>)
+        6    0.000    0.000    0.000    0.000 {method 'pop' of 'dict' objects}
+        2    0.000    0.000    0.000    0.000 {method 'clear' of 'dict' objects}
+        1    0.000    0.000    0.000    0.000 {method 'translate' of 'bytearray' objects}
+       14    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/psutil/__init__.py:470(pid)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/multiprocessing/popen_fork.py:12(Popen)
+        3    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/_parser.py:953(fix_flags)
+        6    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/memory_profiler.py:1215(<genexpr>)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/selectors.py:268(close)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/io/fits/file.py:488(tell)
+        4    0.000    0.000    0.000    0.000 {method 'split' of 'str' objects}
+        1    0.000    0.000    0.000    0.000 <frozen posixpath>:256(expanduser)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/_compiler.py:472(_get_charset_prefix)
+        8    0.000    0.000    0.000    0.000 {method 'replace' of 'str' objects}
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:232(__init__)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:82(remove)
+        1    0.000    0.000    0.000    0.000 {built-in method _codecs.utf_8_decode}
+        7    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:491(_verbose_message)
+        3    0.000    0.000    0.000    0.000 {method 'tell' of '_io.BufferedReader' objects}
+        5    0.000    0.000    0.000    0.000 {method 'find' of 'bytes' objects}
+        1    0.000    0.000    0.000    0.000 {built-in method fromkeys}
+        7    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/_compiler.py:31(_combine_flags)
+        1    0.000    0.000    0.000    0.000 <string>:1(<lambda>)
+        6    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/_parser.py:172(__setitem__)
+        2    0.000    0.000    0.000    0.000 {method 'setblocking' of '_socket.socket' objects}
+        7    0.000    0.000    0.000    0.000 {built-in method builtins.getattr}
+        4    0.000    0.000    0.000    0.000 {method 'items' of 'dict' objects}
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:445(cb)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:185(_path_abspath)
+        4    0.000    0.000    0.000    0.000 {method 'add' of 'set' objects}
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:74(__new__)
+        2    0.000    0.000    0.000    0.000 {method 'flush' of '_io.TextIOWrapper' objects}
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/_distutils_hack/__init__.py:103(find_spec)
+        4    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:1226(__exit__)
+        2    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/units/core.py:2420(decompose)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/psutil/__init__.py:429(__eq__)
+        3    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/_parser.py:77(__init__)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:647(_check_name_wrapper)
+        3    0.000    0.000    0.000    0.000 {method 'encode' of 'str' objects}
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:982(find_spec)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/multiprocessing/context.py:237(get_context)
+        4    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:1222(__enter__)
+        2    0.000    0.000    0.000    0.000 {method 'write' of '_io.BytesIO' objects}
+        6    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/re/_compiler.py:433(_get_iscased)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/selectors.py:21(_fileobj_to_fd)
+        6    0.000    0.000    0.000    0.000 {built-in method builtins.iter}
+        4    0.000    0.000    0.000    0.000 {method 'detach' of '_socket.socket' objects}
+        4    0.000    0.000    0.000    0.000 {method 'pop' of 'list' objects}
+        1    0.000    0.000    0.000    0.000 {method 'register' of 'select.poll' objects}
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/multiprocessing/process.py:61(_cleanup)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/io/fits/util.py:347(fileobj_name)
+        2    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/multiprocessing/process.py:94(<genexpr>)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:79(__init__)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:48(_new_module)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/units/core.py:1259(registry)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/units/core.py:2686(_condition_arg)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/selectors.py:63(__init__)
+        3    0.000    0.000    0.000    0.000 {built-in method from_bytes}
+        1    0.000    0.000    0.000    0.000 {built-in method _imp._fix_co_filename}
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:180(_path_isabs)
+        2    0.000    0.000    0.000    0.000 {method 'strip' of 'bytes' objects}
+        2    0.000    0.000    0.000    0.000 {method 'strip' of 'str' objects}
+        2    0.000    0.000    0.000    0.000 {method 'end' of 're.Match' objects}
+        6    0.000    0.000    0.000    0.000 {built-in method _imp.release_lock}
+        1    0.000    0.000    0.000    0.000 <frozen posixpath>:52(normcase)
+        2    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/multiprocessing/process.py:99(_check_closed)
+        6    0.000    0.000    0.000    0.000 {built-in method _imp.acquire_lock}
+        1    0.000    0.000    0.000    0.000 {method 'find' of 'str' objects}
+        1    0.000    0.000    0.000    0.000 {built-in method builtins.setattr}
+        1    0.000    0.000    0.000    0.000 {method '__exit__' of 'posix.ScandirIterator' objects}
+        2    0.000    0.000    0.000    0.000 {method 'decode' of 'bytes' objects}
+        1    0.000    0.000    0.000    0.000 {method 'close' of 'generator' objects}
+        1    0.000    0.000    0.000    0.000 {built-in method _imp.find_frozen}
+        2    0.000    0.000    0.000    0.000 {method '__exit__' of '_thread.RLock' objects}
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/io/fits/file.py:514(_maybe_close_mmap)
+        2    0.000    0.000    0.000    0.000 {built-in method sys.audit}
+        2    0.000    0.000    0.000    0.000 {built-in method time.monotonic}
+        1    0.000    0.000    0.000    0.000 {method 'getvalue' of '_io.BytesIO' objects}
+        1    0.000    0.000    0.000    0.000 {built-in method time.time}
+        1    0.000    0.000    0.000    0.000 {method 'remove' of 'list' objects}
+        1    0.000    0.000    0.000    0.000 {method 'group' of 're.Match' objects}
+        2    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/units/core.py:2364(bases)
+        1    0.000    0.000    0.000    0.000 {method 'acquire' of '_thread.RLock' objects}
+        1    0.000    0.000    0.000    0.000 {method 'lstrip' of 'str' objects}
+        1    0.000    0.000    0.000    0.000 {method 'lower' of 'str' objects}
+        2    0.000    0.000    0.000    0.000 <frozen codecs>:260(__init__)
+        1    0.000    0.000    0.000    0.000 {method 'copy' of 'dict' objects}
+        1    0.000    0.000    0.000    0.000 {built-in method _imp.is_builtin}
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:1473(_path_importer_cache)
+        1    0.000    0.000    0.000    0.000 {built-in method _weakref._remove_dead_weakref}
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/multiprocessing/process.py:189(name)
+        2    0.000    0.000    0.000    0.000 {built-in method _thread.get_ident}
+        1    0.000    0.000    0.000    0.000 {method 'isascii' of 'str' objects}
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/units/format/__init__.py:65(get_format)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:599(__init__)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/multiprocessing/connection.py:135(_check_closed)
+        1    0.000    0.000    0.000    0.000 <frozen codecs>:186(__init__)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/glob.py:214(_join)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:653(has_location)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/multiprocessing/connection.py:139(_check_readable)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/site-packages/astropy/io/fits/file.py:125(_is_lzwfile)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/urllib/parse.py:421(_checknetloc)
+        1    0.000    0.000    0.000    0.000 {built-in method _thread.allocate_lock}
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:990(create_module)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:1157(__init__)
+        1    0.000    0.000    0.000    0.000 {built-in method builtins.callable}
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/contextlib.py:357(__enter__)
+        2    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/urllib/parse.py:108(_noop)
+        1    0.000    0.000    0.000    0.000 <frozen codecs>:276(reset)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:412(__init__)
+        1    0.000    0.000    0.000    0.000 /users/PCON0003/klaliotis/.conda/envs/pyimcom2/lib/python3.12/selectors.py:199(__enter__)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap>:158(__init__)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:1182(get_filename)
+        1    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:71(_relax_case)
+
+
