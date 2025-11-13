@@ -2033,8 +2033,8 @@ class Block:
                             self.instamps[j_st + dj][i_st] = None
                 gc.collect()  # force a garbage collection
 
-                print("  --> intermediate output -->\n")
-                self.build_output_file(is_final=False)
+                # print("  --> intermediate output -->\n")
+                # self.build_output_file(is_final=False)
 
     @staticmethod
     def compress_map(
