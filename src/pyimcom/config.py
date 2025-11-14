@@ -306,8 +306,8 @@ class Config:
         "resid_model",
         "hub_thresh",
         "cg_maxiter",
-        "cg_tol", 
-        "gaindir", # SECTION IX
+        "cg_tol",
+        "gaindir",  # SECTION IX
         "tileschm",
         "rerun",
         "mosaic",  # SECTION X
@@ -511,10 +511,10 @@ class Config:
             self.no_qlt_ctrl = cfg_dict.get("EMPIRNQC", False)
 
         ### SECTION IX: DESTRIPING PARAMS ###
-        self.ds_model, self.ds_rows = cfg_dict["DSMODEL"]
-        self.ds_outpath, self.ds_outstem = cfg_dict["DSOUT"]
-        self.cg_model, self.cg_maxiter, self.cg_tol = cfg_dict["CGMODEL"]
-        self.cost_model, self.cost_prior, self.hub_thresh = cfg_dict["DSCOST"]
+        self.ds_model, self.ds_rows = cfg_dict.get("DSMODEL", [None, None])
+        self.ds_outpath, self.ds_outstem = cfg_dict.get("DSOUT", [None, None])
+        self.cg_model, self.cg_maxiter, self.cg_tol = cfg_dict.get("CGMODEL", [None, None, None])
+        self.cost_model, self.cost_prior, self.hub_thresh = cfg_dict.get("DSCOST", [None, None, None])
         self.ds_obsfile = cfg_dict.get("DSOBSFILE")
         self.ds_noisefile = cfg_dict.get("DSNOISEFILE", False)
         self.ds_restart = cfg_dict.get("DSRESTART")
