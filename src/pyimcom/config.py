@@ -374,24 +374,13 @@ class Config:
             self.outmaps = self.outmaps.replace("K", "")
 
         ### SECTION IX: DESTRIPING PARAMS ###
-        if self.cost_model:
+        if hasattr(self, "cost_model"):
             if self.cost_model == "quadratic":
                 self.resid_model = "quad_prime"
             elif self.cost_model == "absolute":
                 self.resid_model = "abs_prime"
             elif self.cost_model == "huber_loss":
                 self.resid_model = "hub_prime"
-            # stuff
-
-        ### SECTION IX: DESTRIPING PARAMS ###
-        if self.cost_model:
-            if self.cost_model == "quadratic":
-                self.resid_model = "quad_prime"
-            elif self.cost_model == "absolute":
-                self.resid_model = "abs_prime"
-            elif self.cost_model == "huber_loss":
-                self.resid_model = "hub_prime"
-            # stuff
 
     def _from_dict(self, cfg_dict: dict) -> None:
         """
