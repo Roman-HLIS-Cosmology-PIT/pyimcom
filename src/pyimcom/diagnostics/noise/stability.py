@@ -8,7 +8,23 @@ from astropy.io import fits
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
-def load_row_profiles(directory, name_pattern, SCA):
+def load_row_profiles(directory, name_pattern):
+    """
+    Load row median profiles from FITS files in a directory matching a name pattern.
+    Parameters
+    ----------
+    directory : str
+        Path to the directory containing FITS files.
+    name_pattern : str
+        Regex pattern to match filenames.
+
+    Returns
+    -------
+    row_profiles : np.ndarray
+        2D array where each row corresponds to the row median profile of an image.
+    obsnames : list of str
+        List of observation names extracted from filenames.
+    """
     file_pattern = re.compile(name_pattern)
     row_profiles = []
     obsnames = []
@@ -21,15 +37,23 @@ def load_row_profiles(directory, name_pattern, SCA):
             row_medians = np.median(image, axis=1)
             row_profiles.append(row_medians)
             obsnames.append(obs)
-
-    per_image_row_std = np.std(row_profiles, axis=1)
-    # print(f"Mean per-image row std: {np.mean(per_image_row_std):.4f}")
-    # print(f"Max per-image row std: {np.max(per_image_row_std):.4f}")
-
     return np.array(row_profiles), obsnames
 
 
 def plot_row_stability_summary(row_profiles, SCA):
+    """
+    Plot a summary of row stability including a heatmap of row median profiles
+    and a plot of mean ± std deviation across rows.
+    Parameters
+    ----------
+    row_profiles : np.ndarray
+        2D array where each row corresponds to the row median profile of an image.
+    SCA : str
+        SCA identifier for labeling the plots.
+    Returns
+    -------
+    None
+    """
     n_images, n_rows = row_profiles.shape
 
     # Compute per-row statistics
@@ -86,6 +110,7 @@ def plot_row_stability_summary(row_profiles, SCA):
     ax2.legend()
     plt.tight_layout()
     plt.savefig(f"plots/row_stability_summary_{SCA}.png", bbox_inches="tight")
+    plt.close()
 
 
 if __name__ == "__main__":
