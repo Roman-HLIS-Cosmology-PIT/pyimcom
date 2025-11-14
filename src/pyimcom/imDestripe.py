@@ -65,6 +65,7 @@ import cProfile
 import csv
 import glob
 import io
+import logging
 import os
 import pickle
 import pstats
@@ -74,23 +75,25 @@ import sys
 import time
 import uuid
 from concurrent.futures import ProcessPoolExecutor, as_completed
-import logging
-import numpy as np
+
 import asdf
+import numpy as np
 from astropy import wcs
 from astropy.io import fits
-from .config import Config, Settings
 from filelock import FileLock, Timeout
 from memory_profiler import memory_usage
 from scipy.ndimage import binary_dilation
+
+from .config import Config, Settings
 from .utils import compareutils
 from .wcsutil import PyIMCOM_WCS
+
 try:
     import furry_parakeet.pyimcom_croutines as pyimcom_croutines
 except ImportError:
     import pyimcom_croutines
 
-#from Config.Settings import RomanFilters as filters
+# from Config.Settings import RomanFilters as filters
 filters = Settings.RomanFilters
 t0_global = time.time()  # after imports
 
@@ -101,6 +104,7 @@ tempdir = str(os.environ["TMPDIR"]) if "TMPDIR" in os.environ else "./"
 
 # For test outputs: set sca=0 to not produce test outputs.
 img_full_output = {"obsid": 670, "scaid": 10}
+
 
 class Cost_models:
     """
@@ -182,37 +186,33 @@ class Sca_img:
             Writes the interpolated image out to the disk, to be read/used later
     """
 
-    def __init__(self, obsid, scaid, cfg, tempdir=tempdir, interpolated=False,
-                 add_objmask=True, indata_type = 'asdf'):
-
+    def __init__(
+        self, obsid, scaid, cfg, tempdir=tempdir, interpolated=False, add_objmask=True, indata_type="asdf"
+    ):
         if interpolated:
-            file = fits.open(
-                tempdir + "interpolations/" + obsid + "_" + scaid + "_interp.fits", memmap=True
-            )
+            file = fits.open(tempdir + "interpolations/" + obsid + "_" + scaid + "_interp.fits", memmap=True)
             image_hdu = "PRIMARY"
         else:
-            if indata_type=="fits":
+            if indata_type == "fits":
                 file = fits.open(
-                    cfg.ds_obsfile + filters[cfg.use_filter] + "_" + obsid + "_" + scaid + ".fits", memmap=True
+                    cfg.ds_obsfile + filters[cfg.use_filter] + "_" + obsid + "_" + scaid + ".fits",
+                    memmap=True,
                 )
                 image_hdu = "SCI"
+                self.w = wcs.WCS(file[image_hdu].header)
+                self.image = np.copy(file[image_hdu].data).astype(np.float64)
+                self.header = file[image_hdu].header
 
-            elif indata_type=="asdf":
+            elif indata_type == "asdf":
                 file = asdf.open(
-                    cfg.ds_obsfile + filters[cfg.use_filter] + "_" + obsid + "_" + scaid + ".asdf", memmap=True
+                    cfg.ds_obsfile + filters[cfg.use_filter] + "_" + obsid + "_" + scaid + ".asdf",
+                    memmap=True,
+                    lazy_load=False,
                 )
-                
-        
-        if indata_type=="fits":
-            self.w = wcs.WCS(file[image_hdu].header)
-            self.image = np.copy(file[image_hdu].data).astype(np.float64)
-            self.header = file[image_hdu].header
+                self.w = PyIMCOM_WCS(file["roman"]["meta"]["wcs"])
+                self.image = np.array(file["roman"]["data"], copy=True).astype(np.float64)
+                self.header = None
 
-        elif indata_type=="asdf":
-            self.w = PyIMCOM_WCS(file["roman"]["meta"]["wcs"])
-            self.image = file["roman"]["data"]
-            self.header = None
-        
         self.shape = np.shape(self.image)
         file.close()
 
@@ -223,9 +223,8 @@ class Sca_img:
         self.cfg = cfg
 
         # Calculate effecive gain
-        if cfg.gaindir == False:
+        if cfg.gaindir is False:
             if not os.path.isfile(tempdir + obsid + "_" + scaid + "_geff.dat"):
-                g0 = time.time()
                 g_eff = np.memmap(
                     tempdir + obsid + "_" + scaid + "_geff.dat", dtype="float64", mode="w+", shape=self.shape
                 )
@@ -280,7 +279,9 @@ class Sca_img:
         Add detector noise to self.image
         """
         noiseframe = (
-            np.copy(fits.open(self.cfg.ds_noisefile + self.obsid + "_" + self.scaid + ".fits")["PRIMARY"].data)
+            np.copy(
+                fits.open(self.cfg.ds_noisefile + self.obsid + "_" + self.scaid + ".fits")["PRIMARY"].data
+            )
             * 1.458
             * 50
         )  # times gain and N_frames
@@ -297,16 +298,23 @@ class Sca_img:
         pm = fits.open(self.cfg.permanent_mask)[0].data[int(self.scaid) - 1].astype(bool)
         self.image *= ~pm
         self.mask *= ~pm
-    
+
     def apply_asdf_mask(self):
         """
         Apply ASDF file mask. Updates self.image and self.mask
         """
-        mask = fits.open(self.cfg.ds_obsfile + filters[self.cfg.use_filter] + "_" + self.obsid 
-                         + "_" + self.scaid + "_mask.fits", memmap=True)[1].data.astype(bool)
+        mask = fits.open(
+            self.cfg.ds_obsfile
+            + filters[self.cfg.use_filter]
+            + "_"
+            + self.obsid
+            + "_"
+            + self.scaid
+            + "_mask.fits",
+            memmap=False,  # change once masks are uint8 type
+        )[1].data.astype(bool)
         self.image *= ~mask
-        self.mask *= ~mask 
-        
+        self.mask *= ~mask
 
     def get_permanent_mask(self):
         """
@@ -370,7 +378,6 @@ class Sca_img:
         ra, dec = wcs.all_pix2world(x_flat, y_flat, 0)  # 0 is for the first frame (1-indexed)
         return ra, dec
 
-
     def make_interpolated(self, ind, scalist, neighbors, tempdir=tempdir, params=None, N_eff_min=0.5):
         """
         Construct a version of this SCA interpolated from other, overlapping ones.
@@ -385,8 +392,10 @@ class Sca_img:
             the list of all SCAs in this mosaic
         neighbors : Dict
             dictionary where keys are SCA indices and values are lists of indices of overlapping SCAs
+        tempdir : Str
+            directory to write temporary files to
         params : Parameters object
-             parameters to be subtracted from contributing SCAs; default Nnoe
+             parameters to be subtracted from contributing SCAs; default None
         N_eff_min : float
              Effective coverage needed for a pixel to contribute to the interpolation
 
@@ -409,14 +418,12 @@ class Sca_img:
                 shape=self.shape,
             )
             make_Neff = False
-
-        t_a_start = time.time()
         sys.stdout.flush()
 
         N_BinA = 0
 
         sca_b_list = neighbors[ind]
-        
+
         for k in sca_b_list:
             sca_b = scalist[k]
             obsid_B, scaid_B = get_ids(sca_b)
@@ -437,14 +444,24 @@ class Sca_img:
                     I_B, self, B_mask_interp, mask=I_B.mask
                 )  # interpolate B pixel mask onto A grid
 
-            if img_full_output["scaid"]!=0 and testing:
-                if obsid_B == str(img_full_output["obsid"]) and scaid_B == str(img_full_output["scaid"]) and make_Neff:  # only do this once
-                    save_fits(
-                            B_interp, f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_B_{self.obsid}_{self.scaid}_interp', dir=test_image_dir
-                        )
+            if img_full_output["scaid"] != 0 and testing:
+                obsid_match = obsid_B == str(img_full_output["obsid"])
+                scaid_match = scaid_B == str(img_full_output["scaid"])
+                if obsid_match and scaid_match and make_Neff:
+                    filename = (
+                        f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_'
+                        f'B_{self.obsid}_{self.scaid}_interp'
+                    )
+                    save_fits(B_interp, filename, dir=test_image_dir)
 
-                if self.obsid == str(img_full_output["obsid"]) and self.scaid == str(img_full_output["scaid"]) and make_Neff:
-                    save_fits(B_interp, f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_A_{obsid_B}_{scaid_B}_interp', dir=test_image_dir)
+                obsid_match = self.obsid == str(img_full_output["obsid"])
+                scaid_match = self.scaid == str(img_full_output["scaid"])
+                if obsid_match and scaid_match and make_Neff:
+                    filename = (
+                        f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_'
+                        f'A_{obsid_B}_{scaid_B}_interp'
+                    )
+                    save_fits(B_interp, filename, dir=test_image_dir)
 
             this_interp += B_interp
             if make_Neff:
@@ -523,7 +540,8 @@ class Parameters:
 
     def params_2_images(self):
         """
-        Reshape flattened parameters into 2D array with 1 row per sca and n_rows (in image) * params_per_row entries
+        Reshape flattened parameters into 2D array with 1 row per sca
+        and n_rows (in image) * params_per_row entries
         """
         self.params = np.reshape(self.params, (len(self.scalist), self.n_rows * self.params_per_row))
         self.current_shape = "2D"
@@ -566,6 +584,7 @@ def write_to_file(text, filename="destripe_out.txt"):
             f.write(text + "\n")
     print(text)
 
+
 def save_fits(image, filename, dir=None, overwrite=True, s=False, header=None, retries=3):
     """
     Save a 2D image to a FITS file with locking, retries, and atomic rename.
@@ -587,24 +606,20 @@ def save_fits(image, filename, dir=None, overwrite=True, s=False, header=None, r
     retries : int
         Number of write retry attempts if write fails.
     """
-    filepath = os.path.join(dir, filename + ".fits")
-    lockpath = filepath + ".lock"
+    fp = os.path.join(dir, filename + ".fits")
+    lockpath = fp + ".lock"
     lock = FileLock(lockpath)
 
     for attempt in range(retries):
         try:
             with lock.acquire(timeout=30):
-                tmp_filepath = filepath + f".{uuid.uuid4().hex}.tmp"
-                if header is not None:
-                    hdu = fits.PrimaryHDU(image, header=header)
-                else:
-                    hdu = fits.PrimaryHDU(image)
-
-                hdu.writeto(tmp_filepath, overwrite=overwrite)
-                os.replace(tmp_filepath, filepath)  # Atomic move to final path
+                tmp_fp = fp + f".{uuid.uuid4().hex}.tmp"
+                hdu = fits.PrimaryHDU(image, header=header) if header is not None else fits.PrimaryHDU(image)
+                hdu.writeto(tmp_fp, overwrite=overwrite)
+                os.replace(tmp_fp, fp)  # Atomic move to final path
 
                 if s:
-                    write_to_file(f"Array {filename} written out to {filepath}")
+                    write_to_file(f"Array {filename} written out to {fp}")
                 return  # Success
 
         except Timeout:
@@ -614,12 +629,10 @@ def save_fits(image, filename, dir=None, overwrite=True, s=False, header=None, r
         except OSError as e:
             if attempt < retries - 1:
                 wait_time = 1 + random.random()
-                print(
-                    f"Write failed for {filepath} (attempt {attempt + 1}): {e}. Retrying in {wait_time:.2f}s..."
-                )
+                print(f"Write failed for {fp} (attempt {attempt + 1}): {e}. Retrying in {wait_time:.2f}s...")
                 time.sleep(wait_time)
             else:
-                raise RuntimeError(f"Failed to write {filepath} after {retries} attempts. Last error: {e}")
+                raise RuntimeError(f"Failed to write {fp} after {retries} attempts. Last error: {e}") from e
 
 
 def apply_object_mask(image, mask=None, threshold_m=0, threshold_c=0.3, inplace=False):
@@ -675,6 +688,7 @@ def huber_loss(x, d):
     """Huber loss cost function"""
     return np.where(np.abs(x) <= d, quadratic(x), d**2 + 2 * d * (np.abs(x) - d))
 
+
 def quad_prime(x):
     """Derivative of quadratic cost function f'(x) = 2x"""
     return 2 * x
@@ -690,16 +704,20 @@ def huber_prime(x, d):
     return np.where(np.abs(x) <= d, quad_prime(x), 2 * d * np.sign(x))
 
 
-def get_scas(filter, obsfile, cfg, indata_type='asdf'):
+def get_scas(filter_, obsfile, cfg, indata_type="asdf"):
     """
     Function to get a list of all SCA images and their WCSs for this mosaic
 
     Parameters
     --------
-    filter : Str
+    filter_ : Str
         which filter to use for this run. Options: Y106, J129, H158, F184, K213
     obsfile : Str
         prefix / path to the SCA images
+    cfg : Config object
+        built from the configuration file
+    indata_type : Str
+        input data type: 'fits' or 'asdf'. Default 'asdf'
 
     Returns
     --------
@@ -711,10 +729,10 @@ def get_scas(filter, obsfile, cfg, indata_type='asdf'):
     n_scas = 0
     all_scas = []
     all_wcs = []
-    for f in glob.glob(obsfile + filter + "_*"):
+    for f in glob.glob(obsfile + filter_ + "_*"):
         m = re.search(r"(\w\d+)_(\d+)_(\d+)", f)
         if m:
-            if indata_type=="fits":
+            if indata_type == "fits":
                 n_scas += 1
                 this_obsfile = str(m.group(0))
                 all_scas.append(this_obsfile)
@@ -722,27 +740,28 @@ def get_scas(filter, obsfile, cfg, indata_type='asdf'):
                 this_wcs = wcs.WCS(this_file["SCI"].header)
                 all_wcs.append(this_wcs)
                 this_file.close()
-            elif indata_type=="asdf":
+            elif indata_type == "asdf":
                 if ("noise" not in f) and ("mask" not in f):
                     n_scas += 1
                     this_obsfile = str(m.group(0))
                     all_scas.append(this_obsfile)
-                    this_file = asdf.open(f, memmap=True)
+                    this_file = asdf.open(f, memmap=True, lazy_load=False)
                     this_wcs = PyIMCOM_WCS(this_file["roman"]["meta"]["wcs"])
                     all_wcs.append(this_wcs)
                     this_file.close()
-    write_to_file(f"N SCA images in this mosaic: {str(n_scas)}", cfg.ds_outpath)
-    write_to_file("SCA List:", cfg.ds_outpath+"SCA_list.txt")
+    write_to_file(f"N SCA images in this mosaic: {str(n_scas)}", cfg.ds_outpath + filter_ + cfg.ds_outstem)
+    write_to_file("SCA List:", cfg.ds_outpath + "SCA_list.txt")
     for i, s in enumerate(all_scas):
-        write_to_file(f"SCA {i}: {s}", cfg.ds_outpath+"SCA_list.txt") 
+        write_to_file(f"SCA {i}: {s}", cfg.ds_outpath + "SCA_list.txt")
     return all_scas, all_wcs
 
 
 def interpolate_image_bilinear(image_B, image_A, interpolated_image, mask=None):
     """
     Interpolate values from a "reference" SCA image onto a "target" SCA coordinate grid
-    Uses pyimcom_croutines.bilinear_interpolation(float* image, float* g_eff, int rows, int cols, float* coords,
-                                                    int num_coords, float* interpolated_image)
+    Uses pyimcom_croutines.bilinear_interpolation(
+        float* image, float* g_eff, int rows, int cols, float* coords,
+        int num_coords, float* interpolated_image)
 
     Parameters
     --------
@@ -784,8 +803,9 @@ def interpolate_image_bilinear(image_B, image_A, interpolated_image, mask=None):
 def transpose_interpolate(image_A, wcs_A, image_B, original_image):
     """
     Interpolate backwards from image_A to image_B space.
-    Uses bilinear_transpose(float* image, int rows, int cols, float* coords, int num_coords, float* original_image)
-
+    Uses bilinear_transpose(
+        float* image, int rows, int cols, float* coords, int num_coords,
+        float* original_image)
 
      Parameters
      --------
@@ -810,20 +830,20 @@ def transpose_interpolate(image_A, wcs_A, image_B, original_image):
     pyimcom_croutines.bilinear_transpose(image_A, rows, cols, coords, num_coords, original_image)
 
 
-def transpose_par(I):
+def transpose_par(img):
     """
     Sum up the values of an image across rows
 
     Parameters
     --------
-    I : 2D np.array
+    img : 2D np.array
         Input array
 
      Returns
     --------
        1D np.array, the sum across each row of I
     """
-    return np.sum(I, axis=1)
+    return np.sum(img, axis=1)
 
 
 def get_effective_gain(sca, tempdir=tempdir):
@@ -834,6 +854,8 @@ def get_effective_gain(sca, tempdir=tempdir):
     --------
     sca : Str
         format like "<prefix>_<obsid>_<scaid>" describing which SCA to get the effective gain for
+    tempdir : Str
+        directory where the effective gain files are stored
 
     Returns
     --------
@@ -965,14 +987,12 @@ def get_neighbors(scalist, ov_mat, overlap_thresh=0.1):
         dictionary where keys are SCA indices and values are lists of indices of overlapping SCAs
     """
     neighbors = {}
-    for k, sca_a in enumerate(scalist):
+    for k, sca_a in enumerate(scalist):  # noqa: B007
         neighbors[k] = [j for j in range(len(scalist)) if ov_mat[k, j] >= overlap_thresh and j != k]
     return neighbors
 
 
-def residual_function(
-    psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg, extrareturn=False
-):
+def residual_function(psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg, extrareturn=False):
     """
     Calculate the residual image, = grad(epsilon)
 
@@ -993,24 +1013,24 @@ def residual_function(
         threshold for Huber loss cost function; default None
     workers : Int
         number of parallel workers to use
-    cfg : Config object 
+    cfg : Config object
         the configuration for this run
-    extrareturn : Bool 
+    extrareturn : Bool
         if True, return residual terms 1 and 2 separately; Default False
             in addition to full residuals. returns resids, resids1, resids2
 
-        
+
     Returns
     --------
     resids : 2D np array
         with one row per SCA and one col per parameter
-        """
-    
+    """
+
     resids = Parameters(cfg, scalist).params
     if extrareturn:
         resids1 = np.zeros_like(resids)
         resids2 = np.zeros_like(resids)
-    write_to_file('Residual calculation started')
+    write_to_file("Residual calculation started")
     sys.stdout.flush()
     t_r_0 = time.time()
 
@@ -1021,12 +1041,12 @@ def residual_function(
                 k,
                 sca_a,
                 wcslist[k],
-                psi[k,:,:],
+                psi[k, :, :],
                 f_prime,
                 scalist,
                 neighbors,
                 thresh,
-                cfg
+                cfg,
             )
             for k, sca_a in enumerate(scalist)
         ]
@@ -1044,12 +1064,13 @@ def residual_function(
                     resids2[j, :] += term_2
 
         # KL explicitly give output locations to write_to_file (these should go to the diagnostics directory)
-        # could give cfg to write_to_file 
+        # could give cfg to write_to_file
     write_to_file(f"Residuals calculation finished in {(time.time() - t_r_0) / 60} minutes.")
     write_to_file(f"Average time making resids per sca: {(time.time() - t_r_0) / len(scalist)} seconds")
     if extrareturn:
         return resids, resids1, resids2
     return resids
+
 
 def residual_function_single(k, sca_a, wcs_a, psi_a, f_prime, scalist, neighbors, thresh, cfg):
     """
@@ -1063,8 +1084,8 @@ def residual_function_single(k, sca_a, wcs_a, psi_a, f_prime, scalist, neighbors
         the SCA label, formatted like <obsid>_<scaid>
     wcs_a : wcs.WCS object
         the WCS object for this SCA
-    psi : 3D np array
-        the image difference array (I_A - J_A) (N_SCA, 4088, 4088)
+    psi_a : 2D np array
+        the difference image I_A - J_A for this SCA
     f_prime : Function
         the derivative of the cost function f
     scalist : List of Str
@@ -1086,7 +1107,6 @@ def residual_function_single(k, sca_a, wcs_a, psi_a, f_prime, scalist, neighbors
         list of (j, term_2) tuples containing value for term 2
         for each SCA j that overlaps with this one
     """
-    t0=time.time()
     # Go and get the WCS object for image A
     obsid_A, scaid_A = get_ids(sca_a)
 
@@ -1122,6 +1142,7 @@ def residual_function_single(k, sca_a, wcs_a, psi_a, f_prime, scalist, neighbors
         term_2_list.append((j, term_2))
 
     return k, term_1, term_2_list
+
 
 def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg):
     """
@@ -1162,12 +1183,15 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg):
     I_A.subtract_parameters(p, j)
     I_A.apply_all_mask()
 
-    if img_full_output["scaid"]!=0 and testing:
-        if obsid_A == str(img_full_output["obsid"]) and scaid_A == str(img_full_output["scaid"]):
+    if img_full_output["scaid"] != 0 and testing:
+        example_obs = obsid_A == str(img_full_output["obsid"])
+        example_sca = scaid_A == str(img_full_output["scaid"])
+        if example_obs and example_sca:
             hdu = fits.PrimaryHDU(I_A.image)
-            hdu.writeto(test_image_dir + 
-                        f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_I_A_sub_masked.fits', 
-                        overwrite=True)
+            hdu.writeto(
+                test_image_dir + f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_I_A_sub_masked.fits',
+                overwrite=True,
+            )
 
     J_A_image, J_A_mask = I_A.make_interpolated(j, scalist, neighbors, params=p)
 
@@ -1177,22 +1201,27 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg):
     result = f(psi, thresh) if thresh is not None else f(psi)
     local_epsilon = np.sum(result)
 
-    if img_full_output["scaid"]!=0 and testing:
-        if obsid_A == str(img_full_output["obsid"]) and scaid_A == str(img_full_output["scaid"]):
-            hdu = fits.PrimaryHDU(J_A_image * J_A_mask)
-            hdu.writeto(test_image_dir + f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_J_A_masked.fits', overwrite=True)
+    if example_obs and example_sca:
+        hdu = fits.PrimaryHDU(J_A_image * J_A_mask)
+        hdu.writeto(
+            test_image_dir + f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_J_A_masked.fits',
+            overwrite=True,
+        )
 
-            hdu = fits.PrimaryHDU(psi)
-            hdu.writeto(test_image_dir + f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_Psi.fits', overwrite=True)
+        hdu = fits.PrimaryHDU(psi)
+        hdu.writeto(
+            test_image_dir + f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_Psi.fits', overwrite=True
+        )
 
-            write_to_file(f"Sample stats for SCA {img_full_output}:")
-            write_to_file(f"Image A mean: {np.mean(I_A.image)}")
-            write_to_file(f"Image B mean: {np.mean(J_A_image)}")
-            write_to_file(f"Psi mean: {np.mean(psi)}")
-            write_to_file(f"f(Psi) mean: {np.mean(result)}")
-            write_to_file(f"Local epsilon for SCA {j}: {local_epsilon}")
+        write_to_file(f"Sample stats for SCA {img_full_output}:")
+        write_to_file(f"Image A mean: {np.mean(I_A.image)}")
+        write_to_file(f"Image B mean: {np.mean(J_A_image)}")
+        write_to_file(f"Psi mean: {np.mean(psi)}")
+        write_to_file(f"f(Psi) mean: {np.mean(result)}")
+        write_to_file(f"Local epsilon for SCA {j}: {local_epsilon}")
 
     return j, psi, local_epsilon
+
 
 def cost_function(p, f, thresh, workers, scalist, neighbors, cfg, tempdir=tempdir):
     """
@@ -1212,9 +1241,11 @@ def cost_function(p, f, thresh, workers, scalist, neighbors, cfg, tempdir=tempdi
         the list of all SCAs in this mosaic
     neighbors : Dict
         dictionary where keys are SCA indices and values are lists of indices of threshold-overlapping SCAs
-    cfg : Config object 
+    cfg : Config object
         the configuration for this run
-    
+    tempdir : Str
+        directory to store temporary files
+
     Returns
     --------
     epsilon: int
@@ -1222,9 +1253,11 @@ def cost_function(p, f, thresh, workers, scalist, neighbors, cfg, tempdir=tempdi
     psi : D np array
         the difference images I_A-J_A
     """
-    write_to_file('Initializing cost function')
+    write_to_file("Initializing cost function")
     t0_cost = time.time()
-    psi = np.memmap(tempdir+'psi_all.dat', dtype=use_output_float, mode='w+', shape=(len(scalist), 4088, 4088))
+    psi = np.memmap(
+        tempdir + "psi_all.dat", dtype=use_output_float, mode="w+", shape=(len(scalist), 4088, 4088)
+    )
     psi.fill(0)
     epsilon = 0
 
@@ -1347,18 +1380,14 @@ def linear_search_general(
     max_params = p.params + alpha_max * direction
     max_p.params = max_params
     max_epsilon, max_psi = cost_function(max_p, f, thresh, workers, scalist, neighbors, cfg)
-    max_resids = residual_function(
-        max_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg
-    )
+    max_resids = residual_function(max_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg)
     del max_psi
     d_cost_max = np.sum(max_resids * direction)
 
     min_params = p.params + alpha_min * direction
     min_p.params = min_params
     min_epsilon, min_psi = cost_function(min_p, f, thresh, workers, scalist, neighbors, cfg)
-    min_resids = residual_function(
-        min_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg
-    )
+    min_resids = residual_function(min_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg)
     del min_psi
     d_cost_min = np.sum(min_resids * direction)
 
@@ -1376,9 +1405,7 @@ def linear_search_general(
             write_to_file(f"Initial alpha range (min, test, max): ({alpha_min}, {alpha_test}, {alpha_max})")
 
         if k == n_iter - 1:
-            write_to_file(
-                "WARNING: Linear search did not converge!! This is going to break because best_p is not assigned."
-            )
+            write_to_file("WARNING: Linear search did not converge!!")
 
         if k != 1:
             alpha_test = alpha_min - (
@@ -1452,7 +1479,8 @@ def linear_search_quadratic(
     For the quadratic cost function, direct calculation of alpha that minimizes the function
         d_epsilon/d_alpha in the given direction . Note alpha = depth of step in direction
 
-    Finds the best alpha, computes the new parameters and diff image, and prints the new cost and convergence criteria
+    Finds the best alpha, computes the new parameters and diff image, and prints the new
+    cost and convergence criteria
 
     Parameters
     --------
@@ -1499,25 +1527,15 @@ def linear_search_quadratic(
     trial_p = copy.deepcopy(p)
 
     eta = 0.1
-    d_cost_init = np.sum(grad_current * direction)
 
     alpha_test = -eta * (np.sum(grad_current * direction)) / (np.sum(direction * direction) + 1e-12)
-    if alpha_test <= 0:
-        # Not a descent direction — fallback
-        alpha_min = -0.9
-        alpha_max = 1.0
-    else:
-        # Curvature-based search window
-        alpha_min = alpha_test * 1e-4
-        alpha_max = alpha_test * 10
+    alpha_max = 1.0 if alpha_test <= 0 else alpha_test * 10
 
     # Calculate
     trial_params = p.params + alpha_max * direction
     trial_p.params = trial_params
     trial_epsilon, trial_psi = cost_function(trial_p, f, thresh, workers, scalist, neighbors, cfg)
-    trial_resids = residual_function(
-        trial_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg
-    )
+    trial_resids = residual_function(trial_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg)
     del trial_psi, trial_epsilon
 
     alpha_new = (
@@ -1562,7 +1580,7 @@ def conjugate_gradient(
     restart_file=None,
     time_limit=None,
     cfg=None,
-    of="destripe_out.txt"
+    of="destripe_out.txt",
 ):
     """
     Algorithm to use conjugate gradient descent to optimize the parameters for destriping.
@@ -1584,7 +1602,7 @@ def conjugate_gradient(
         the list of all SCAs in this mosaic
     wcslist : List of WCS objects
         the WCS object for each SCA in scalist (same order)
-    neighbors : Dict    
+    neighbors : Dict
         dictionary where keys are SCA indices and values are lists of indices of overlapping SCAs
     restart_file : Str or None
         if not None, path to pickle file containing restart state
@@ -1660,7 +1678,7 @@ def conjugate_gradient(
 
     sys.stdout.flush()
 
-    for i in range(i + 1, cfg.cg_maxiter):
+    for i in range(i + 1, cfg.cg_maxiter):  # noqa: B020
         write_to_file(f"### CG Iteration: {i + 1}", of)
         test_image_dir = cfg.ds_outpath + "/test_images/" + str(i + 1) + "/"
         os.makedirs(test_image_dir, exist_ok=True)
@@ -1668,9 +1686,7 @@ def conjugate_gradient(
 
         # Compute the gradient
         if grad is None:
-            grad = residual_function(
-                psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg
-            )
+            grad = residual_function(psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg)
             write_to_file(
                 f"Minutes spent in initial residual function: {(time.time() - t_start_CG_iter) / 60}", of
             )
@@ -1723,19 +1739,9 @@ def conjugate_gradient(
         write_to_file(f"Initiating linear search in direction: {direction}", of)
         sys.stdout.flush()
 
-        if cost_model=='quadratic':
+        if cost_model == "quadratic":
             p_new, psi_new, grad_new, epsilon_new = linear_search_quadratic(
-                p, 
-                direction, 
-                f, 
-                f_prime, 
-                grad, 
-                thresh, 
-                workers, 
-                scalist, 
-                wcslist, 
-                neighbors, 
-                cfg
+                p, direction, f, f_prime, grad, thresh, workers, scalist, wcslist, neighbors, cfg
             )
 
         else:
@@ -1753,7 +1759,7 @@ def conjugate_gradient(
                 scalist,
                 wcslist,
                 neighbors,
-                cfg
+                cfg,
             )
 
         print(f"Global elapsed t = {(time.time()-t0_global)/60:8.1f}")
@@ -1839,18 +1845,19 @@ def conjugate_gradient(
 
 
 def main():
+    """
+    Main function to run destriping via conjugate gradient descent
+    """
     CG_models = {"FR", "PR", "HS", "DY"}
 
     cfg_file = sys.argv[1] if len(sys.argv) > 1 else None
     if cfg_file is not None:
-        CFG = Config(
-            cfg_file=cfg_file
-        )
+        CFG = Config(cfg_file=cfg_file)
     else:
         raise ValueError("Please provide a config file as a command line argument.")
-    
+
     filter_ = filters[CFG.use_filter]
-    outpath = CFG.ds_outpath  
+    outpath = CFG.ds_outpath
 
     # Prior on cost function is not yet implemented
     # if CFG.cost_prior != 0:
@@ -1869,6 +1876,7 @@ def main():
 
     all_scas, all_wcs = get_scas(filter_, CFG.ds_obsfile, CFG, indata_type="asdf")
     write_to_file(f"{len(all_scas)} SCAs in this mosaic", filename=outfile)
+    sys.stdout.flush()
 
     if testing:
         if os.path.isfile(outpath + "ovmat.npy"):
@@ -1893,9 +1901,10 @@ def main():
             f"Overlap matrix complete. Duration: {(time.time() - ovmat_t0) / 60} Minutes", filename=outfile
         )
 
+    sys.stdout.flush()
     neighbors = get_neighbors(all_scas, ov_mat)
     # Initialize parameters
-    p0 = Parameters(cfg=CFG, scalist=all_scas) 
+    p0 = Parameters(cfg=CFG, scalist=all_scas)
     cm = Cost_models(cfg=CFG)
 
     # Do it
@@ -1911,14 +1920,15 @@ def main():
             neighbors,
             time_limit=7200,
             cfg=CFG,
-            of=outfile
+            of=outfile,
         )
         hdu = fits.PrimaryHDU(p.params)
         hdu.writeto(outpath + "final_params.fits", overwrite=True)
         print(outpath + "final_params.fits created \n")
+        sys.stdout.flush()
 
     except Exception as e:
-        print(f'Exception: {e}')
+        print(f"Exception: {e}")
         logging.exception("An error occurred:")
         print("Conjugate gradient failed. Restart state saved to cg_restart.pkl\n")
 
