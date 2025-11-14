@@ -17,3 +17,4 @@ fsspec
 requests
 s3fs
 aiohttp
+memory_profiler
