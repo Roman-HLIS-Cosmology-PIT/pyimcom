@@ -1012,6 +1012,8 @@ class PSFOvl:
         """
         Set up class attribute.
 
+        This must be run after ``PSFGrp.setup``.
+
         Parameters
         ----------
         flat_penalty : float, optional
@@ -1025,6 +1027,11 @@ class PSFOvl:
         """
 
         cls.flat_penalty = flat_penalty
+
+        # Properties that depend on PSFGrp.
+        cls.psfsplit = PSFGrp.psfsplit
+        cls.nsamp = 2 * PSFGrp.nsamp + 1 if cls.psfsplit else PSFGrp.nsamp
+        cls.nc = cls.nsamp // 2
 
     def __init__(
         self, psfgrp1: PSFGrp, psfgrp2: PSFGrp = None, verbose: bool = False, visualize: bool = False
@@ -1153,12 +1160,19 @@ class PSFOvl:
 
         Note: m2 stands for axis=-2, and m1 stands for axis=-1.
 
+        If PSFOvl.nsamp is at least half of PSFGrp.nfft, then reverts to using irfft2 and ifftshift.
+
         """
 
         n_arr = ovl_rft.shape[0]
-        ovl_m2 = np.zeros((n_arr, PSFGrp.nsamp, PSFGrp.nfft // 2 + 1), dtype=np.complex128)
-        ovl_m1 = np.zeros((n_arr, PSFGrp.nsamp, PSFGrp.nsamp))
-        nc = PSFGrp.nc  # shortcut
+        nc = PSFOvl.nc  # shortcut
+
+        # if too big, default to irfft2 and ifftshift.
+        if PSFOvl.nsamp >= PSFGrp.nfft // 2 * 0:
+            return np.roll(numpy_fft.irfft2(ovl_rft), nc, axis=(-2, -1))[:, : 2 * nc + 1, : 2 * nc + 1]
+
+        ovl_m2 = np.zeros((n_arr, PSFOvl.nsamp, PSFGrp.nfft // 2 + 1), dtype=np.complex128)
+        ovl_m1 = np.zeros((n_arr, PSFOvl.nsamp, PSFOvl.nsamp))
 
         ift_m2 = numpy_fft.ifft(ovl_rft, axis=-2)
         ovl_m2[:, :nc, :] = ift_m2[:, -nc:, :]
@@ -1188,7 +1202,7 @@ class PSFOvl:
         """
 
         if self.grp2 is not None:  # cross-overlap
-            self.ovl_arr = np.zeros((self.grp1.n_psf, self.grp2.n_psf, PSFGrp.nsamp, PSFGrp.nsamp))
+            self.ovl_arr = np.zeros((self.grp1.n_psf, self.grp2.n_psf, PSFOvl.nsamp, PSFOvl.nsamp))
 
             for idx in range(self.grp1.n_psf):
                 ovl_rft = self.grp1.psf_rft[idx] * self.grp2.psf_rft.conjugate()
@@ -1200,7 +1214,7 @@ class PSFOvl:
 
         elif self.grp1.in_or_out:  # input self-overlap
             n_psf = self.grp1.n_psf  # shortcut
-            self.ovl_arr = np.zeros((n_psf * (n_psf + 1) // 2, PSFGrp.nsamp, PSFGrp.nsamp))
+            self.ovl_arr = np.zeros((n_psf * (n_psf + 1) // 2, PSFOvl.nsamp, PSFOvl.nsamp))
 
             for idx in range(n_psf):
                 start = self._idx_square2triangle(idx, idx)
@@ -1218,7 +1232,7 @@ class PSFOvl:
             del ovl_rft
 
             # extract C value(s)
-            self.outovlc = self.ovl_arr[:, PSFGrp.nc, PSFGrp.nc]
+            self.outovlc = self.ovl_arr[:, PSFOvl.nc, PSFOvl.nc]
 
             if visualize:
                 self.visualize_psfovl()
@@ -1353,10 +1367,10 @@ class PSFOvl:
             res = np.zeros((st1.pix_cumsum[-1], st2.pix_cumsum[-1]))
             ddx = st1.x_val[:, None] - st2.x_val[None, :]
             ddx /= PSFGrp.dscale
-            ddx += PSFGrp.nc
+            ddx += PSFOvl.nc
             ddy = st1.y_val[:, None] - st2.y_val[None, :]
             ddy /= PSFGrp.dscale
-            ddy += PSFGrp.nc
+            ddy += PSFOvl.nc
 
             n_psf1, n_psf2 = self.ovl_arr.shape[:2]
             if visualize:
@@ -1401,7 +1415,7 @@ class PSFOvl:
                     iD5512C(
                         np.pad(
                             self.ovl_arr[self.grp1.idx_blk2grp[j_im], self.grp2.idx_blk2grp[i_im]], 6
-                        ).reshape((1, PSFGrp.nsamp + 12, PSFGrp.nsamp + 12)),
+                        ).reshape((1, PSFOvl.nsamp + 12, PSFOvl.nsamp + 12)),
                         ddx[slice_].ravel() + 6,
                         ddy[slice_].ravel() + 6,
                         out_arr,
@@ -1466,10 +1480,10 @@ class PSFOvl:
 
             ddx = x_val_[:, None] - st2.yx_val[None, 1, 0, :]
             ddx /= PSFGrp.dscale
-            ddx += PSFGrp.nc
+            ddx += PSFOvl.nc
             ddy = y_val_[:, None] - st2.yx_val[None, 0, :, 0]
             ddy /= PSFGrp.dscale
-            ddy += PSFGrp.nc
+            ddy += PSFOvl.nc
 
             if visualize:
                 n_psf1, n_psf2 = self.ovl_arr.shape[:2]
@@ -1498,10 +1512,10 @@ class PSFOvl:
                         n2f = self.grp2.blk.cfg.n2f
                         ddx_ = st1.x_val[:, None] - st2.yx_val[1, :: (n2f - 1), :: (n2f - 1)].ravel()[None, :]
                         ddx_ /= PSFGrp.dscale
-                        ddx_ += PSFGrp.nc
+                        ddx_ += PSFOvl.nc
                         ddy_ = st1.y_val[:, None] - st2.yx_val[0, :: (n2f - 1), :: (n2f - 1)].ravel()[None, :]
                         ddy_ /= PSFGrp.dscale
-                        ddy_ += PSFGrp.nc
+                        ddy_ += PSFOvl.nc
                         ax.scatter(ddx_.ravel(), ddy_.ravel(), s=0.005, c="r")
                         del ddx_, ddy_
                         format_axis(ax, False)
@@ -1565,9 +1579,9 @@ class PSFOvl:
             #         plt.show()
 
             ddx /= PSFGrp.dscale
-            ddx += PSFGrp.nc
+            ddx += PSFOvl.nc
             ddy /= PSFGrp.dscale
-            ddy += PSFGrp.nc
+            ddy += PSFOvl.nc
 
             if visualize:
                 n_psf = self.grp1.n_psf  # shortcut
@@ -1622,7 +1636,7 @@ class PSFOvl:
                     out_arr = np.zeros((1, st1.pix_count[j_im] * st2.pix_count[i_im]))
                     interpolator = iD5512C_sym if same_inst and j_im == i_im else iD5512C
                     interpolator(
-                        np.pad(ovl_arr_, 6).reshape((1, PSFGrp.nsamp + 12, PSFGrp.nsamp + 12)),
+                        np.pad(ovl_arr_, 6).reshape((1, PSFOvl.nsamp + 12, PSFOvl.nsamp + 12)),
                         ddx[slice_].ravel() + 6,
                         ddy[slice_].ravel() + 6,
                         out_arr,

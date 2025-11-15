@@ -292,12 +292,12 @@ class CholKernel(_LAKernel):
             t0 = time.time()
 
             # Cholesky decomposition for the only eigenvalue node
-            AA = np.copy(A)
-            di = np.diag_indices(n)
+            AA = A.flatten()  # this is a copy
             my_kappa = self.kappaC_arr[0] * C[j_out]
-
             if my_kappa:
-                AA[di] += my_kappa
+                AA[:: n + 1] += my_kappa  # add to diagonal
+            AA = AA.reshape((n, n))  # and reshape to n x n matrix
+            di = np.diag_indices(n)
             t1 = time.time()
             L = self._cholesky_wrapper(AA, di, A)
             t2 = time.time()
