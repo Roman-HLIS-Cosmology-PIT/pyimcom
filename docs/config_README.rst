@@ -135,15 +135,18 @@ The valid PSF formats are the same as the input data formats in the `INDATA <IND
 PSFSPLIT: Splitting the PSF\*
 -------------------------------
 
-*Experimental feature; optional*
-
 This keyword is optional (it defaults to ``None``). If provided, it means that the ``pyimcom.splitpsf`` module has been used to split the PSF into long- and short-range parts, which will (eventually) allow for iterative cleaning of the long-range part of the PSF. An example is::
 
     "PSFSPLIT": [6.0, 10.0, 0.01]
 
 This directs ``pyimcom.splitpsf`` to split the PSF so that the short-range part goes smoothly to zero from 6 to 10 pixels, with a regularization parameter for the long-range part of epsilon=0.01.
 
-**Comment**: The PSF splitting tool is under development: it runs, but the iterative cleaning of the long-range PSF is not yet implemented. So if you use the current version, you won't achieve the improvements that we ultimately expect.
+PSFINTERP: Interpolation options for the PSF\*
+----------------------------------------------
+
+This keyword is optional (it defaults to ``D5512``). If provided, it configures the interpolation option for the PSF. ``D5512`` is the default with a 10x10 footprint and is most accurate, but the alternative ``G4460`` with 8x8 footprint is faster and may be sufficient for some applications. To turn this on, you can use::
+
+    "PSFINTERP": "G4460"
 
 Masks and layers
 ==================
