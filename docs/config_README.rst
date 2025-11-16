@@ -455,9 +455,11 @@ This is the size of the arrays used to compute PSF inner products in native pixe
 
     "NPIXPSF": 42
 
-The default of 48 is recommended for most Roman uses for now based on experience with the DC2 and OpenUniverse simulations.
+**Without PSF splitting**:
+The default of 48 is recommended for most Roman uses without PSF splitting for now based on experience with the DC2 and OpenUniverse simulations.
 
-**Comment**: If you use the PSF splitting, then we know rigorously that ``NPIXPSF`` \>4(1+alpha)R\_{out}, where R\_{out} is the outer radius of the PSF and alpha is the geometric distortion (i.e., true pixel size is 0.11(1+alpha) arcsec), is sufficient. So this will be the plan for production runs on Roman data.
+**With PSF splitting**:
+Since the short-range PSF actually goes to zero, the arrays are sized differently (the convolved PSF arrays in ``pyimcom.psfutil.PSFOvl`` have approximately twice the size of the PSF images in ``pyimcom.psfutil.PSFGrp``). In this case, we know rigorously that ``NPIXPSF`` \>2(1+alpha)R\_{out}, where R\_{out} is the outer radius of the PSF and alpha is the geometric distortion (i.e., true pixel size is 0.11(1+alpha) arcsec), is sufficient. So this will be the plan for production runs on Roman data.
 
 PSFCIRC: Apply a circular cutout to the PSF\*
 -----------------------------------------------
