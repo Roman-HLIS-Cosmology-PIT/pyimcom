@@ -537,6 +537,12 @@ def setup(tmp_path):
         Block(cfg=cfg, this_sub=iblk)
     gen_truthcats_from_cfg(cfg)
 
+    # now try the multi-kappa kernel
+    cfg.kappaC_arr = np.array([5e-4, 1e-3, 2e-3])
+    cfg.outstem += "_multik"
+    cfg()
+    Block(cfg=cfg, this_sub=1)
+
 
 def test_PyIMCOM_run1(tmp_path, setup):
     """
@@ -580,6 +586,15 @@ def test_PyIMCOM_run1(tmp_path, setup):
 
         assert np.abs(SL1 - 1) < 5e-4
         assert VAR < 1e-5
+
+        # Compare to multi-kappa case
+        with fits.open(tmp_path / "out/testout_F_multik_00_01.fits") as fblock_multik:
+            d_multik = fblock_multik[0].data[0, 0, :, :]
+            mean_diff = np.mean(d - d_multik)
+            std_diff = np.std(d - d_multik)
+            print(f"# {mean_diff}, {std_diff} from {np.std(d)}")
+            assert std_diff < 5e-6
+            assert np.abs(mean_diff) < 1e-6
 
     ## Injected star portion ##
 
