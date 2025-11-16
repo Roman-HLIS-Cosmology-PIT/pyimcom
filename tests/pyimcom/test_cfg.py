@@ -106,6 +106,8 @@ def test_interface(tmp_path):
     script += "\n"
     # FLATPEN
     script += "\n"
+    # PSFINTERP
+    script += "\n"
     # INPAD
     script += "0.950\n"
 

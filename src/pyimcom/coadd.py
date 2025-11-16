@@ -41,7 +41,7 @@ from .config import Config, Timer, format_axis, format_axis_pars
 from .config import Settings as Stn
 from .lakernel import CholKernel, EigenKernel, EmpirKernel, IterKernel
 from .layer import Mask, check_if_idsca_exists, get_all_data
-from .psfutil import PSFGrp, PSFOvl, SysMatA, SysMatB
+from .psfutil import PSFGrp, PSFInterpolator, PSFOvl, SysMatA, SysMatB
 from .wcsutil import PyIMCOM_WCS
 
 
@@ -1560,6 +1560,9 @@ class Block:
         if cfg is None:
             self.cfg = Config()  # use the default config
 
+        if hasattr(cfg, "PSFINTERP") and cfg["PSFINTERP"].upper() == "G4460":
+            print("Setting PSF interpolation to use G4460.")
+            PSFInterpolator.set_G4460()
         PSFGrp.setup(
             npixpsf=cfg.npixpsf, oversamp=cfg.inpsf_oversamp, dtheta=cfg.dtheta, psfsplit=bool(cfg.psfsplit)
         )
