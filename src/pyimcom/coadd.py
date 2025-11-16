@@ -1560,7 +1560,7 @@ class Block:
         if cfg is None:
             self.cfg = Config()  # use the default config
 
-        if hasattr(cfg, "PSFINTERP") and cfg["PSFINTERP"].upper() == "G4460":
+        if hasattr(cfg, "psf_interp") and cfg.psf_interp.upper() == "G4460":
             print("Setting PSF interpolation to use G4460.")
             PSFInterpolator.set_G4460()
         PSFGrp.setup(
