@@ -16,6 +16,8 @@ SysMatB
 
 """
 
+import warnings
+
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
@@ -39,6 +41,47 @@ except ImportError:
         from pyimcom_croutines import gridD5512C, iD5512C, iD5512C_sym
     except ImportError:
         from .routine import gridD5512C, iD5512C, iD5512C_sym
+try:
+    from furry_parakeet.pyimcom_croutines import gridG4460C, iG4460C, iG4460C_sym
+
+    _hasG4460 = True
+except ImportError:
+    _hasG4460 = False
+
+
+class PSFInterpolator:
+    """
+    Selector for PSF interpolations.
+
+    Methods
+    -------
+    set_G4460
+        Set up G4460 as default interpolator (classmethod).
+
+    Attributes
+    ----------
+    gridC : function
+        Grid interpolator, default = gridD5512C.
+    iC : function
+        General interpolator, default = iD5512C.
+    iC_sym : function
+        Symmetric interpolator, default = iD5512C_sym.
+
+    """
+
+    gridC = gridD5512C
+    iC = iD5512C
+    iC_sym = iD5512C_sym
+
+    @classmethod
+    def set_G4460(cls):
+        """Set up G4460 as default interpolator (classmethod)."""
+        if _hasG4460:
+            cls.gridC = gridG4460C
+            cls.iC = iG4460C
+            cls.iC_sym = iG4460C_sym
+        else:
+            warnings.warn("Couldn't find G4460, using D5512 interpolator as default.")
 
 
 class OutPSF:
@@ -409,7 +452,7 @@ class OutPSF:
 
         # extract PSF on the x-axis
         out_arr = np.zeros((1, PSFGrp.nsamp))
-        gridD5512C(
+        PSFInterpolator.gridC(
             np.pad(psf, 6),
             PSFGrp.yxo[None, 1, 0, :] + xctr + 6,
             PSFGrp.yxo[None, 0, PSFGrp.nc : PSFGrp.nc + 1, 0] + yctr + 6,
@@ -717,7 +760,7 @@ class PSFGrp:
 
         if idx is not None:
             out_arr = np.zeros((1, PSFGrp.nsamp**2))
-            iD5512C(
+            PSFInterpolator.iC(
                 np.pad(psf, 6).reshape((1, ny + 12, nx + 12)),
                 yxco[1].ravel() + xctr + 6,
                 yxco[0].ravel() + yctr + 6,
@@ -730,7 +773,7 @@ class PSFGrp:
             self.psf_arr = np.zeros((self.n_psf, PSFGrp.nsamp, PSFGrp.nsamp))
             out_arr = np.zeros((1, PSFGrp.nsamp**2))
             for idx in range(self.n_psf):
-                gridD5512C(
+                PSFInterpolator.gridC(
                     np.pad(psf[idx], 6),
                     PSFGrp.yxo[None, 1, 0, :] + xctr + 6,
                     PSFGrp.yxo[None, 0, :, 0] + yctr + 6,
@@ -1412,7 +1455,7 @@ class PSFOvl:
                         format_axis(ax, False)
 
                     out_arr = np.zeros((1, st1.pix_count[j_im] * st2.pix_count[i_im]))
-                    iD5512C(
+                    PSFInterpolator.iC(
                         np.pad(
                             self.ovl_arr[self.grp1.idx_blk2grp[j_im], self.grp2.idx_blk2grp[i_im]], 6
                         ).reshape((1, PSFOvl.nsamp + 12, PSFOvl.nsamp + 12)),
@@ -1521,7 +1564,7 @@ class PSFOvl:
                         format_axis(ax, False)
 
                     out_arr = np.zeros((pix_count_[j_im], n_outpix))
-                    gridD5512C(
+                    PSFInterpolator.gridC(
                         np.pad(self.ovl_arr[self.grp1.idx_blk2grp[j_im], i_psf], 6),
                         ddx[pix_cumsum_[j_im] : pix_cumsum_[j_im + 1], :] + 6,
                         ddy[pix_cumsum_[j_im] : pix_cumsum_[j_im + 1], :] + 6,
@@ -1634,7 +1677,9 @@ class PSFOvl:
                         format_axis(ax, False)
 
                     out_arr = np.zeros((1, st1.pix_count[j_im] * st2.pix_count[i_im]))
-                    interpolator = iD5512C_sym if same_inst and j_im == i_im else iD5512C
+                    interpolator = (
+                        PSFInterpolator.iC_sym if same_inst and j_im == i_im else PSFInterpolator.iC
+                    )
                     interpolator(
                         np.pad(ovl_arr_, 6).reshape((1, PSFOvl.nsamp + 12, PSFOvl.nsamp + 12)),
                         ddx[slice_].ravel() + 6,
