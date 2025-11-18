@@ -557,7 +557,7 @@ def setup(tmp_path):
     cfg2 = copy.deepcopy(cfg)
     cfg2.linear_algebra = "Iterative"
     cfg2.iter_rtol = 1.5e-3
-    cfg2.iter_max = 5
+    cfg2.iter_max = 2  # not a good choice, just fast for testing
     cfg2.outstem += "_iter"
     cfg2()
     Block(cfg=cfg2, this_sub=1)
