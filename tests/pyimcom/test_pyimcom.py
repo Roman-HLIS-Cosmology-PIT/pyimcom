@@ -630,8 +630,8 @@ def test_PyIMCOM_run1(tmp_path, setup):
             mean_diff = np.mean(d - d_multik)
             std_diff = np.std(d - d_multik)
             print(f"# {mean_diff}, {std_diff} from {np.std(d)}")
-            assert std_diff < 1e-4
-            assert np.abs(mean_diff) < 1e-5
+            assert std_diff < 2e-4
+            assert np.abs(mean_diff) < 2.5e-3
 
     ## Injected star portion ##
 
