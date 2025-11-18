@@ -206,7 +206,7 @@ class Sca_img:
             elif indata_type == "asdf":
                 file = asdf.open(
                     cfg.ds_obsfile + filters[cfg.use_filter] + "_" + obsid + "_" + scaid + ".asdf",
-                    memmap=True,
+                    memmap=False,
                     lazy_load=False,
                 )
                 self.w = PyIMCOM_WCS(file["roman"]["meta"]["wcs"])
@@ -251,7 +251,7 @@ class Sca_img:
         else:
             # PLACEHOLDER for reading in real flat fields as gain
             # Needs to be adapted once actual file format is known
-            g_eff_file = asdf.open(cfg.gaindir + cfg.use_filter + "_geff.fits", memmap=True)
+            g_eff_file = asdf.open(cfg.gaindir + cfg.use_filter + "_geff.fits", memmap=False)
             self.g_eff = g_eff_file[int(scaid) - 1].data.astype(np.float64)
             g_eff_file.close()
 
@@ -745,7 +745,7 @@ def get_scas(filter_, obsfile, cfg, indata_type="asdf"):
                     n_scas += 1
                     this_obsfile = str(m.group(0))
                     all_scas.append(this_obsfile)
-                    this_file = asdf.open(f, memmap=True, lazy_load=False)
+                    this_file = asdf.open(f, memmap=False, lazy_load=False)
                     this_wcs = PyIMCOM_WCS(this_file["roman"]["meta"]["wcs"])
                     all_wcs.append(this_wcs)
                     this_file.close()
