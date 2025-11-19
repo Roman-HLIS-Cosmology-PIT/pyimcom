@@ -73,6 +73,7 @@ import random
 import re
 import sys
 import time
+import traceback
 import uuid
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
@@ -202,19 +203,29 @@ class Sca_img:
                 self.w = wcs.WCS(file[image_hdu].header)
                 self.image = np.copy(file[image_hdu].data).astype(np.float64)
                 self.header = file[image_hdu].header
+                self.shape = np.shape(self.image)
+                file.close()
 
             elif indata_type == "asdf":
-                file = asdf.open(
-                    cfg.ds_obsfile + filters[cfg.use_filter] + "_" + obsid + "_" + scaid + ".asdf",
-                    memmap=False,
-                    lazy_load=False,
-                )
-                self.w = PyIMCOM_WCS(file["roman"]["meta"]["wcs"])
-                self.image = np.array(file["roman"]["data"], copy=True).astype(np.float64)
-                self.header = None
+                fp = cfg.ds_obsfile + filters[cfg.use_filter] + "_" + obsid + "_" + scaid + ".asdf"
+                lockpath = fp + ".lock"
+                lock = FileLock(lockpath)
 
-        self.shape = np.shape(self.image)
-        file.close()
+                for attempt in range(3):
+                    try:
+                        with lock.acquire(timeout=30):
+                            file = asdf.open(fp, memmap=False, lazy_load=False)
+                            self.w = PyIMCOM_WCS(file["roman"]["meta"]["wcs"])
+                            self.image = np.copy(file["roman"]["data"]).astype(np.float64)
+                            self.header = None
+                            self.shape = np.shape(self.image)
+                            file.close()
+                        break  # Success, exit the retry loop
+                    except Timeout:
+                        write_to_file(f"Failed to read {fp}; lock acquire timeout")
+                        sys.exit()
+                    except OSError as e:
+                        write_to_file(f"Read failed for {fp} (attempt {attempt + 1}): {e}.")
 
         self.obsid = obsid
         self.scaid = scaid
@@ -1268,11 +1279,15 @@ def cost_function(p, f, thresh, workers, scalist, neighbors, cfg, tempdir=tempdi
         ]
 
         for future in as_completed(futures):
-            j, psi_j, local_eps = future.result()
-            psi[j, :, :] = psi_j
-            del psi_j
-            epsilon += local_eps
-
+            try:
+                j, psi_j, local_eps = future.result()
+                psi[j, :, :] = psi_j
+                del psi_j
+                epsilon += local_eps
+            except Exception as e:
+                print(f"Worker failed with exception: {e}", flush=True)
+                traceback.print_exc()
+                raise
     write_to_file(f"Ending cost function. Time elapsed: {(time.time() - t0_cost) / 60} minutes")
     write_to_file(
         f"Average time per cost function iteration: {(time.time() - t0_cost) / len(scalist)} seconds"
