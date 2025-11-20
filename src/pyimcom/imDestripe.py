@@ -213,7 +213,7 @@ class Sca_img:
 
             elif indata_type == "asdf":
                 fp = cfg.ds_obsfile + filters[cfg.use_filter] + "_" + obsid + "_" + scaid + ".asdf"
-                lockpath = fp + ".lock"
+                lockpath = os.path.join(tempdir, os.path.basename(fp) + ".lock")
                 lock = FileLock(lockpath)
 
                 for attempt in range(3):
