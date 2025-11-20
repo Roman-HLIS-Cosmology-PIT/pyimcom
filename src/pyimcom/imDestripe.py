@@ -193,6 +193,11 @@ class Sca_img:
         if interpolated:
             file = fits.open(tempdir + "interpolations/" + obsid + "_" + scaid + "_interp.fits", memmap=True)
             image_hdu = "PRIMARY"
+            self.w = wcs.WCS(file[image_hdu].header)
+            self.image = np.copy(file[image_hdu].data).astype(np.float64)
+            self.header = file[image_hdu].header
+            self.shape = np.shape(self.image)
+            file.close()
         else:
             if indata_type == "fits":
                 file = fits.open(
@@ -618,7 +623,7 @@ def save_fits(image, filename, dir=None, overwrite=True, s=False, header=None, r
         Number of write retry attempts if write fails.
     """
     fp = os.path.join(dir, filename + ".fits")
-    lockpath = fp + ".lock"
+    lockpath = lockpath = os.path.join(tempdir, os.path.basename(fp) + ".lock")
     lock = FileLock(lockpath)
 
     for attempt in range(retries):
