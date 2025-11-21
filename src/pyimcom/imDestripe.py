@@ -94,6 +94,14 @@ try:
 except ImportError:
     import pyimcom_croutines
 
+import warnings
+
+from asdf.exceptions import AsdfConversionWarning, AsdfPackageVersionWarning
+
+# Suppress ASDF warnings
+warnings.filterwarnings("ignore", category=AsdfConversionWarning)
+warnings.filterwarnings("ignore", category=AsdfPackageVersionWarning)
+
 # from Config.Settings import RomanFilters as filters
 filters = Settings.RomanFilters
 t0_global = time.time()  # after imports
@@ -213,24 +221,11 @@ class Sca_img:
 
             elif indata_type == "asdf":
                 fp = cfg.ds_obsfile + filters[cfg.use_filter] + "_" + obsid + "_" + scaid + ".asdf"
-                lockpath = os.path.join(tempdir, os.path.basename(fp) + ".lock")
-                lock = FileLock(lockpath)
-
-                for attempt in range(3):
-                    try:
-                        with lock.acquire(timeout=30):
-                            file = asdf.open(fp, memmap=False, lazy_load=False)
-                            self.w = PyIMCOM_WCS(file["roman"]["meta"]["wcs"])
-                            self.image = np.copy(file["roman"]["data"]).astype(np.float64)
-                            self.header = None
-                            self.shape = np.shape(self.image)
-                            file.close()
-                        break  # Success, exit the retry loop
-                    except Timeout:
-                        write_to_file(f"Failed to read {fp}; lock acquire timeout")
-                        sys.exit()
-                    except OSError as e:
-                        write_to_file(f"Read failed for {fp} (attempt {attempt + 1}): {e}.")
+                with asdf.open(fp, memmap=False, lazy_load=True) as file:
+                    self.w = PyIMCOM_WCS(file["roman"]["meta"]["wcs"])
+                    self.image = np.copy(file["roman"]["data"]).astype(np.float64)
+                    self.header = None
+                    self.shape = np.shape(self.image)
 
         self.obsid = obsid
         self.scaid = scaid
@@ -651,6 +646,27 @@ def save_fits(image, filename, dir=None, overwrite=True, s=False, header=None, r
                 raise RuntimeError(f"Failed to write {fp} after {retries} attempts. Last error: {e}") from e
 
 
+def safe_worker_wrapper(func):
+    """Wrapper to catch and log worker crashes"""
+
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            # Log to a file that persists after process death
+            error_log = "./worker_crash.log"
+            with open(error_log, "a") as f:
+                f.write(f"\n{'='*60}\n")
+                f.write(f"Worker crashed with: {type(e).__name__}: {e}\n")
+                f.write(traceback.format_exc())
+                f.write(f"Args: {args[0] if args else 'none'}\n")
+                f.write(f"{'='*60}\n")
+            sys.stderr.flush()
+            raise  # Re-raise to trigger BrokenProcessPool
+
+    return wrapper
+
+
 def apply_object_mask(image, mask=None, threshold_m=0, threshold_c=0.3, inplace=False):
     """
     Apply a bright object mask to an image.
@@ -761,10 +777,10 @@ def get_scas(filter_, obsfile, cfg, indata_type="asdf"):
                     n_scas += 1
                     this_obsfile = str(m.group(0))
                     all_scas.append(this_obsfile)
-                    this_file = asdf.open(f, memmap=False, lazy_load=False)
-                    this_wcs = PyIMCOM_WCS(this_file["roman"]["meta"]["wcs"])
-                    all_wcs.append(this_wcs)
-                    this_file.close()
+                    with asdf.open(f, memmap=False, lazy_load=True) as this_file:
+                        this_wcs = PyIMCOM_WCS(this_file["roman"]["meta"]["wcs"])
+                        all_wcs.append(this_wcs)
+
     write_to_file(f"N SCA images in this mosaic: {str(n_scas)}", cfg.ds_outpath + filter_ + cfg.ds_outstem)
     write_to_file("SCA List:", cfg.ds_outpath + "SCA_list.txt")
     for i, s in enumerate(all_scas):
@@ -1088,6 +1104,7 @@ def residual_function(psi, f_prime, scalist, wcslist, neighbors, thresh, workers
     return resids
 
 
+@safe_worker_wrapper
 def residual_function_single(k, sca_a, wcs_a, psi_a, f_prime, scalist, neighbors, thresh, cfg):
     """
     Calculate the residual for a single SCA image
@@ -1160,6 +1177,7 @@ def residual_function_single(k, sca_a, wcs_a, psi_a, f_prime, scalist, neighbors
     return k, term_1, term_2_list
 
 
+@safe_worker_wrapper
 def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg):
     """
     Calculate the cost function for a single SCA image
@@ -1194,8 +1212,9 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg):
     """
     m = re.search(r"_(\d+)_(\d+)", sca_a)
     obsid_A, scaid_A = m.group(1), m.group(2)
-
     I_A = Sca_img(obsid_A, scaid_A, cfg)
+    print(f"Initialized image {obsid_A}_{scaid_A} for cost function calculation.")
+    sys.stdout.flush()
     I_A.subtract_parameters(p, j)
     I_A.apply_all_mask()
 
@@ -1210,7 +1229,8 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg):
             )
 
     J_A_image, J_A_mask = I_A.make_interpolated(j, scalist, neighbors, params=p)
-
+    print(f"Interpolated image {obsid_A}_{scaid_A} for cost function calculation.")
+    sys.stdout.flush()
     J_A_mask *= I_A.mask
 
     psi = np.where(J_A_mask, I_A.image - J_A_image, 0).astype("float32")
