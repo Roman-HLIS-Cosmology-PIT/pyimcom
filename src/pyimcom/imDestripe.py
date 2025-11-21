@@ -63,6 +63,7 @@ conjugate_gradient
 import copy
 import cProfile
 import csv
+import gc
 import glob
 import io
 import logging
@@ -223,7 +224,7 @@ class Sca_img:
                 fp = cfg.ds_obsfile + filters[cfg.use_filter] + "_" + obsid + "_" + scaid + ".asdf"
                 with asdf.open(fp, memmap=False, lazy_load=True) as file:
                     self.w = PyIMCOM_WCS(file["roman"]["meta"]["wcs"])
-                    self.image = np.copy(file["roman"]["data"]).astype(np.float64)
+                    self.image = np.array(file["roman"]["data"], dtype=np.float64)
                     self.header = None
                     self.shape = np.shape(self.image)
 
@@ -478,6 +479,12 @@ class Sca_img:
             if make_Neff:
                 N_eff += B_mask_interp
 
+            # Free memory
+            del I_B.image
+            del I_B.g_eff
+            del I_B
+            gc.collect()
+
         write_to_file(
             f"Interpolation of {self.obsid}_{self.scaid} done. Number of contributing SCAs: {N_BinA}"
         )
@@ -498,6 +505,8 @@ class Sca_img:
         if make_Neff:
             N_eff.flush()
         del N_eff
+        gc.collect()
+
         return this_interp, new_mask
 
 
@@ -618,7 +627,7 @@ def save_fits(image, filename, dir=None, overwrite=True, s=False, header=None, r
         Number of write retry attempts if write fails.
     """
     fp = os.path.join(dir, filename + ".fits")
-    lockpath = lockpath = os.path.join(tempdir, os.path.basename(fp) + ".lock")
+    lockpath = os.path.join(tempdir, os.path.basename(fp) + ".lock")
     lock = FileLock(lockpath)
 
     for attempt in range(retries):
@@ -644,27 +653,6 @@ def save_fits(image, filename, dir=None, overwrite=True, s=False, header=None, r
                 time.sleep(wait_time)
             else:
                 raise RuntimeError(f"Failed to write {fp} after {retries} attempts. Last error: {e}") from e
-
-
-def safe_worker_wrapper(func):
-    """Wrapper to catch and log worker crashes"""
-
-    def wrapper(*args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except Exception as e:
-            # Log to a file that persists after process death
-            error_log = "./worker_crash.log"
-            with open(error_log, "a") as f:
-                f.write(f"\n{'='*60}\n")
-                f.write(f"Worker crashed with: {type(e).__name__}: {e}\n")
-                f.write(traceback.format_exc())
-                f.write(f"Args: {args[0] if args else 'none'}\n")
-                f.write(f"{'='*60}\n")
-            sys.stderr.flush()
-            raise  # Re-raise to trigger BrokenProcessPool
-
-    return wrapper
 
 
 def apply_object_mask(image, mask=None, threshold_m=0, threshold_c=0.3, inplace=False):
@@ -1104,7 +1092,6 @@ def residual_function(psi, f_prime, scalist, wcslist, neighbors, thresh, workers
     return resids
 
 
-@safe_worker_wrapper
 def residual_function_single(k, sca_a, wcs_a, psi_a, f_prime, scalist, neighbors, thresh, cfg):
     """
     Calculate the residual for a single SCA image
@@ -1177,7 +1164,6 @@ def residual_function_single(k, sca_a, wcs_a, psi_a, f_prime, scalist, neighbors
     return k, term_1, term_2_list
 
 
-@safe_worker_wrapper
 def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg):
     """
     Calculate the cost function for a single SCA image
@@ -1210,53 +1196,66 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg):
     local_epsilon : Float
         the cost function value for this SCA
     """
-    m = re.search(r"_(\d+)_(\d+)", sca_a)
-    obsid_A, scaid_A = m.group(1), m.group(2)
-    I_A = Sca_img(obsid_A, scaid_A, cfg)
-    print(f"Initialized image {obsid_A}_{scaid_A} for cost function calculation.")
-    sys.stdout.flush()
-    I_A.subtract_parameters(p, j)
-    I_A.apply_all_mask()
+    try:
+        m = re.search(r"_(\d+)_(\d+)", sca_a)
+        obsid_A, scaid_A = m.group(1), m.group(2)
+        I_A = Sca_img(obsid_A, scaid_A, cfg)
+        print(f"Initialized image {obsid_A}_{scaid_A} for cost function calculation.")
+        sys.stdout.flush()
+        I_A.subtract_parameters(p, j)
+        I_A.apply_all_mask()
 
-    if img_full_output["scaid"] != 0 and testing:
-        example_obs = obsid_A == str(img_full_output["obsid"])
-        example_sca = scaid_A == str(img_full_output["scaid"])
+        if img_full_output["scaid"] != 0 and testing:
+            example_obs = obsid_A == str(img_full_output["obsid"])
+            example_sca = scaid_A == str(img_full_output["scaid"])
+            if example_obs and example_sca:
+                hdu = fits.PrimaryHDU(I_A.image)
+                hdu.writeto(
+                    test_image_dir
+                    + f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_I_A_sub_masked.fits',
+                    overwrite=True,
+                )
+
+        J_A_image, J_A_mask = I_A.make_interpolated(j, scalist, neighbors, params=p)
+        print(f"Interpolated image {obsid_A}_{scaid_A} for cost function calculation.")
+        sys.stdout.flush()
+        J_A_mask *= I_A.mask
+
+        psi = np.where(J_A_mask, I_A.image - J_A_image, 0).astype("float32")
+        result = f(psi, thresh) if thresh is not None else f(psi)
+        local_epsilon = np.sum(result)
+
         if example_obs and example_sca:
-            hdu = fits.PrimaryHDU(I_A.image)
+            hdu = fits.PrimaryHDU(J_A_image * J_A_mask)
             hdu.writeto(
-                test_image_dir + f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_I_A_sub_masked.fits',
+                test_image_dir + f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_J_A_masked.fits',
                 overwrite=True,
             )
 
-    J_A_image, J_A_mask = I_A.make_interpolated(j, scalist, neighbors, params=p)
-    print(f"Interpolated image {obsid_A}_{scaid_A} for cost function calculation.")
-    sys.stdout.flush()
-    J_A_mask *= I_A.mask
+            hdu = fits.PrimaryHDU(psi)
+            hdu.writeto(
+                test_image_dir + f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_Psi.fits',
+                overwrite=True,
+            )
 
-    psi = np.where(J_A_mask, I_A.image - J_A_image, 0).astype("float32")
-    result = f(psi, thresh) if thresh is not None else f(psi)
-    local_epsilon = np.sum(result)
+            write_to_file(f"Sample stats for SCA {img_full_output}:")
+            write_to_file(f"Image A mean: {np.mean(I_A.image)}")
+            write_to_file(f"Image B mean: {np.mean(J_A_image)}")
+            write_to_file(f"Psi mean: {np.mean(psi)}")
+            write_to_file(f"f(Psi) mean: {np.mean(result)}")
+            write_to_file(f"Local epsilon for SCA {j}: {local_epsilon}")
 
-    if example_obs and example_sca:
-        hdu = fits.PrimaryHDU(J_A_image * J_A_mask)
-        hdu.writeto(
-            test_image_dir + f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_J_A_masked.fits',
-            overwrite=True,
-        )
+        return j, psi, local_epsilon
 
-        hdu = fits.PrimaryHDU(psi)
-        hdu.writeto(
-            test_image_dir + f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_Psi.fits', overwrite=True
-        )
-
-        write_to_file(f"Sample stats for SCA {img_full_output}:")
-        write_to_file(f"Image A mean: {np.mean(I_A.image)}")
-        write_to_file(f"Image B mean: {np.mean(J_A_image)}")
-        write_to_file(f"Psi mean: {np.mean(psi)}")
-        write_to_file(f"f(Psi) mean: {np.mean(result)}")
-        write_to_file(f"Local epsilon for SCA {j}: {local_epsilon}")
-
-    return j, psi, local_epsilon
+    except Exception as e:
+        error_log = tempdir + "worker_crash.log"
+        with open(error_log, "a") as f:
+            f.write(f"\n{'='*60}\n")
+            f.write(f"cost_function_single crashed for SCA {j}: {sca_a}\n")
+            f.write(f"Error: {type(e).__name__}: {e}\n")
+            f.write(traceback.format_exc())
+            f.write(f"{'='*60}\n")
+        raise
 
 
 def cost_function(p, f, thresh, workers, scalist, neighbors, cfg, tempdir=tempdir):
