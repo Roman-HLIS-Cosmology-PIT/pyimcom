@@ -16,7 +16,7 @@ source /users/PCON0003/klaliotis/.conda/envs/
 source activate pyimcom2
 
 # Explicitly set the number of OpenMP threads
-export OMP_NUM_THREADS=2
+export OMP_NUM_THREADS=10
 
 # Explicitly set the temp directory OR comment out to use os.environ default
 # export TMPDIR=/fs/scratch/PCON0003/klaliotis/tmp

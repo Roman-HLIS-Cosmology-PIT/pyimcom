@@ -206,6 +206,7 @@ class Sca_img:
             self.image = np.copy(file[image_hdu].data).astype(np.float64)
             self.header = file[image_hdu].header
             self.shape = np.shape(self.image)
+            self._file_handle = None
             file.close()
         else:
             if indata_type == "fits":
@@ -218,15 +219,17 @@ class Sca_img:
                 self.image = np.copy(file[image_hdu].data).astype(np.float64)
                 self.header = file[image_hdu].header
                 self.shape = np.shape(self.image)
+                self._file_handle = None
                 file.close()
 
             elif indata_type == "asdf":
                 fp = cfg.ds_obsfile + filters[cfg.use_filter] + "_" + obsid + "_" + scaid + ".asdf"
-                with asdf.open(fp, memmap=False, lazy_load=True) as file:
-                    self.w = PyIMCOM_WCS(file["roman"]["meta"]["wcs"])
-                    self.image = np.array(file["roman"]["data"], dtype=np.float64)
-                    self.header = None
-                    self.shape = np.shape(self.image)
+                self._file_handle = asdf.open(fp, memmap=True, lazy_load=True)
+                self.w = PyIMCOM_WCS(self._file_handle["roman"]["meta"]["wcs"])
+                self.image = np.array(self._file_handle["roman"]["data"], dtype=np.float64)
+                self.header = None
+                self.shape = np.shape(self.image)
+                # Note: keep _file_handle open to maintain memmap
 
         self.obsid = obsid
         self.scaid = scaid
@@ -263,7 +266,7 @@ class Sca_img:
         else:
             # PLACEHOLDER for reading in real flat fields as gain
             # Needs to be adapted once actual file format is known
-            g_eff_file = asdf.open(cfg.gaindir + cfg.use_filter + "_geff.fits", memmap=False)
+            g_eff_file = asdf.open(cfg.gaindir + cfg.use_filter + "_geff.fits", memmap=True)
             self.g_eff = g_eff_file[int(scaid) - 1].data.astype(np.float64)
             g_eff_file.close()
 
@@ -285,6 +288,20 @@ class Sca_img:
                     dir=cfg.ds_outpath + "masks/",
                     overwrite=True,
                 )
+
+    def close(self):
+        """
+        Close the file handle when done
+        """
+        if self._file_handle is not None:
+            self._file_handle.close()
+            self._file_handle = None
+
+    def __del__(self):
+        """
+        Automatically close file when object is garbage collected
+        """
+        self.close()
 
     def apply_noise(self):
         """
@@ -479,11 +496,11 @@ class Sca_img:
             if make_Neff:
                 N_eff += B_mask_interp
 
-            # Free memory
+            # Free memory / close files
             del I_B.image
             del I_B.g_eff
+            I_B.close()
             del I_B
-            gc.collect()
 
         write_to_file(
             f"Interpolation of {self.obsid}_{self.scaid} done. Number of contributing SCAs: {N_BinA}"
@@ -1161,6 +1178,11 @@ def residual_function_single(k, sca_a, wcs_a, psi_a, f_prime, scalist, neighbors
         term_2 = transpose_par(gradient_original)
         term_2_list.append((j, term_2))
 
+        I_B.close()
+        del I_B
+
+    gc.collect()
+
     return k, term_1, term_2_list
 
 
@@ -1196,66 +1218,54 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg):
     local_epsilon : Float
         the cost function value for this SCA
     """
-    try:
-        m = re.search(r"_(\d+)_(\d+)", sca_a)
-        obsid_A, scaid_A = m.group(1), m.group(2)
-        I_A = Sca_img(obsid_A, scaid_A, cfg)
-        print(f"Initialized image {obsid_A}_{scaid_A} for cost function calculation.")
-        sys.stdout.flush()
-        I_A.subtract_parameters(p, j)
-        I_A.apply_all_mask()
+    m = re.search(r"_(\d+)_(\d+)", sca_a)
+    obsid_A, scaid_A = m.group(1), m.group(2)
+    I_A = Sca_img(obsid_A, scaid_A, cfg)
+    print(f"Initialized image {obsid_A}_{scaid_A} for cost function calculation.")
+    sys.stdout.flush()
+    I_A.subtract_parameters(p, j)
+    I_A.apply_all_mask()
 
-        if img_full_output["scaid"] != 0 and testing:
-            example_obs = obsid_A == str(img_full_output["obsid"])
-            example_sca = scaid_A == str(img_full_output["scaid"])
-            if example_obs and example_sca:
-                hdu = fits.PrimaryHDU(I_A.image)
-                hdu.writeto(
-                    test_image_dir
-                    + f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_I_A_sub_masked.fits',
-                    overwrite=True,
-                )
-
-        J_A_image, J_A_mask = I_A.make_interpolated(j, scalist, neighbors, params=p)
-        print(f"Interpolated image {obsid_A}_{scaid_A} for cost function calculation.")
-        sys.stdout.flush()
-        J_A_mask *= I_A.mask
-
-        psi = np.where(J_A_mask, I_A.image - J_A_image, 0).astype("float32")
-        result = f(psi, thresh) if thresh is not None else f(psi)
-        local_epsilon = np.sum(result)
-
+    if img_full_output["scaid"] != 0 and testing:
+        example_obs = obsid_A == str(img_full_output["obsid"])
+        example_sca = scaid_A == str(img_full_output["scaid"])
         if example_obs and example_sca:
-            hdu = fits.PrimaryHDU(J_A_image * J_A_mask)
+            hdu = fits.PrimaryHDU(I_A.image)
             hdu.writeto(
-                test_image_dir + f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_J_A_masked.fits',
+                test_image_dir + f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_I_A_sub_masked.fits',
                 overwrite=True,
             )
 
-            hdu = fits.PrimaryHDU(psi)
-            hdu.writeto(
-                test_image_dir + f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_Psi.fits',
-                overwrite=True,
-            )
+    J_A_image, J_A_mask = I_A.make_interpolated(j, scalist, neighbors, params=p)
+    print(f"Interpolated image {obsid_A}_{scaid_A} for cost function calculation.")
+    sys.stdout.flush()
+    J_A_mask *= I_A.mask
 
-            write_to_file(f"Sample stats for SCA {img_full_output}:")
-            write_to_file(f"Image A mean: {np.mean(I_A.image)}")
-            write_to_file(f"Image B mean: {np.mean(J_A_image)}")
-            write_to_file(f"Psi mean: {np.mean(psi)}")
-            write_to_file(f"f(Psi) mean: {np.mean(result)}")
-            write_to_file(f"Local epsilon for SCA {j}: {local_epsilon}")
+    psi = np.where(J_A_mask, I_A.image - J_A_image, 0).astype("float32")
+    result = f(psi, thresh) if thresh is not None else f(psi)
+    local_epsilon = np.sum(result)
 
-        return j, psi, local_epsilon
+    if example_obs and example_sca:
+        hdu = fits.PrimaryHDU(J_A_image * J_A_mask)
+        hdu.writeto(
+            test_image_dir + f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_J_A_masked.fits',
+            overwrite=True,
+        )
 
-    except Exception as e:
-        error_log = tempdir + "worker_crash.log"
-        with open(error_log, "a") as f:
-            f.write(f"\n{'='*60}\n")
-            f.write(f"cost_function_single crashed for SCA {j}: {sca_a}\n")
-            f.write(f"Error: {type(e).__name__}: {e}\n")
-            f.write(traceback.format_exc())
-            f.write(f"{'='*60}\n")
-        raise
+        hdu = fits.PrimaryHDU(psi)
+        hdu.writeto(
+            test_image_dir + f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_Psi.fits',
+            overwrite=True,
+        )
+
+        write_to_file(f"Sample stats for SCA {img_full_output}:")
+        write_to_file(f"Image A mean: {np.mean(I_A.image)}")
+        write_to_file(f"Image B mean: {np.mean(J_A_image)}")
+        write_to_file(f"Psi mean: {np.mean(psi)}")
+        write_to_file(f"f(Psi) mean: {np.mean(result)}")
+        write_to_file(f"Local epsilon for SCA {j}: {local_epsilon}")
+
+    return j, psi, local_epsilon
 
 
 def cost_function(p, f, thresh, workers, scalist, neighbors, cfg, tempdir=tempdir):
@@ -1986,6 +1996,11 @@ def main():
         hdulist = fits.HDUList([hdu, hdu2, hdu3])
         hdulist.writeto(outpath + filter_ + "_DS_" + obsid + "_" + scaid + ".fits", overwrite=True)
 
+        this_sca.close()
+        del this_sca.image
+        del this_sca
+
+    gc.collect()
     write_to_file(f"Destriped images saved to {outpath + filter_} _DS_*.fits", filename=outfile)
     write_to_file(f"Total hours elapsed: {(time.time() - t0) / 3600}", filename=outfile)
 
