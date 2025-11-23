@@ -30,6 +30,7 @@ from astropy.wcs.wcsapi import SlicedLowLevelWCS
 from furry_parakeet import (
     pyimcom_croutines,
 )
+from scipy.fft import next_fast_len
 from scipy.signal import fftconvolve
 from scipy.signal.windows import tukey
 from scipy.special import eval_legendre
@@ -44,7 +45,7 @@ from ..wcsutil import (
 )
 
 
-def fftconvolve_multi(in1, in2, out, mode="full", nb=4, verbose=False):
+def fftconvolve_multi(in1, in2, out, mode="full", nb=4, subarr=None, verbose=False):
     """
     Convolve two N-dimensional arrays using FFT.
 
@@ -69,6 +70,9 @@ def fftconvolve_multi(in1, in2, out, mode="full", nb=4, verbose=False):
         scipy functions).
     nb : int, optional
         Number of blocks to use.
+    subarr : tuple of int, optional
+        If not None, this is taken as a tuple, (first_index, oversamp), and a
+        subset of the output array is generated.
     verbose : bool, optional
         Whether to print the intermediate steps.
 
@@ -78,6 +82,14 @@ def fftconvolve_multi(in1, in2, out, mode="full", nb=4, verbose=False):
 
     """
 
+    t0 = time.time()
+
+    # subarray information
+    use_subarr = False
+    if subarr is not None:
+        use_subarr = True
+        (first_index, oversamp) = subarr
+
     # if we're not using valid, or not in 2D, use standard fftconvolve
     if mode != "valid" or len(np.shape(in1)) != 2:
         out += fftconvolve(in1, in2, mode=mode)
@@ -86,6 +98,7 @@ def fftconvolve_multi(in1, in2, out, mode="full", nb=4, verbose=False):
     # Now we know we're 2D and in valid mode. Get shapes
     (s1y, s1x) = np.shape(in1)
     (s2y, s2x) = np.shape(in2)
+    Lx = abs(s1x - s2x) + 1
     Ly = abs(s1y - s2y) + 1
 
     # If in1 is big enough that it will break the indexing
@@ -94,15 +107,37 @@ def fftconvolve_multi(in1, in2, out, mode="full", nb=4, verbose=False):
         return
 
     # loop over horizontal bands
-    height = Ly // nb
-    gc.collect()
+    height = (Ly + nb - 1) // nb
+    if height <= s1y:
+        out += fftconvolve(in1, in2, mode=mode) # also return if the strip is too narrow
+        return
+    lenx = next_fast_len(s1x + s2x)
+    leny = next_fast_len(s1y + height)
+    in1_ = np.zeros((leny, lenx))
+    in2_ = np.zeros((leny, lenx))
+    in1_[:s1y, :s1x] = in1
+    in1_ft = np.fft.rfft2(in1_)
+    del in1_
     for j in range(nb):
+        gc.collect()
         ybottom = j * height
         ytop = min((j + 1) * height, Ly)
+        dy = ytop - ybottom
+        in2_[:, :] = 0.
+        in2_[:dy + s1y - 1, :s2x] = in2[ybottom : ytop + s1y - 1, :]
+        in2_ft = np.fft.rfft2(in2_) * in1_ft
         if verbose:
             print("y =", ybottom, ytop, "of Ly =", Ly)
-        out[ybottom:ytop, :] += fftconvolve(in1, in2[ybottom : s2y + ytop - Ly, :], mode="valid")
-        gc.collect()
+        out[ybottom:ytop, :] += np.fft.irfft2(in2_ft)[s1y-1:dy+s1y-1, s1x-1:Lx+s1x-1]
+        # B = fftconvolve(in1, in2[ybottom : ytop + s1y - 1, :], mode="valid")
+        # print(np.shape(A), np.shape(B))
+        # print(np.amax(np.abs(A)), np.amax(np.abs(B)), np.amax(np.abs(A-B)))
+        print(f"t = {time.time()-t0:6.3f} s, shape =", (leny, lenx), "ft =", np.shape(in1_ft))
+        sys.stdout.flush()
+
+    del in2_, in1_ft, in2_ft
+    gc.collect()
+
 
 
 def pltshow(plt, display, pars={}):
@@ -378,7 +413,7 @@ def run_imsubtract(
 
         # add for loop over layers (nlayers)
         for n in range(nlayer):
-            H_canvas = np.zeros((A, A))
+            H_canvas = np.zeros((A, A), dtype=np.float32)
             # define other important quantities for convolution
             Nl = int(np.floor(np.sqrt(Ncoeff + 0.5)))
             KH = np.zeros((A - axis_num + 1, A - axis_num + 1), dtype=np.float32)
@@ -548,7 +583,7 @@ def run_imsubtract(
 
                 # create interpolated version of block
                 H = np.zeros((1, np.size(x_bb)))
-                pyimcom_croutines.iD5512C(block_padded, x_bb.ravel(), y_bb.ravel(), H)
+                pyimcom_croutines.iG4460C(block_padded, x_bb.ravel(), y_bb.ravel(), H)
                 # reshape H
                 H = H.reshape(x_bb.shape)
 
@@ -582,16 +617,19 @@ def run_imsubtract(
                     oversamp * (left + I_pad) : oversamp * (right + 1 + I_pad),
                 ] += H
 
+            # some cleanup
+            del H, native_pix
+
             # apply convolution to canvas
             for lu in range(Nl):
+                # save first multiplication
+                Hlu = H_canvas * eval_legendre(lu, u_canvas).astype(np.float32)[None, :]
                 for lv in range(Nl):
                     print("Convolve", lu, lv)
                     sys.stdout.flush()
                     fftconvolve_multi(
                         K[lu + lv * Nl, :, :],
-                        H_canvas
-                        * eval_legendre(lu, u_canvas)[None, :]
-                        * eval_legendre(lv, u_canvas)[:, None],
+                        Hlu * eval_legendre(lv, u_canvas).astype(np.float32)[:, None],
                         KH,
                         mode="valid",
                         nb=6,
