@@ -12,6 +12,7 @@ run_imsubtract
 
 """
 
+import gc
 import os
 import re
 import sys
@@ -94,12 +95,14 @@ def fftconvolve_multi(in1, in2, out, mode="full", nb=4, verbose=False):
 
     # loop over horizontal bands
     height = Ly // nb
+    gc.collect()
     for j in range(nb):
         ybottom = j * height
         ytop = min((j + 1) * height, Ly)
         if verbose:
             print("y =", ybottom, ytop, "of Ly =", Ly)
         out[ybottom:ytop, :] += fftconvolve(in1, in2[ybottom : s2y + ytop - Ly, :], mode="valid")
+        gc.collect()
 
 
 def pltshow(plt, display, pars={}):
@@ -194,7 +197,9 @@ def get_wcs_from_infile(infile):
     return block_wcs
 
 
-def run_imsubtract(config_file, display=None, scanum=None, local_output=False, max_img=None):
+def run_imsubtract(
+    config_file, display=None, scanum=None, local_output=False, max_img=None, wcs_shortcut=True
+):
     """
     Main routine to run imsubtract.
 
@@ -215,6 +220,8 @@ def run_imsubtract(config_file, display=None, scanum=None, local_output=False, m
     max_img : int, optional
         If provided, does computations for a maximum number of SCAs. Most users will
         want the default of None; this is provided mainly for testing.
+    wcs_shortcut : bool, optional
+        If set, allows interpolation methods to speed up WCS computations.
 
     Notes
     -----
@@ -366,35 +373,44 @@ def run_imsubtract(config_file, display=None, scanum=None, local_output=False, m
         # size is SCA+padding on both sides scaled back to kernel pixels
         A = oversamp * (sca_nside + 2 * I_pad)
 
+        skipblocks = set()  # blocks we know we can skip since they turned out to have no overlap
+        lrbt_table = {}  # the [left, right, bottom, top] of each block
+
         # add for loop over layers (nlayers)
         for n in range(nlayer):
             H_canvas = np.zeros((A, A))
             # define other important quantities for convolution
             Nl = int(np.floor(np.sqrt(Ncoeff + 0.5)))
-            KH = np.zeros((A - axis_num + 1, A - axis_num + 1))
+            KH = np.zeros((A - axis_num + 1, A - axis_num + 1), dtype=np.float32)
             x_canvas = np.linspace(-I_pad - 0.5 + 0.5 / oversamp, sca_nside + I_pad - 0.5 + 0.5 / oversamp, A)
             u_canvas = (x_canvas - (sca_nside - 1) / 2) / (sca_nside / 2)
 
             # loop over the blocks in the list
             for ix, iy in block_list:
+                if (ix, iy) in skipblocks:
+                    continue
                 print("BLOCK: ", ix, iy)
                 sys.stdout.flush()
+                t0 = time.time()
 
                 # open the block info
                 with fits.open(block_path + f"_{ix:02d}_{iy:02d}.fits") as hdul3:
-                    block_data = np.copy(hdul3[0].data)
                     block_wcs = get_wcs_from_infile(hdul3)
+                    print(f"+ block: {time.time()-t0:6.2f}")
+                    sys.stdout.flush()
 
-                # determine the length of one axis of the block
-                block_length = block_data.shape[-1]  # length in output pixels
-                overlap = n2 * postage_pad  # size of one overlap region due to postage stamp
-                a1 = 2 * (2 * overlap - 1) / (block_length - 1)  # percentage of region to have
-                # window function taper
-                # the '-1' is due to scipy's convention on alpha that the denominator is the distance from the
-                # first to the last point, so 1 less than the length
-                window = tukey(block_length, alpha=a1)
-                # apply window function to block data in both directions
-                block = block_data[0, n, :, :] * window[:, None] * window[None, :]
+                    # determine the length of one axis of the block
+                    block_length = hdul3[0].header["NAXIS1"]  # length in output pixels
+                    overlap = n2 * postage_pad  # size of one overlap region due to postage stamp
+                    a1 = 2 * (2 * overlap - 1) / (block_length - 1)  # percentage of region to have
+                    # window function taper
+                    # the '-1' is due to scipy's convention on alpha that the denominator is the distance from
+                    # the first to the last point, so 1 less than the length
+                    window = tukey(block_length, alpha=a1).astype(np.float32)
+                    # apply window function to block data in both directions
+                    block = hdul3[0].data[0, n, :, :] * window[:, None] * window[None, :]
+                    print(f"+ windowed: {time.time()-t0:6.2f}")
+                    sys.stdout.flush()
 
                 # check the window function
                 with ReportFigContext(matplotlib, plt):
@@ -431,27 +447,43 @@ def run_imsubtract(config_file, display=None, scanum=None, local_output=False, m
                     window[block_length - overlap] + window[block_length - overlap - 1],
                 )
 
-                # find the 'Bounding Box' in SCA coordinates
-                # create mesh grid for output block
-                block_arr = np.arange(block_length)
-                x_out, y_out = np.meshgrid(block_arr, block_arr)
-                # convert to ra and dec using block wcs
-                ra_sca, dec_sca = block_wcs.pixel_to_world_values(x_out, y_out, 0)
+                print(f"+ figure: {time.time()-t0:6.2f}")
+                sys.stdout.flush()
+                gc.collect()
 
-                # convert into SCA coordinates
-                x_in, y_in = sca_wcs.all_world2pix(ra_sca, dec_sca, 0)
+                if (ix, iy) in lrbt_table:
+                    # get bounding box if we already have it
+                    [left, right, bottom, top] = lrbt_table[(ix, iy)]
+                else:
+                    # find the 'Bounding Box' in SCA coordinates
+                    # create mesh grid for output block
+                    block_arr = np.arange(block_length)
+                    x_out, y_out = np.meshgrid(block_arr, block_arr)
+                    # convert to ra and dec using block wcs
+                    ra_sca, dec_sca = block_wcs.pixel_to_world_values(x_out, y_out, 0)
+                    del x_out, y_out
 
-                # get the bounding box from the max and min values
-                left = int(np.floor(np.min(x_in)))
-                right = int(np.ceil(np.max(x_in)))
-                bottom = int(np.floor(np.min(y_in)))
-                top = int(np.ceil(np.max(y_in)))
+                    # convert into SCA coordinates
+                    x_in, y_in = sca_wcs.all_world2pix(ra_sca, dec_sca, 0)
+                    del ra_sca, dec_sca
 
-                # trim bounding box to ensure not extending past SCA padding
-                left = np.max([left, -I_pad])
-                right = np.min([right, sca_nside - 1 + I_pad])
-                bottom = np.max([bottom, -I_pad])
-                top = np.min([top, sca_nside - 1 + I_pad])
+                    # get the bounding box from the max and min values
+                    left = int(np.floor(np.min(x_in)))
+                    right = int(np.ceil(np.max(x_in)))
+                    bottom = int(np.floor(np.min(y_in)))
+                    top = int(np.ceil(np.max(y_in)))
+                    del x_in, y_in
+
+                    # trim bounding box to ensure not extending past SCA padding
+                    left = np.max([left, -I_pad])
+                    right = np.min([right, sca_nside - 1 + I_pad])
+                    bottom = np.max([bottom, -I_pad])
+                    top = np.min([top, sca_nside - 1 + I_pad])
+                    lrbt_table[(ix, iy)] = [left, right, bottom, top]
+                gc.collect()
+
+                print(f"+ wcsmap: {time.time()-t0:6.2f}")
+                sys.stdout.flush()
 
                 # create the bounding box mesh grid, with ovsamp
                 # determine side lengths of the box
@@ -460,19 +492,57 @@ def run_imsubtract(config_file, display=None, scanum=None, local_output=False, m
 
                 # check if weight, height are positive
                 if width <= 0 or height <= 0:
+                    skipblocks.add((ix, iy))  # can skip this block for the next layer
                     continue
 
-                # create arrays for meshgrid
-                x = np.linspace(left - 0.5 + 0.5 / oversamp, right + 0.5 - 0.5 / oversamp, width)
-                y = np.linspace(bottom - 0.5 + 0.5 / oversamp, top + 0.5 + 0.5 / oversamp, height)
-                bb_x, bb_y = np.meshgrid(x, y)
+                # two options for getting the inverse WCS mapping: one with shortcut, one without
+                if wcs_shortcut:
+                    # create arrays for meshgrid
+                    x = np.linspace(left - 0.5, right + 0.5, right - left + 2)
+                    y = np.linspace(bottom - 0.5, top + 0.5, top - bottom + 2)
+                    bb_x, bb_y = np.meshgrid(x, y)
+                    # map bounding box from SCA to output block coordinates
+                    ra_map, dec_map = sca_wcs.all_pix2world(bb_x, bb_y, 0)
+                    del bb_x, bb_y
+                    x_bb_temp, y_bb_temp = block_wcs.world_to_pixel_values(ra_map, dec_map, 0)
+                    del ra_map, dec_map
+                    x_bb = np.zeros((height, width))
+                    y_bb = np.zeros((height, width))
+                    for i in range(oversamp):
+                        fi = (i + 0.5) / oversamp
+                        for j in range(oversamp):
+                            fj = (j + 0.5) / oversamp
+                            x_bb[j::oversamp, i::oversamp] = (
+                                (1 - fi) * (1 - fj) * x_bb_temp[:-1, :-1]
+                                + fi * (1 - fj) * x_bb_temp[:-1, 1:]
+                                + (1 - fi) * fj * x_bb_temp[1:, :-1]
+                                + fi * fj * x_bb_temp[1:, 1:]
+                            )
+                            y_bb[j::oversamp, i::oversamp] = (
+                                (1 - fi) * (1 - fj) * y_bb_temp[:-1, :-1]
+                                + fi * (1 - fj) * y_bb_temp[:-1, 1:]
+                                + (1 - fi) * fj * y_bb_temp[1:, :-1]
+                                + fi * fj * y_bb_temp[1:, 1:]
+                            )
+                    del x_bb_temp, y_bb_temp
+                else:
+                    # create arrays for meshgrid
+                    x = np.linspace(left - 0.5 + 0.5 / oversamp, right + 0.5 - 0.5 / oversamp, width)
+                    y = np.linspace(bottom - 0.5 + 0.5 / oversamp, top + 0.5 + 0.5 / oversamp, height)
+                    bb_x, bb_y = np.meshgrid(x, y)
+                    # map bounding box from SCA to output block coordinates
+                    ra_map, dec_map = sca_wcs.all_pix2world(bb_x, bb_y, 0)
+                    del bb_x, bb_y
+                    x_bb, y_bb = block_wcs.world_to_pixel_values(ra_map, dec_map, 0)
+                    del ra_map, dec_map
 
-                # map bounding box from SCA to output block coordinates
-                ra_map, dec_map = sca_wcs.all_pix2world(bb_x, bb_y, 0)
-                x_bb, y_bb = block_wcs.world_to_pixel_values(ra_map, dec_map, 0)
+                print(f"+ inv wcs map: {time.time()-t0:6.2f}")
+                sys.stdout.flush()
 
                 # add padding to the block (with window applied)
-                block_padded = np.pad(block, 5, mode="constant", constant_values=0)[None, :, :]
+                block_padded = np.pad(block, 5, mode="constant", constant_values=0)[None, :, :].astype(
+                    np.float64
+                )
                 x_bb += 5
                 y_bb += 5
 
@@ -482,11 +552,29 @@ def run_imsubtract(config_file, display=None, scanum=None, local_output=False, m
                 # reshape H
                 H = H.reshape(x_bb.shape)
 
+                print(f"+ interp: {time.time()-t0:6.2f}")
+                sys.stdout.flush()
+
                 # multiply by Jacobian to H
                 # get native pixel size
-                native_pix = get_pix_area(sca_wcs, region=[left, right + 1, bottom, top + 1], ovsamp=oversamp)
+                if wcs_shortcut:
+                    # this should be faster
+                    native_pix = np.repeat(
+                        np.repeat(
+                            get_pix_area(sca_wcs, region=[left, right + 1, bottom, top + 1]), oversamp, axis=1
+                        ),
+                        oversamp,
+                        axis=0,
+                    )
+                else:
+                    native_pix = get_pix_area(
+                        sca_wcs, region=[left, right + 1, bottom, top + 1], ovsamp=oversamp
+                    )
 
                 H *= native_pix / (pix_size * 180 / np.pi) ** 2
+
+                print(f"+ area: {time.time()-t0:6.2f}")
+                sys.stdout.flush()
 
                 # add H to H_canvas
                 H_canvas[
@@ -497,6 +585,7 @@ def run_imsubtract(config_file, display=None, scanum=None, local_output=False, m
             # apply convolution to canvas
             for lu in range(Nl):
                 for lv in range(Nl):
+                    print("Convolve", lu, lv)
                     sys.stdout.flush()
                     fftconvolve_multi(
                         K[lu + lv * Nl, :, :],
@@ -505,6 +594,7 @@ def run_imsubtract(config_file, display=None, scanum=None, local_output=False, m
                         * eval_legendre(lv, u_canvas)[:, None],
                         KH,
                         mode="valid",
+                        nb=6,
                     )
 
             # subtract from the input image (using less memory)
@@ -517,7 +607,10 @@ def run_imsubtract(config_file, display=None, scanum=None, local_output=False, m
             fname = f"{obsid:08d}_{sca:02d}_subI.fits"
         print("saving >>", fname)
         sys.stdout.flush()
-        fits.PrimaryHDU(data=I_img).writeto(fname, overwrite=True)
+
+        # this version copies HDU #1 (which contains the WCS)
+        with fits.open(path + "/" + exp) as f_in:
+            fits.HDUList([fits.PrimaryHDU(data=I_img), f_in[1]]).writeto(fname, overwrite=True)
 
         # exit if we've specified a maximum number of SCAs
         count += 1
@@ -545,8 +638,8 @@ if __name__ == "__main__":
     display = "/dev/null"
     if len(sys.argv) > 3:
         display = sys.argv[3]
-    run_imsubtract(config_file, display=display, scanum=sca)  # , max_img=1)
+    run_imsubtract(config_file, display=display, scanum=sca)
 
     end = time.time()
     elapsed = end - start
-    print(f"Execution time: {elapsed:.4f} seconds.")
+    print(f"finished at t = {elapsed:.2f} s")
