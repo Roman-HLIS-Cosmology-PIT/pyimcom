@@ -581,8 +581,9 @@ class InImage:
                     self.inpsf_cube = f[self.idsca[1] + sskip].data[:, :, :]
                     print(" <<", fname, sskip)
 
-            # order = 1
-            lpoly = InImage.LPolyArr(1, (pixloc[0] - 2043.5) / 2044.0, (pixloc[1] - 2043.5) / 2044.0)
+            # Legendre polynomial order
+            lporder = int(np.round(np.sqrt(np.shape(self.inpsf_cube)[0]))) - 1
+            lpoly = InImage.LPolyArr(lporder, (pixloc[0] - 2043.5) / 2044.0, (pixloc[1] - 2043.5) / 2044.0)
             # pixels are in C/Python convention since pixloc was set this way
             if self.blk.cfg.inpsf_format == "anlsim":
                 this_psf = (
