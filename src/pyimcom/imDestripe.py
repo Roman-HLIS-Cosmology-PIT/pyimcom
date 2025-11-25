@@ -197,7 +197,7 @@ class Sca_img:
     """
 
     def __init__(
-        self, obsid, scaid, cfg, tempdir=tempdir, interpolated=False, add_objmask=True, indata_type="asdf"
+        self, obsid, scaid, cfg, tempdir=tempdir, interpolated=False, add_objmask=True, indata_type="fits"
     ):
         if interpolated:
             file = fits.open(tempdir + "interpolations/" + obsid + "_" + scaid + "_interp.fits", memmap=True)
@@ -214,7 +214,7 @@ class Sca_img:
                     cfg.ds_obsfile + filters[cfg.use_filter] + "_" + obsid + "_" + scaid + ".fits",
                     memmap=True,
                 )
-                image_hdu = "SCI"
+                image_hdu = "PRIMARY"
                 self.w = wcs.WCS(file[image_hdu].header)
                 self.image = np.copy(file[image_hdu].data).astype(np.float64)
                 self.header = file[image_hdu].header
@@ -276,7 +276,10 @@ class Sca_img:
 
         if add_objmask:
             _, object_mask = apply_object_mask(self.image)
-            self.apply_asdf_mask()
+            if indata_type == "asdf":
+                self.apply_asdf_mask()
+            elif indata_type == "fits":
+                self.apply_permanent_mask()
             self.mask *= np.logical_not(
                 object_mask
             )  # self.mask = True for good pixels, so set object_mask'ed pixels to False
@@ -324,9 +327,12 @@ class Sca_img:
         """
         Apply permanent pixel mask. Updates self.image and self.mask
         """
-        pm = fits.open(self.cfg.permanent_mask)[0].data[int(self.scaid) - 1].astype(bool)
-        self.image *= ~pm
-        self.mask *= ~pm
+        with fits.open(
+            self.cfg.ds_obsfile + filters[self.cfg.use_filter] + "_" + self.obsid + "_" + self.scaid,
+            memmap=True,
+        )["MASK"].data.astype(bool) as pm:
+            self.image *= ~pm
+            self.mask *= ~pm
 
     def apply_asdf_mask(self):
         """
@@ -741,7 +747,7 @@ def huber_prime(x, d):
     return np.where(np.abs(x) <= d, quad_prime(x), 2 * d * np.sign(x))
 
 
-def get_scas(filter_, obsfile, cfg, indata_type="asdf"):
+def get_scas(filter_, obsfile, cfg, indata_type="fits"):
     """
     Function to get a list of all SCA images and their WCSs for this mosaic
 
@@ -754,7 +760,7 @@ def get_scas(filter_, obsfile, cfg, indata_type="asdf"):
     cfg : Config object
         built from the configuration file
     indata_type : Str
-        input data type: 'fits' or 'asdf'. Default 'asdf'
+        input data type: 'fits' or 'asdf'. Default 'fits'
 
     Returns
     --------
@@ -774,7 +780,7 @@ def get_scas(filter_, obsfile, cfg, indata_type="asdf"):
                 this_obsfile = str(m.group(0))
                 all_scas.append(this_obsfile)
                 this_file = fits.open(f, memmap=True)
-                this_wcs = wcs.WCS(this_file["SCI"].header)
+                this_wcs = wcs.WCS(this_file["PRIMARY"].header)
                 all_wcs.append(this_wcs)
                 this_file.close()
             elif indata_type == "asdf":
@@ -1923,7 +1929,7 @@ def main():
     workers = os.cpu_count() // int(os.environ["OMP_NUM_THREADS"]) if "OMP_NUM_THREADS" in os.environ else 12
     write_to_file(f"## Using {workers} workers for parallel processing.", filename=outfile)
 
-    all_scas, all_wcs = get_scas(filter_, CFG.ds_obsfile, CFG, indata_type="asdf")
+    all_scas, all_wcs = get_scas(filter_, CFG.ds_obsfile, CFG, indata_type="fits")
     write_to_file(f"{len(all_scas)} SCAs in this mosaic", filename=outfile)
     sys.stdout.flush()
 
