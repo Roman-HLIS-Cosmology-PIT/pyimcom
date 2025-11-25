@@ -328,8 +328,13 @@ class Sca_img:
         Apply permanent pixel mask. Updates self.image and self.mask
         """
         with fits.open(
-            self.cfg.ds_obsfile + filters[self.cfg.use_filter] + "_" + self.obsid + "_" + self.scaid,
-            memmap=True,
+            self.cfg.ds_obsfile
+            + filters[self.cfg.use_filter]
+            + "_"
+            + self.obsid
+            + "_"
+            + self.scaid
+            + ".fits",
         )["MASK"].data.astype(bool) as pm:
             self.image *= ~pm
             self.mask *= ~pm
@@ -356,8 +361,16 @@ class Sca_img:
         Apply permanent pixel mask.
         Updates self.image and self.mask
         """
-        pm = fits.open(self.cfg.permanent_mask)[0].data[int(self.scaid) - 1]
-        pm_array = np.copy(pm)
+        with fits.open(
+            self.cfg.ds_obsfile
+            + filters[self.cfg.use_filter]
+            + "_"
+            + self.obsid
+            + "_"
+            + self.scaid
+            + ".fits",
+        )["MASK"].data.astype(bool) as pm:
+            pm_array = np.copy(pm)
         return pm_array
 
     def apply_all_mask(self):
@@ -1227,8 +1240,6 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg):
     m = re.search(r"_(\d+)_(\d+)", sca_a)
     obsid_A, scaid_A = m.group(1), m.group(2)
     I_A = Sca_img(obsid_A, scaid_A, cfg)
-    print(f"Initialized image {obsid_A}_{scaid_A} for cost function calculation.")
-    sys.stdout.flush()
     I_A.subtract_parameters(p, j)
     I_A.apply_all_mask()
 
@@ -1243,8 +1254,6 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg):
             )
 
     J_A_image, J_A_mask = I_A.make_interpolated(j, scalist, neighbors, params=p)
-    print(f"Interpolated image {obsid_A}_{scaid_A} for cost function calculation.")
-    sys.stdout.flush()
     J_A_mask *= I_A.mask
 
     psi = np.where(J_A_mask, I_A.image - J_A_image, 0).astype("float32")
