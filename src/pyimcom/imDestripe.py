@@ -338,7 +338,6 @@ class Sca_img:
         )["MASK"].data.astype(bool)
         self.image *= ~pm
         self.mask *= ~pm
-        pm.close()
 
     def apply_asdf_mask(self):
         """
@@ -372,7 +371,6 @@ class Sca_img:
             + ".fits",
         )["MASK"].data.astype(bool)
         pm_array = np.copy(pm)
-        pm.close()
         return pm_array
 
     def apply_all_mask(self):
