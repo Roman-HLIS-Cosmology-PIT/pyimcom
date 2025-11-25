@@ -57,7 +57,7 @@
 
     "DSMODEL": ["constant",
         4088],
-    "DSOBSFILE": "/fs/scratch/PCON0003/cond0007/fall2025/sim/L2/sim_L2_",
+    "DSOBSFILE": "/fs/scratch/PCON0003/cond0007/temp_kl/t_",
     "DSOUT": ["/fs/scratch/PCON0003/klaliotis/imdestripe/mosaic_test_v3/",
         "_ds_out.txt"
     ],
