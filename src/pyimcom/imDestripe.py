@@ -327,7 +327,7 @@ class Sca_img:
         """
         Apply permanent pixel mask. Updates self.image and self.mask
         """
-        with fits.open(
+        pm = fits.open(
             self.cfg.ds_obsfile
             + filters[self.cfg.use_filter]
             + "_"
@@ -335,9 +335,10 @@ class Sca_img:
             + "_"
             + self.scaid
             + ".fits",
-        )["MASK"].data.astype(bool) as pm:
-            self.image *= ~pm
-            self.mask *= ~pm
+        )["MASK"].data.astype(bool)
+        self.image *= ~pm
+        self.mask *= ~pm
+        pm.close()
 
     def apply_asdf_mask(self):
         """
@@ -361,7 +362,7 @@ class Sca_img:
         Apply permanent pixel mask.
         Updates self.image and self.mask
         """
-        with fits.open(
+        pm = fits.open(
             self.cfg.ds_obsfile
             + filters[self.cfg.use_filter]
             + "_"
@@ -369,8 +370,9 @@ class Sca_img:
             + "_"
             + self.scaid
             + ".fits",
-        )["MASK"].data.astype(bool) as pm:
-            pm_array = np.copy(pm)
+        )["MASK"].data.astype(bool)
+        pm_array = np.copy(pm)
+        pm.close()
         return pm_array
 
     def apply_all_mask(self):
