@@ -32,7 +32,7 @@ $py .= "if len(sys.argv)>3:\n";
 $py .= "    if sys.argv[3]=='draw':\n";
 $py .= "        cfg.stoptile=4\n";
 $py .= "    if sys.argv[3]=='reduce':\n";
-$py .= "        cfg.instamp_pad = 0.7 * Settings.arcsec\n";       # <-- can change INPAD for the first iteration here
+$py .= "        cfg.instamp_pad = 0.55 * Settings.arcsec\n";      # <-- can change INPAD for the first iteration here
 $py .= "cfg.tempfile = os.getenv('TMPDIR') + '/temp'\n";          # <-- can change $TMPDIR here
 $py .= "cfg()\n";
 $py .= "print(cfg.to_file(None))\n";
@@ -56,6 +56,7 @@ if ($nblock**2 % $ngrp > 0) {
 $gmax = $pergrp - 1;
 $nmax = $nblock**2 - 1;
 $nblock2 = $nblock**2;
+$ngrpm = $ngrp - 1;
 
 print "Output stem -->           $outstem*\n";
 print "Mosaic size -->           $nblock x $nblock blocks\n";
@@ -73,7 +74,7 @@ close OUT;
 
 # Script to build the input layers
 $njob++;
-$script1  = "$scriptHead#SBATCH --array=0-2\n#SBATCH --time=24:00:00\n#SBATCH --nodes=1 --ntasks-per-node=1 --cpus-per-task=2\n";
+$script1  = "$scriptHead#SBATCH --array=0-$ngrpm\n#SBATCH --time=24:00:00\n#SBATCH --nodes=1 --ntasks-per-node=1 --cpus-per-task=2\n";
 $script1 .= "cd \$SLURM_SUBMIT_DIR\n";
 $script1 .= "STARTBLOCK=\$(($pergrp*SLURM_ARRAY_TASK_ID))\n";
 $script1 .= "for i in {0..$gmax}; do\n";
@@ -95,7 +96,7 @@ close OUT;
 
 # Imsubtract
 $njob++;
-$script3  = "$scriptHead#SBATCH --array=1-18\n#SBATCH --time=48:00:00\n#SBATCH --nodes=1 --ntasks-per-node=1 --cpus-per-task=12\n";
+$script3  = "$scriptHead#SBATCH --array=1-18\n#SBATCH --time=48:00:00\n#SBATCH --nodes=1 --ntasks-per-node=1 --cpus-per-task=8\n";
 $script3 .= "cd \$SLURM_SUBMIT_DIR\n";
 $script3 .= "python3 -m pyimcom.splitpsf.imsubtract $cfg \$SLURM_ARRAY_TASK_ID > $tag-S$njob-\$SLURM_ARRAY_TASK_ID.txt\n";
 open(OUT, ">", "$job-$njob.job");

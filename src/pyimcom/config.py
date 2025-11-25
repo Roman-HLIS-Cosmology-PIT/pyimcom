@@ -285,6 +285,7 @@ class Config:
         "psf_norm",
         "amp_penalty",
         "flat_penalty",
+        "psf_interp",
         "instamp_pad",  # SECTION VII
         "linear_algebra",
         "iter_rtol",
@@ -485,6 +486,8 @@ class Config:
         # amount by which to penalize having different contributions
         # to the output from different input images
         self.flat_penalty = cfg_dict.get("FLATPEN", 0.0)
+        # PSF interpolators
+        self.psf_interp = cfg_dict.get("PSFINTERP", "D5512")
         # input stamp size padding (aka acceptance radius)
         self.instamp_pad = cfg_dict.get("INPAD", 1.055) * Settings.arcsec
 
@@ -884,6 +887,11 @@ class Config:
             "\n"
             "self.flat_penalty = (float(FLATPEN) if FLATPEN else 0.0)"
         )
+        self._get_attrs_wrapper(
+            "PSFINTERP = input('PSFINTERP (str) [default: \"D5512\"]: ')"
+            "\n"
+            "self.psf_interp = PSFINTERP if PSFINTERP else 'D5512'"
+        )
 
         print("# input stamp size padding (aka acceptance radius) in arcsec", flush=True)
         self._get_attrs_wrapper(
@@ -1077,6 +1085,7 @@ class Config:
 
         cfg_dict["AMPPEN"] = self.amp_penalty
         cfg_dict["FLATPEN"] = self.flat_penalty
+        cfg_dict["PSFINTERP"] = self.psf_interp
         cfg_dict["INPAD"] = self.instamp_pad / Settings.arcsec
 
         ### SECTION VIII: SOLVING LINEAR SYSTEMS ###

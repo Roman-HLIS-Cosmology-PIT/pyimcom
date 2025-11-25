@@ -41,7 +41,7 @@ from .config import Config, Timer, format_axis, format_axis_pars
 from .config import Settings as Stn
 from .lakernel import CholKernel, EigenKernel, EmpirKernel, IterKernel
 from .layer import Mask, check_if_idsca_exists, get_all_data
-from .psfutil import PSFGrp, PSFOvl, SysMatA, SysMatB
+from .psfutil import PSFGrp, PSFInterpolator, PSFOvl, SysMatA, SysMatB
 from .wcsutil import PyIMCOM_WCS
 
 
@@ -581,8 +581,9 @@ class InImage:
                     self.inpsf_cube = f[self.idsca[1] + sskip].data[:, :, :]
                     print(" <<", fname, sskip)
 
-            # order = 1
-            lpoly = InImage.LPolyArr(1, (pixloc[0] - 2043.5) / 2044.0, (pixloc[1] - 2043.5) / 2044.0)
+            # Legendre polynomial order
+            lporder = int(np.round(np.sqrt(np.shape(self.inpsf_cube)[0]))) - 1
+            lpoly = InImage.LPolyArr(lporder, (pixloc[0] - 2043.5) / 2044.0, (pixloc[1] - 2043.5) / 2044.0)
             # pixels are in C/Python convention since pixloc was set this way
             if self.blk.cfg.inpsf_format == "anlsim":
                 this_psf = (
@@ -1560,6 +1561,9 @@ class Block:
         if cfg is None:
             self.cfg = Config()  # use the default config
 
+        if hasattr(cfg, "psf_interp") and cfg.psf_interp.upper() == "G4460":
+            print("Setting PSF interpolation to use G4460.")
+            PSFInterpolator.set_G4460()
         PSFGrp.setup(
             npixpsf=cfg.npixpsf, oversamp=cfg.inpsf_oversamp, dtheta=cfg.dtheta, psfsplit=bool(cfg.psfsplit)
         )
@@ -2033,8 +2037,8 @@ class Block:
                             self.instamps[j_st + dj][i_st] = None
                 gc.collect()  # force a garbage collection
 
-                print("  --> intermediate output -->\n")
-                self.build_output_file(is_final=False)
+                # print("  --> intermediate output -->\n")
+                # self.build_output_file(is_final=False)
 
     @staticmethod
     def compress_map(

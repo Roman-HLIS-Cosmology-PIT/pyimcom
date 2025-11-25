@@ -135,15 +135,18 @@ The valid PSF formats are the same as the input data formats in the `INDATA <IND
 PSFSPLIT: Splitting the PSF\*
 -------------------------------
 
-*Experimental feature; optional*
-
 This keyword is optional (it defaults to ``None``). If provided, it means that the ``pyimcom.splitpsf`` module has been used to split the PSF into long- and short-range parts, which will (eventually) allow for iterative cleaning of the long-range part of the PSF. An example is::
 
     "PSFSPLIT": [6.0, 10.0, 0.01]
 
 This directs ``pyimcom.splitpsf`` to split the PSF so that the short-range part goes smoothly to zero from 6 to 10 pixels, with a regularization parameter for the long-range part of epsilon=0.01.
 
-**Comment**: The PSF splitting tool is under development: it runs, but the iterative cleaning of the long-range PSF is not yet implemented. So if you use the current version, you won't achieve the improvements that we ultimately expect.
+PSFINTERP: Interpolation options for the PSF\*
+----------------------------------------------
+
+This keyword is optional (it defaults to ``D5512``). If provided, it configures the interpolation option for the PSF. ``D5512`` is the default with a 10x10 footprint and is most accurate, but the alternative ``G4460`` with 8x8 footprint is faster and may be sufficient for some applications. To turn this on, you can use::
+
+    "PSFINTERP": "G4460"
 
 Masks and layers
 ==================
@@ -455,9 +458,11 @@ This is the size of the arrays used to compute PSF inner products in native pixe
 
     "NPIXPSF": 42
 
-The default of 48 is recommended for most Roman uses for now based on experience with the DC2 and OpenUniverse simulations.
+**Without PSF splitting**:
+The default of 48 is recommended for most Roman uses without PSF splitting for now based on experience with the DC2 and OpenUniverse simulations.
 
-**Comment**: If you use the PSF splitting, then we know rigorously that ``NPIXPSF`` \>4(1+alpha)R\_{out}, where R\_{out} is the outer radius of the PSF and alpha is the geometric distortion (i.e., true pixel size is 0.11(1+alpha) arcsec), is sufficient. So this will be the plan for production runs on Roman data.
+**With PSF splitting**:
+Since the short-range PSF actually goes to zero, the arrays are sized differently (the convolved PSF arrays in ``pyimcom.psfutil.PSFOvl`` have approximately twice the size of the PSF images in ``pyimcom.psfutil.PSFGrp``). In this case, we know rigorously that ``NPIXPSF`` \>2(1+alpha)R\_{out}, where R\_{out} is the outer radius of the PSF and alpha is the geometric distortion (i.e., true pixel size is 0.11(1+alpha) arcsec), is sufficient. So this will be the plan for production runs on Roman data.
 
 PSFCIRC: Apply a circular cutout to the PSF\*
 -----------------------------------------------

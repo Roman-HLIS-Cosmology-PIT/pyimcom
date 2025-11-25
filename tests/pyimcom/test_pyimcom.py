@@ -4,6 +4,7 @@ Small-scale test of PyIMCOM, designed for fast test of core functionality.
 This does 2 blocks.
 """
 
+import copy
 import os
 import pathlib
 
@@ -537,6 +538,30 @@ def setup(tmp_path):
         Block(cfg=cfg, this_sub=iblk)
     gen_truthcats_from_cfg(cfg)
 
+    # now try the multi-kappa kernel
+    cfg2 = copy.deepcopy(cfg)
+    cfg2.kappaC_arr = np.array([5e-4, 1e-3, 2e-3])
+    cfg2.outstem += "_multik"
+    cfg2()
+    Block(cfg=cfg2, this_sub=1)
+
+    # now try the empirical kernel
+    cfg2 = copy.deepcopy(cfg)
+    cfg2.linear_algebra = "Empirical"
+    cfg2.no_qlt_ctrl = False
+    cfg2.outstem += "_empir"
+    cfg2()
+    Block(cfg=cfg2, this_sub=1)
+
+    # now try the iterative kernel
+    cfg2 = copy.deepcopy(cfg)
+    cfg2.linear_algebra = "Iterative"
+    cfg2.iter_rtol = 1.5e-3
+    cfg2.iter_max = 2  # not a good choice, just fast for testing
+    cfg2.outstem += "_iter"
+    cfg2()
+    Block(cfg=cfg2, this_sub=1)
+
 
 def test_PyIMCOM_run1(tmp_path, setup):
     """
@@ -580,6 +605,33 @@ def test_PyIMCOM_run1(tmp_path, setup):
 
         assert np.abs(SL1 - 1) < 5e-4
         assert VAR < 1e-5
+
+        # Compare to multi-kappa case
+        with fits.open(tmp_path / "out/testout_F_multik_00_01.fits") as fblock_multik:
+            d_multik = fblock_multik[0].data[0, 0, :, :]
+            mean_diff = np.mean(d - d_multik)
+            std_diff = np.std(d - d_multik)
+            print(f"# {mean_diff}, {std_diff} from {np.std(d)}")
+            assert std_diff < 5e-6
+            assert np.abs(mean_diff) < 1e-6
+
+        # Compare to empirical case
+        with fits.open(tmp_path / "out/testout_F_empir_00_01.fits") as fblock_multik:
+            d_multik = fblock_multik[0].data[0, 0, :, :]
+            mean_diff = np.mean(d - d_multik)
+            std_diff = np.std(d - d_multik)
+            print(f"# {mean_diff}, {std_diff} from {np.std(d)}")
+            assert std_diff < 0.91 * np.std(d)
+            assert np.abs(mean_diff) < 2e-4
+
+        # Compare to iterative case
+        with fits.open(tmp_path / "out/testout_F_iter_00_01.fits") as fblock_multik:
+            d_multik = fblock_multik[0].data[0, 0, :, :]
+            mean_diff = np.mean(d - d_multik)
+            std_diff = np.std(d - d_multik)
+            print(f"# {mean_diff}, {std_diff} from {np.std(d)}")
+            assert std_diff < 2.5e-3
+            assert np.abs(mean_diff) < 2e-4
 
     ## Injected star portion ##
 
