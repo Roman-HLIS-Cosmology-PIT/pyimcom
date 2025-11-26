@@ -870,7 +870,12 @@ def interpolate_image_bilinear(image_B, image_A, interpolated_image, mask=None):
         )
     else:
         print(f"Interpolating image: SCA {image_B.obsid}_{image_B.scaid}")
+        print(f"Image B.image {image_B.image}")
+        print(f"Image B.g_eff {image_B.g_eff}")
+        print(f"rows, cols, coords, num_coords {rows}, {cols}, {coords}, {num_coords}")
+        print(f"interpolated image {interpolated_image}")
         sys.stdout.flush()
+
         pyimcom_croutines.bilinear_interpolation(
             image_B.image, image_B.g_eff, rows, cols, coords, num_coords, interpolated_image
         )
