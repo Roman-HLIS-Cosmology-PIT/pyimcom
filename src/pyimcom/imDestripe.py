@@ -327,15 +327,18 @@ class Sca_img:
         """
         Apply permanent pixel mask. Updates self.image and self.mask
         """
-        pm = fits.open(
-            self.cfg.ds_obsfile
-            + filters[self.cfg.use_filter]
-            + "_"
-            + self.obsid
-            + "_"
-            + self.scaid
-            + ".fits",
-        )["MASK"].data.astype(bool)
+        if self.cfg.permanent_mask is None:
+            pm = fits.open(
+                self.cfg.ds_obsfile
+                + filters[self.cfg.use_filter]
+                + "_"
+                + self.obsid
+                + "_"
+                + self.scaid
+                + ".fits",
+            )["MASK"].data.astype(bool)
+        else:
+            pm = fits.open(self.cfg.permanent_mask)[0].data[int(self.scaid) - 1].astype(bool)
         self.image *= ~pm
         self.mask *= ~pm
 
@@ -369,7 +372,7 @@ class Sca_img:
             + "_"
             + self.scaid
             + ".fits",
-        )["MASK"].data.astype(bool)
+        )["MASK"].data
         pm_array = np.copy(pm)
         return pm_array
 
