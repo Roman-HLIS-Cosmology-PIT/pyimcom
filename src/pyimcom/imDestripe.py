@@ -1693,7 +1693,7 @@ def conjugate_gradient(
     print(f"Restart?: {cfg.ds_restart}\n")
 
     global test_image_dir
-    test_image_dir = cfg.ds_outpath + "/test_images/" + str(0) + "/"
+    test_image_dir = cfg.ds_outpath + "test_images/" + str(0) + "/"
     log_file = os.path.join(cfg.ds_outpath, "cg_log.csv")
 
     if cfg.ds_restart is not None:
@@ -1749,7 +1749,7 @@ def conjugate_gradient(
 
     for i in range(i + 1, cfg.cg_maxiter):  # noqa: B020
         write_to_file(f"### CG Iteration: {i + 1}", of)
-        test_image_dir = cfg.ds_outpath + "/test_images/" + str(i + 1) + "/"
+        test_image_dir = cfg.ds_outpath + "test_images/" + str(i + 1) + "/"
         os.makedirs(test_image_dir, exist_ok=True)
         t_start_CG_iter = time.time()
 
