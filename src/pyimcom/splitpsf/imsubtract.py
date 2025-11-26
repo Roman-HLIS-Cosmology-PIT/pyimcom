@@ -541,21 +541,13 @@ def run_imsubtract(
                     y_bb = np.zeros((height, width))
                     for i in range(oversamp):
                         fi = (i + 0.5) / oversamp
+                        x1 = (1 - fi) * x_bb_temp[:, :-1] + fi * x_bb_temp[:, 1:]
+                        y1 = (1 - fi) * y_bb_temp[:, :-1] + fi * y_bb_temp[:, 1:]
                         for j in range(oversamp):
                             fj = (j + 0.5) / oversamp
-                            x_bb[j::oversamp, i::oversamp] = (
-                                (1 - fi) * (1 - fj) * x_bb_temp[:-1, :-1]
-                                + fi * (1 - fj) * x_bb_temp[:-1, 1:]
-                                + (1 - fi) * fj * x_bb_temp[1:, :-1]
-                                + fi * fj * x_bb_temp[1:, 1:]
-                            )
-                            y_bb[j::oversamp, i::oversamp] = (
-                                (1 - fi) * (1 - fj) * y_bb_temp[:-1, :-1]
-                                + fi * (1 - fj) * y_bb_temp[:-1, 1:]
-                                + (1 - fi) * fj * y_bb_temp[1:, :-1]
-                                + fi * fj * y_bb_temp[1:, 1:]
-                            )
-                    del x_bb_temp, y_bb_temp
+                            x_bb[j::oversamp, i::oversamp] = (1 - fj) * x1[:-1, :] + fj * x1[1:, :]
+                            y_bb[j::oversamp, i::oversamp] = (1 - fj) * y1[:-1, :] + fj * y1[1:, :]
+                    del x_bb_temp, y_bb_temp, x1, y1
                 else:
                     # create arrays for meshgrid
                     x = np.linspace(left - 0.5 + 0.5 / oversamp, right + 0.5 - 0.5 / oversamp, width)
