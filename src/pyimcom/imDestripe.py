@@ -292,19 +292,19 @@ class Sca_img:
                     overwrite=True,
                 )
 
-    def close(self):
-        """
-        Close the file handle when done
-        """
-        if self._file_handle is not None:
-            self._file_handle.close()
-            self._file_handle = None
+    # def close(self):
+    #     """
+    #     Close the file handle when done
+    #     """
+    #     if self._file_handle is not None:
+    #         self._file_handle.close()
+    #         self._file_handle = None
 
-    def __del__(self):
-        """
-        Automatically close file when object is garbage collected
-        """
-        self.close()
+    # def __del__(self):
+    #     """
+    #     Automatically close file when object is garbage collected
+    #     """
+    #     self.close()
 
     def apply_noise(self):
         """
@@ -466,11 +466,15 @@ class Sca_img:
                 shape=self.shape,
             )
             make_Neff = False
+
+        print(f"Make Neff: {make_Neff}, SCA {self.obsid}_{self.scaid}")
         sys.stdout.flush()
 
         N_BinA = 0
 
         sca_b_list = neighbors[ind]
+        print(f"SCA {self.obsid}_{self.scaid} B list: {sca_b_list}")
+        sys.stdout.flush()
 
         for k in sca_b_list:
             sca_b = scalist[k]
@@ -478,19 +482,27 @@ class Sca_img:
 
             N_BinA += 1
             I_B = Sca_img(obsid_B, scaid_B, self.cfg)  # Initialize image B
+            print(f"Initialized SCA B {obsid_B}_{scaid_B}")
+            sys.stdout.flush()
 
             if params:
                 I_B.subtract_parameters(params, k)
 
             I_B.apply_all_mask()  # now I_B is masked
+            print(f"Masked SCA B {obsid_B}_{scaid_B}")
+            sys.stdout.flush()
             B_interp = np.zeros_like(self.image)
             interpolate_image_bilinear(I_B, self, B_interp)
+            print(f"Interpolated SCA B {obsid_B}_{scaid_B}")
+            sys.stdout.flush()
 
             if make_Neff:
                 B_mask_interp = np.zeros_like(self.image)
                 interpolate_image_bilinear(
                     I_B, self, B_mask_interp, mask=I_B.mask
                 )  # interpolate B pixel mask onto A grid
+            print(f"Neff made, SCA B {obsid_B}_{scaid_B}")
+            sys.stdout.flush()
 
             if img_full_output["scaid"] != 0 and testing:
                 obsid_match = obsid_B == str(img_full_output["obsid"])
@@ -516,10 +528,10 @@ class Sca_img:
                 N_eff += B_mask_interp
 
             # Free memory / close files
-            del I_B.image
-            del I_B.g_eff
-            I_B.close()
-            del I_B
+            # del I_B.image
+            # del I_B.g_eff
+            # I_B.close()
+            # del I_B
 
         write_to_file(
             f"Interpolation of {self.obsid}_{self.scaid} done. Number of contributing SCAs: {N_BinA}"
@@ -541,7 +553,9 @@ class Sca_img:
         if make_Neff:
             N_eff.flush()
         del N_eff
-        gc.collect()
+        # gc.collect()
+        print(f"Finished Interpolation SCA {self.obsid}_{self.scaid}")
+        sys.stdout.flush()
 
         return this_interp, new_mask
 
@@ -663,7 +677,7 @@ def save_fits(image, filename, dir=None, overwrite=True, s=False, header=None, r
         Number of write retry attempts if write fails.
     """
     fp = os.path.join(dir, filename + ".fits")
-    lockpath = os.path.join(tempdir, os.path.basename(fp) + ".lock")
+    lockpath = fp + ".lock"
     lock = FileLock(lockpath)
 
     for attempt in range(retries):
@@ -833,6 +847,8 @@ def interpolate_image_bilinear(image_B, image_A, interpolated_image, mask=None):
     """
 
     x_target, y_target, is_in_ref = compareutils.map_sca2sca(image_A.w, image_B.w, pad=0)
+    print(f"Mapped SCA {image_B.obsid}_{image_B.scaid}")
+    sys.stdout.flush()
     coords = np.column_stack((y_target.ravel(), x_target.ravel()))
 
     # Verify data just before C call
@@ -843,11 +859,15 @@ def interpolate_image_bilinear(image_B, image_A, interpolated_image, mask=None):
     sys.stdout.flush()
     sys.stderr.flush()
     if mask is not None and isinstance(mask, np.ndarray):
+        print(f"Interpolating mask: {image_B.obsid}_{image_B.scaid}")
+        sys.stdout.flush()
         mask_geff = np.ones_like(image_A.image)
         pyimcom_croutines.bilinear_interpolation(
             mask, mask_geff, rows, cols, coords, num_coords, interpolated_image
         )
     else:
+        print(f"Interpolating image: SCA {image_B.obsid}_{image_B.scaid}")
+        sys.stdout.flush()
         pyimcom_croutines.bilinear_interpolation(
             image_B.image, image_B.g_eff, rows, cols, coords, num_coords, interpolated_image
         )
@@ -1197,10 +1217,10 @@ def residual_function_single(k, sca_a, wcs_a, psi_a, f_prime, scalist, neighbors
         term_2 = transpose_par(gradient_original)
         term_2_list.append((j, term_2))
 
-        I_B.close()
-        del I_B
+    #     I_B.close()
+    #     del I_B
 
-    gc.collect()
+    # gc.collect()
 
     return k, term_1, term_2_list
 
@@ -1240,8 +1260,14 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg):
     m = re.search(r"_(\d+)_(\d+)", sca_a)
     obsid_A, scaid_A = m.group(1), m.group(2)
     I_A = Sca_img(obsid_A, scaid_A, cfg)
+    print(f"Initialized SCA {obsid_A}_{scaid_A}")
+    sys.stdout.flush()
     I_A.subtract_parameters(p, j)
+    print(f"Subtracted pars SCA {obsid_A}_{scaid_A}")
+    sys.stdout.flush()
     I_A.apply_all_mask()
+    print(f"Masked SCA {obsid_A}_{scaid_A}")
+    sys.stdout.flush()
 
     if img_full_output["scaid"] != 0 and testing:
         example_obs = obsid_A == str(img_full_output["obsid"])
@@ -1254,13 +1280,19 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg):
             )
 
     J_A_image, J_A_mask = I_A.make_interpolated(j, scalist, neighbors, params=p)
+    print(f"Interpolated SCA {obsid_A}_{scaid_A}")
+    sys.stdout.flush()
     J_A_mask *= I_A.mask
 
     psi = np.where(J_A_mask, I_A.image - J_A_image, 0).astype("float32")
+    print(f"Psi for SCA {obsid_A}_{scaid_A}")
+    sys.stdout.flush()
     result = f(psi, thresh) if thresh is not None else f(psi)
     local_epsilon = np.sum(result)
+    print(f"Cost for SCA {obsid_A}_{scaid_A}")
+    sys.stdout.flush()
 
-    if example_obs and example_sca:
+    if img_full_output["scaid"] != 0 and testing and example_obs and example_sca:
         hdu = fits.PrimaryHDU(J_A_image * J_A_mask)
         hdu.writeto(
             test_image_dir + f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_J_A_masked.fits',
