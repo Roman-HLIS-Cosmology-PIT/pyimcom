@@ -407,6 +407,12 @@ def run_imsubtract(
         skipblocks = set()  # blocks we know we can skip since they turned out to have no overlap
         lrbt_table = {}  # the [left, right, bottom, top] of each block
 
+        # get pixel area map (once)
+        area_np = (
+            get_pix_area(sca_wcs, region=[-I_pad, sca_nside + I_pad, -I_pad, sca_nside + I_pad])
+            / (pix_size * 180 / np.pi) ** 2
+        ).astype(np.float32)
+
         # add for loop over layers (nlayers)
         for n in range(nlayer):
             H_canvas = np.zeros((A, A), dtype=np.float32)
@@ -444,39 +450,43 @@ def run_imsubtract(
                     sys.stdout.flush()
 
                 # check the window function
-                with ReportFigContext(matplotlib, plt):
-                    plt.plot(np.arange(len(window)), window, color="indigo")
-                    plt.axvline(block_length - 1, c="mediumpurple")
-                    plt.axvline(block_length - overlap - 1, c="mediumpurple")
-                    plt.axvline(block_length - 2 * overlap - 1, c="mediumpurple")
-                    plt.xlim(block_length - 3 * overlap, block_length + overlap)
-                    plt.plot(block_length - 2, window[block_length - 2], c="darkmagenta", marker="o")
-                    plt.plot(
-                        block_length - 2 * overlap,
-                        window[block_length - 2 * overlap],
-                        c="darkmagenta",
-                        marker="o",
-                    )
-                    plt.plot(
-                        block_length - overlap, window[block_length - overlap], c="blueviolet", marker="o"
-                    )
-                    plt.plot(
-                        block_length - overlap - 2,
-                        window[block_length - overlap - 2],
-                        c="blueviolet",
-                        marker="o",
-                    )
-                    pltshow(plt, display, {"type": "window", "obsid": obsid, "sca": sca, "ix": ix, "iy": iy})
-                print(
-                    window[block_length - 1],
-                    window[block_length - 2 * overlap],
-                    window[block_length - 1] + window[block_length - 2 * overlap],
-                )
-                print(
-                    window[block_length - overlap],
-                    window[block_length - overlap - 1],
-                    window[block_length - overlap] + window[block_length - overlap - 1],
-                )
+                if display != "/dev/null":
+                    print("FIG")
+                    with ReportFigContext(matplotlib, plt):
+                        plt.plot(np.arange(len(window)), window, color="indigo")
+                        plt.axvline(block_length - 1, c="mediumpurple")
+                        plt.axvline(block_length - overlap - 1, c="mediumpurple")
+                        plt.axvline(block_length - 2 * overlap - 1, c="mediumpurple")
+                        plt.xlim(block_length - 3 * overlap, block_length + overlap)
+                        plt.plot(block_length - 2, window[block_length - 2], c="darkmagenta", marker="o")
+                        plt.plot(
+                            block_length - 2 * overlap,
+                            window[block_length - 2 * overlap],
+                            c="darkmagenta",
+                            marker="o",
+                        )
+                        plt.plot(
+                            block_length - overlap, window[block_length - overlap], c="blueviolet", marker="o"
+                        )
+                        plt.plot(
+                            block_length - overlap - 2,
+                            window[block_length - overlap - 2],
+                            c="blueviolet",
+                            marker="o",
+                        )
+                        pltshow(
+                            plt, display, {"type": "window", "obsid": obsid, "sca": sca, "ix": ix, "iy": iy}
+                        )
+                # print(
+                #     window[block_length - 1],
+                #     window[block_length - 2 * overlap],
+                #     window[block_length - 1] + window[block_length - 2 * overlap],
+                # )
+                # print(
+                #     window[block_length - overlap],
+                #     window[block_length - overlap - 1],
+                #     window[block_length - overlap] + window[block_length - overlap - 1],
+                # )
 
                 print(f"+ figure: {time.time()-t0:6.2f}")
                 sys.stdout.flush()
@@ -579,22 +589,28 @@ def run_imsubtract(
                 sys.stdout.flush()
 
                 # multiply by Jacobian to H
-                # get native pixel size
+                # get native pixel size (in units of the ideal pixel, [0.11 arcsec]^2 for Roman)
                 if wcs_shortcut:
+                    # previous area call: get_pix_area(sca_wcs, region=[left, right + 1, bottom, top + 1])
+                    # note that was in steradians, this one is in ideal pixels
+
                     # this should be faster
                     native_pix = np.repeat(
                         np.repeat(
-                            get_pix_area(sca_wcs, region=[left, right + 1, bottom, top + 1]), oversamp, axis=1
+                            area_np[I_pad + bottom : I_pad + top + 1, I_pad + left : I_pad + right + 1],
+                            oversamp,
+                            axis=1,
                         ),
                         oversamp,
                         axis=0,
                     )
                 else:
-                    native_pix = get_pix_area(
-                        sca_wcs, region=[left, right + 1, bottom, top + 1], ovsamp=oversamp
+                    native_pix = (
+                        get_pix_area(sca_wcs, region=[left, right + 1, bottom, top + 1], ovsamp=oversamp)
+                        / (pix_size * 180 / np.pi) ** 2
                     )
 
-                H *= native_pix / (pix_size * 180 / np.pi) ** 2
+                H *= native_pix
 
                 print(f"+ area: {time.time()-t0:6.2f}")
                 sys.stdout.flush()
