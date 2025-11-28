@@ -437,7 +437,7 @@ class GalSimInject:
 
         * "shear=g1:g2" (g1, g2 : float) : shear the galaxies by (g1,g2), conserving area
 
-        * "n=n" (n : int) : Sersic index 
+        * "n=n" (n : int) : Sersic index
 
         * "hlr=hlr" (hlr : float) : Effective radius in arcsec
 
@@ -471,7 +471,8 @@ class GalSimInject:
                 morph_extraargs['hlr'] = float(m.group(1)) # half-light radius
             m = re.search(r"^shape=([^ \:]+)\:([^ \:]+)$", arg, re.IGNORECASE)
             if m:
-                morph_extraargs['shape'] = [float(m.group(1)), float(m.group(2))] #intrinsic galaxy shape (g1,g2)
+                #intrinsic galaxy shape (g1,g2)
+                morph_extraargs['shape'] = [float(m.group(1)), float(m.group(2))]
 
         # print('rng seed =', seed, '  transform: rot=', rot, 'shear=', shear)
 
