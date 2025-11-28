@@ -333,7 +333,7 @@ class GalSimInject:
         return out
 
     @staticmethod
-    def genobj(lenpix, subpix, galstring, seed):
+    def genobj(lenpix, subpix, galstring, seed, morph_extraargs):
         """
         Generates parameters for a set of random galaxies to draw on specific pixels.
 
@@ -348,6 +348,8 @@ class GalSimInject:
             String specifying the type.
         seed : int
             Random number generator seed.
+        morph_extraargs : dict
+           Dictionary of galaxy morphology: sersic index, effective radius, and intrinsic shape
 
         Returns
         -------
@@ -383,8 +385,19 @@ class GalSimInject:
             g1 = 0.5 * np.sqrt(data[1, :]) * np.cos(2 * np.pi * data[2, :])
             g2 = 0.5 * np.sqrt(data[1, :]) * np.sin(2 * np.pi * data[2, :])
             mydict = {"sersic": {"n": 1.0, "r": 0.5 / 4 ** data[0, :], "t__r": 8.0}, "g": np.stack((g1, g2))}
+            
+            ## in case user wants to set galaxy morphology
+            if morph_extraargs['n'] is not None:
+                mydict['sersic']['n'] = morph_extraargs['n']
+            if morph_extraargs['hlr'] is not None:
+                mydict['sersic']['r'] = morph_extraargs['hlr']
+            if morph_extraargs['shape'] is not None:
+                g1, g2 = morph_extraargs['shape'][0], morph_extraargs['shape'][1]
+                mydict['g'] = np.stack((g1, g2))
+                
         else:
             mydict = {}
+
 
         return mydict
 
@@ -424,6 +437,12 @@ class GalSimInject:
 
         * "shear=g1:g2" (g1, g2 : float) : shear the galaxies by (g1,g2), conserving area
 
+        * "n=n" (n : int) : Sersic index 
+
+        * "hlr=hlr" (hlr : float) : Effective radius in arcsec
+
+        * "shape=g1:g2" (g1, g2 : float) : intrinsi galaxy shape by (g1,g2), conserving area
+
         """
 
         # default parameters
@@ -432,6 +451,7 @@ class GalSimInject:
         shear = None
 
         # unpack extraargs
+        morph_extraargs = {} # dictionary to store galaxy morphology if specified by user
         for arg in extraargs:
             m = re.search(r"^seed=(\d+)$", arg, re.IGNORECASE)
             if m:
@@ -442,6 +462,16 @@ class GalSimInject:
             m = re.search(r"^shear=([^ \:]+)\:([^ \:]+)$", arg, re.IGNORECASE)
             if m:
                 shear = [float(m.group(1)), float(m.group(2))]
+            ## added extra arguments for input user to provide specific galaxy morphology    
+            m = re.search(r"^n=(\S+)$", arg, re.IGNORECASE)
+            if m:
+                morph_extraargs['n'] = int(m.group(1)) # sersic index
+            m = re.search(r"^hlr=(\S+)$", arg, re.IGNORECASE)
+            if m:
+                morph_extraargs['hlr'] = float(m.group(1)) # half-light radius
+            m = re.search(r"^shape=([^ \:]+)\:([^ \:]+)$", arg, re.IGNORECASE)
+            if m:
+                morph_extraargs['shape'] = [float(m.group(1)), float(m.group(2))] #intrinsic galaxy shape (g1,g2)
 
         # print('rng seed =', seed, '  transform: rot=', rot, 'shear=', shear)
 
@@ -466,7 +496,7 @@ class GalSimInject:
 
         # generate object parameters
         galstring = "exp1"
-        galtype = GalSimInject.genobj(12 * 4**res, ipix, galstring, seed)
+        galtype = GalSimInject.genobj(12 * 4**res, ipix, galstring, seed, morph_extraargs)
 
         n_in_stamp = 280
         pad = n_in_stamp + 2 * (d + 1)
