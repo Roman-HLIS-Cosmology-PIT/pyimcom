@@ -101,14 +101,6 @@ class GalSimInject:
         '''
         #from .coadd import InImage
         import fitsio
-        # The tophat width: in use_shortrange, the psfsplit module has already included this,
-        # so we set it to 0 so as to not double-count this contribution.
-        #tophatwidth_use = inpsf_oversamp
-
-        # get the pixel location on the input image
-        # (moved this up since some PSF models need it)
-        #pixloc = inwcs.all_world2pix(np.array([[*psf_compute_point]]).astype(np.float64), 0)[0]
-        
         fname = inpsf_path + '/psf_polyfit_{:d}.fits'.format(idsca[0])
         sskip = 0
         readskip = False
@@ -116,14 +108,6 @@ class GalSimInject:
         with fits.open(fname) as f:
             if readskip: sskip = int(f[0].header['GSSKIP'])
             inpsf_cube = f[idsca[1]+sskip].data[:, :, :]
-            #print(' <<', fname, sskip)
-
-            # order = 1
-            #lpoly = InImage.LPolyArr(1, (pixloc[0]-2043.5)/2044., (pixloc[1]-2043.5)/2044.)
-            # pixels are in C/Python convention since pixloc was set this way
-            #this_psf = InImage.smooth_and_pad(
-                #np.einsum('a,aij->ij', lpoly, inpsf_cube), tophatwidth=tophatwidth_use)/64
-            # divide by 64=8**2 since anlsim files are in fractional intensity per s_in**2 instead of per (s_in/8)**2
 
 
         return inpsf_cube
