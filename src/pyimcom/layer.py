@@ -387,13 +387,14 @@ class GalSimInject:
             mydict = {"sersic": {"n": 1.0, "r": 0.5 / 4 ** data[0, :], "t__r": 8.0}, "g": np.stack((g1, g2))}
             
             ## in case user wants to set galaxy morphology
-            if morph_extraargs['n'] is not None:
-                mydict['sersic']['n'] = morph_extraargs['n']
-            if morph_extraargs['hlr'] is not None:
-                mydict['sersic']['r'] = morph_extraargs['hlr']
-            if morph_extraargs['shape'] is not None:
-                g1, g2 = morph_extraargs['shape'][0], morph_extraargs['shape'][1]
-                mydict['g'] = np.stack((g1, g2))
+            for arg in morph_extraargs:
+                if arg=='n':
+                    mydict['sersic']['n'] = morph_extraargs['n']
+                if arg =='hlr':
+                    mydict['sersic']['r'] = morph_extraargs['hlr']
+                if arg == 'shape':
+                    g1, g2 = morph_extraargs['shape'][0], morph_extraargs['shape'][1]
+                    mydict['g'] = np.stack((g1, g2))
                 
         else:
             mydict = {}
