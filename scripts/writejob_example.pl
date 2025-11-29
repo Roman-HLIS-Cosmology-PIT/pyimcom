@@ -32,7 +32,7 @@ $py .= "if len(sys.argv)>3:\n";
 $py .= "    if sys.argv[3]=='draw':\n";
 $py .= "        cfg.stoptile=4\n";
 $py .= "    if sys.argv[3]=='reduce':\n";
-$py .= "        cfg.instamp_pad = 0.50 * Settings.arcsec\n";      # <-- can change INPAD for the first iteration here
+$py .= "        cfg.instamp_pad = 0.48 * Settings.arcsec\n";      # <-- can change INPAD for the first iteration here
 $py .= "cfg.tempfile = os.getenv('TMPDIR') + '/temp'\n";          # <-- can change $TMPDIR here
 $py .= "cfg()\n";
 $py .= "print(cfg.to_file(None))\n";
