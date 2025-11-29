@@ -6,6 +6,7 @@ from astropy.io import fits
 from astropy.wcs import WCS
 from pyimcom.meta.distortimage import MetaMosaic, shearimage_to_fits
 from pyimcom.meta.ginterp import MultiInterp
+from pyimcom.meta.interp_diagnostics import interp_transfer_function
 
 EXAMPLE_FILE = (
     "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/compressiontest_F_02_11.fits"
@@ -173,3 +174,44 @@ def test_metamosaic(tmp_path):
         # these should be the same to machine precision
         diff = f_orig[0].data[0, layer_, wy:-wy, wx:-wx] - im2["image"][0, :, :]
         assert np.amax(np.abs(diff)) < 1e-7
+
+
+def test_interp_transfer_function(tmp_path):
+    """Test
+
+    Parameters
+    ----------
+    tmp_path : str or str-like
+        Directory for the tests.
+
+    Returns
+    -------
+    None
+    """
+
+    theta = 20.0 * np.pi / 180.0
+    J = np.array([[np.cos(theta), np.sin(theta)], [-np.sin(theta), np.cos(theta)]])
+    t = interp_transfer_function(
+        6.0, 4.5, np.array([0.64, 0.0, 0.32]), Jac=J, epsilon=1.0e-7, umax=1.1, N=256
+    )
+    my_moments = galsim.hsm.FindAdaptiveMom(galsim.Image(t))
+    print(my_moments.moments_sigma)
+    print(my_moments.moments_centroid.x)
+    print(my_moments.moments_centroid.y)
+    print(my_moments.observed_shape.g1)
+    print(my_moments.observed_shape.g2)
+
+    # check flux conservation
+    assert np.abs(np.amax(t) - 1.0) < 1e-4
+
+    # check correct centering
+    assert np.abs(my_moments.moments_centroid.x - 129.0) < 0.001
+    assert np.abs(my_moments.moments_centroid.y - 129.0) < 0.001
+
+    # these assertions may fail if we change the weighting
+    assert np.abs(my_moments.moments_sigma / 26.404602 - 1.0) < 0.001
+    assert np.abs(my_moments.observed_shape.g1 + 0.10556476858761756) < 0.001
+    assert np.abs(my_moments.observed_shape.g2 + 0.08857386394272262) < 0.001
+
+    # test write to file -- sometimes useful
+    fits.PrimaryHDU(t).writeto(str(tmp_path) + "/t.fits", overwrite=True)
