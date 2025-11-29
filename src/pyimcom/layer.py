@@ -79,6 +79,70 @@ class GalSimInject:
     """
 
     @staticmethod
+    def get_psf(inpsf_path,idsca):
+        '''
+        Get input PSF array at given position.
+
+        This is an interface for layer.get_all_data and psfutil.PSFGrp._build_inpsfgrp.
+
+        Parameters
+        ----------
+        psf_compute_point : np.array, shape : (2,)
+            Point to compute PSF in RA and Dec.
+        use_shortrange : bool, optional
+            If True and PSFSPLIT is set, then pulls only the short-range PSF G^(S).
+            The default is False.
+
+        Returns
+        -------
+        tuple : np.array, shape : see smooth_and_pad
+            Input PSF array at given position. 
+
+        '''
+        #from .coadd import InImage
+        import fitsio
+        # The tophat width: in use_shortrange, the psfsplit module has already included this,
+        # so we set it to 0 so as to not double-count this contribution.
+        #tophatwidth_use = inpsf_oversamp
+
+        # get the pixel location on the input image
+        # (moved this up since some PSF models need it)
+        #pixloc = inwcs.all_world2pix(np.array([[*psf_compute_point]]).astype(np.float64), 0)[0]
+        
+        fname = inpsf_path + '/psf_polyfit_{:d}.fits'.format(idsca[0])
+        sskip = 0
+        readskip = False
+        assert exists(fname), 'Error: input psf does not exist'
+        with fits.open(fname) as f:
+            if readskip: sskip = int(f[0].header['GSSKIP'])
+            inpsf_cube = f[idsca[1]+sskip].data[:, :, :]
+            #print(' <<', fname, sskip)
+
+            # order = 1
+            #lpoly = InImage.LPolyArr(1, (pixloc[0]-2043.5)/2044., (pixloc[1]-2043.5)/2044.)
+            # pixels are in C/Python convention since pixloc was set this way
+            #this_psf = InImage.smooth_and_pad(
+                #np.einsum('a,aij->ij', lpoly, inpsf_cube), tophatwidth=tophatwidth_use)/64
+            # divide by 64=8**2 since anlsim files are in fractional intensity per s_in**2 instead of per (s_in/8)**2
+
+
+        return inpsf_cube
+        
+    @staticmethod
+    def get_psf_pos(inpsf_cube, inwcs, psf_compute_point, inpsf_oversamp = 8):
+        from .coadd import InImage
+        tophatwidth_use = inpsf_oversamp
+        pixloc = inwcs.all_world2pix(np.array([[*psf_compute_point]]).astype(np.float64), 0)[0]
+        lpoly = InImage.LPolyArr(1, (pixloc[0]-2043.5)/2044., (pixloc[1]-2043.5)/2044.)
+        # pixels are in C/Python convention since pixloc was set this way
+        this_psf = InImage.smooth_and_pad(
+            np.einsum('a,aij->ij', lpoly, inpsf_cube), tophatwidth=tophatwidth_use)/64
+        # divide by 64=8**2 since anlsim files are in fractional intensity per s_in**2 instead of per (s_in/8)**2
+
+
+        return this_psf
+
+    @staticmethod
     def galsim_star_grid(res, mywcs, inpsf, idsca, obsdata, sca_nside, inpsf_oversamp, extraargs=None):
         """
         Draws a grid of stars on an SCA image.
