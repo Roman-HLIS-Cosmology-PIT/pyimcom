@@ -389,7 +389,7 @@ class GalSimInject:
         return mydict
 
     @staticmethod
-    def galsim_extobj_grid(res, mywcs, inpsf, sca_nside, inpsf_oversamp, extraargs=[]):
+    def galsim_extobj_grid(res, mywcs, inpsf, sca_nside, inpsf_oversamp, extraargs=[], chrom = False):
         """
         Draws a grid of galaxies on an SCA image.
 
@@ -408,6 +408,8 @@ class GalSimInject:
         extraargs : list of str, optional
             List of extra arguments to pass for drawing galaxies.
             An example would be ``extraargs=['seed=12345', 'rot=90', 'shear=0.2:0.1']``.
+        chrom : bool, optional
+            Whether or not PSF is drawn using a different PSF than the one from coaddition.
 
         Returns
         -------
@@ -473,7 +475,10 @@ class GalSimInject:
         sca_image = galsim.ImageF(sca_nside + pad, sca_nside + pad, scale=refscale)
         t0 = time.time()
         for n in range(num_obj):
-            psf = inpsf((my_ra[n], my_dec[n]))  # now with PSF variation
+            if not chrom:
+                psf = inpsf((my_ra[n], my_dec[n]))  # now with PSF variation
+            else:
+                psf = GalSimInject.get_psf_pos(inpsf, mywcs, (my_ra[n], my_dec[n]), inpsf_oversamp)
             psf_image = galsim.Image(psf, scale=0.11 / inpsf_oversamp)
             # interp_psf = galsim.InterpolatedImage(psf_image, x_interpolant='lanczos32')
             # the first time, get the preferred stepk and maxk
@@ -1317,6 +1322,18 @@ def get_all_data(inimage):
             inimage.indata[i, :, :] = GalSimInject.galsim_extobj_grid(
                 res, inwcs, inpsf, Stn.sca_nside, inpsf_oversamp, extraargs=extargs
             )
+
+        # galsim extobj grid using PSF with different SED
+        m = re.search(r'^gsextchrom(\d+)', extrainput[i], re.IGNORECASE)
+        if m:
+            # set path to where PSF with different SED lives
+            inpsfchrom_path = extrainput[i].split(',')[1] 
+            chrom_inpsf = GalSimInject.get_psf(inpsfchrom_path,idsca)
+            res = int(m.group(1))
+            extargs = extrainput[i].split(',')[2:]
+            print('making chromatic grid using GalSim: ', res, idsca, 'extended object type:', extargs)
+            inimage.indata[i, :, :] = GalSimInject.galsim_extobj_grid(
+                res, inwcs, chrom_inpsf, Stn.sca_nside, inpsf_oversamp, extraargs=extargs,  chrom = True)
 
         # noise realizations saved from romanimpreprocess
         # supported in L2_2506 and later
