@@ -333,7 +333,7 @@ class GalSimInject:
         return out
 
     @staticmethod
-    def genobj(lenpix, subpix, galstring, seed, morph_extraargs):
+    def genobj(lenpix, subpix, galstring, seed, morph_extraargs = {}):
         """
         Generates parameters for a set of random galaxies to draw on specific pixels.
 
