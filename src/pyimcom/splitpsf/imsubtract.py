@@ -45,7 +45,7 @@ from ..wcsutil import (
 )
 
 
-def fftconvolve_multi(in1, in2, out, mode="full", nb=4, verbose=False):
+def fftconvolve_multi(in1, in2, out, mode="full", nb=4, workers=None, verbose=False):
     """
     Convolve two N-dimensional arrays using FFT.
 
@@ -70,6 +70,8 @@ def fftconvolve_multi(in1, in2, out, mode="full", nb=4, verbose=False):
         scipy functions).
     nb : int, optional
         Number of blocks to use.
+    workers : int, optional
+        Number of workers for the FFTs if requesting parallelism.
     verbose : bool, optional
         Whether to print the intermediate steps.
 
@@ -83,7 +85,7 @@ def fftconvolve_multi(in1, in2, out, mode="full", nb=4, verbose=False):
 
     # if we're not using valid, or not in 2D, use standard fftconvolve
     if mode != "valid" or len(np.shape(in1)) != 2:
-        out += fftconvolve(in1, in2, mode=mode)
+        out += fftconvolve(in1, in2, mode=mode, workers=workers)
         return
 
     # Now we know we're 2D and in valid mode. Get shapes
@@ -94,20 +96,20 @@ def fftconvolve_multi(in1, in2, out, mode="full", nb=4, verbose=False):
 
     # If in1 is big enough that it will break the indexing
     if s1y >= Ly // nb:
-        out += fftconvolve(in1, in2, mode=mode)
+        out += fftconvolve(in1, in2, mode=mode, workers=workers)
         return
 
     # loop over horizontal bands
     height = (Ly + nb - 1) // nb
     if height <= s1y:
-        out += fftconvolve(in1, in2, mode=mode)  # also return if the strip is too narrow
+        out += fftconvolve(in1, in2, mode=mode, workers=workers)  # also return if the strip is too narrow
         return
     lenx = next_fast_len(s1x + s2x)
     leny = next_fast_len(s1y + height)
     in1_ = np.zeros((leny, lenx))
     in2_ = np.zeros((leny, lenx))
     in1_[:s1y, :s1x] = in1
-    in1_ft = rfft2(in1_)
+    in1_ft = rfft2(in1_, workers=workers)
     del in1_
     for j in range(nb):
         gc.collect()
@@ -116,10 +118,12 @@ def fftconvolve_multi(in1, in2, out, mode="full", nb=4, verbose=False):
         dy = ytop - ybottom
         in2_[:, :] = 0.0
         in2_[: dy + s1y - 1, :s2x] = in2[ybottom : ytop + s1y - 1, :]
-        in2_ft = rfft2(in2_) * in1_ft
+        in2_ft = rfft2(in2_, workers=workers) * in1_ft
         if verbose:
             print("y =", ybottom, ytop, "of Ly =", Ly)
-        out[ybottom:ytop, :] += irfft2(in2_ft)[s1y - 1 : dy + s1y - 1, s1x - 1 : Lx + s1x - 1]
+        out[ybottom:ytop, :] += irfft2(in2_ft, s=(leny, lenx), workers=workers)[
+            s1y - 1 : dy + s1y - 1, s1x - 1 : Lx + s1x - 1
+        ]
         # B = fftconvolve(in1, in2[ybottom : ytop + s1y - 1, :], mode="valid")
         # print(np.shape(A), np.shape(B))
         # print(np.amax(np.abs(A)), np.amax(np.abs(B)), np.amax(np.abs(A-B)))
@@ -223,7 +227,7 @@ def get_wcs_from_infile(infile):
 
 
 def run_imsubtract(
-    config_file, display=None, scanum=None, local_output=False, max_img=None, wcs_shortcut=True
+    config_file, display=None, scanum=None, local_output=False, max_img=None, workers=None, wcs_shortcut=True
 ):
     """
     Main routine to run imsubtract.
@@ -245,6 +249,8 @@ def run_imsubtract(
     max_img : int, optional
         If provided, does computations for a maximum number of SCAs. Most users will
         want the default of None; this is provided mainly for testing.
+    workers : int, optional
+        Number of workers for the FFTs if requesting parallelism.
     wcs_shortcut : bool, optional
         If set, allows interpolation methods to speed up WCS computations.
 
@@ -401,6 +407,12 @@ def run_imsubtract(
         skipblocks = set()  # blocks we know we can skip since they turned out to have no overlap
         lrbt_table = {}  # the [left, right, bottom, top] of each block
 
+        # get pixel area map (once)
+        area_np = (
+            get_pix_area(sca_wcs, region=[-I_pad, sca_nside + I_pad, -I_pad, sca_nside + I_pad])
+            / (pix_size * 180 / np.pi) ** 2
+        ).astype(np.float32)
+
         # add for loop over layers (nlayers)
         for n in range(nlayer):
             H_canvas = np.zeros((A, A), dtype=np.float32)
@@ -438,39 +450,43 @@ def run_imsubtract(
                     sys.stdout.flush()
 
                 # check the window function
-                with ReportFigContext(matplotlib, plt):
-                    plt.plot(np.arange(len(window)), window, color="indigo")
-                    plt.axvline(block_length - 1, c="mediumpurple")
-                    plt.axvline(block_length - overlap - 1, c="mediumpurple")
-                    plt.axvline(block_length - 2 * overlap - 1, c="mediumpurple")
-                    plt.xlim(block_length - 3 * overlap, block_length + overlap)
-                    plt.plot(block_length - 2, window[block_length - 2], c="darkmagenta", marker="o")
-                    plt.plot(
-                        block_length - 2 * overlap,
-                        window[block_length - 2 * overlap],
-                        c="darkmagenta",
-                        marker="o",
-                    )
-                    plt.plot(
-                        block_length - overlap, window[block_length - overlap], c="blueviolet", marker="o"
-                    )
-                    plt.plot(
-                        block_length - overlap - 2,
-                        window[block_length - overlap - 2],
-                        c="blueviolet",
-                        marker="o",
-                    )
-                    pltshow(plt, display, {"type": "window", "obsid": obsid, "sca": sca, "ix": ix, "iy": iy})
-                print(
-                    window[block_length - 1],
-                    window[block_length - 2 * overlap],
-                    window[block_length - 1] + window[block_length - 2 * overlap],
-                )
-                print(
-                    window[block_length - overlap],
-                    window[block_length - overlap - 1],
-                    window[block_length - overlap] + window[block_length - overlap - 1],
-                )
+                if display != "/dev/null":
+                    print("FIG")
+                    with ReportFigContext(matplotlib, plt):
+                        plt.plot(np.arange(len(window)), window, color="indigo")
+                        plt.axvline(block_length - 1, c="mediumpurple")
+                        plt.axvline(block_length - overlap - 1, c="mediumpurple")
+                        plt.axvline(block_length - 2 * overlap - 1, c="mediumpurple")
+                        plt.xlim(block_length - 3 * overlap, block_length + overlap)
+                        plt.plot(block_length - 2, window[block_length - 2], c="darkmagenta", marker="o")
+                        plt.plot(
+                            block_length - 2 * overlap,
+                            window[block_length - 2 * overlap],
+                            c="darkmagenta",
+                            marker="o",
+                        )
+                        plt.plot(
+                            block_length - overlap, window[block_length - overlap], c="blueviolet", marker="o"
+                        )
+                        plt.plot(
+                            block_length - overlap - 2,
+                            window[block_length - overlap - 2],
+                            c="blueviolet",
+                            marker="o",
+                        )
+                        pltshow(
+                            plt, display, {"type": "window", "obsid": obsid, "sca": sca, "ix": ix, "iy": iy}
+                        )
+                # print(
+                #     window[block_length - 1],
+                #     window[block_length - 2 * overlap],
+                #     window[block_length - 1] + window[block_length - 2 * overlap],
+                # )
+                # print(
+                #     window[block_length - overlap],
+                #     window[block_length - overlap - 1],
+                #     window[block_length - overlap] + window[block_length - overlap - 1],
+                # )
 
                 print(f"+ figure: {time.time()-t0:6.2f}")
                 sys.stdout.flush()
@@ -535,21 +551,13 @@ def run_imsubtract(
                     y_bb = np.zeros((height, width))
                     for i in range(oversamp):
                         fi = (i + 0.5) / oversamp
+                        x1 = (1 - fi) * x_bb_temp[:, :-1] + fi * x_bb_temp[:, 1:]
+                        y1 = (1 - fi) * y_bb_temp[:, :-1] + fi * y_bb_temp[:, 1:]
                         for j in range(oversamp):
                             fj = (j + 0.5) / oversamp
-                            x_bb[j::oversamp, i::oversamp] = (
-                                (1 - fi) * (1 - fj) * x_bb_temp[:-1, :-1]
-                                + fi * (1 - fj) * x_bb_temp[:-1, 1:]
-                                + (1 - fi) * fj * x_bb_temp[1:, :-1]
-                                + fi * fj * x_bb_temp[1:, 1:]
-                            )
-                            y_bb[j::oversamp, i::oversamp] = (
-                                (1 - fi) * (1 - fj) * y_bb_temp[:-1, :-1]
-                                + fi * (1 - fj) * y_bb_temp[:-1, 1:]
-                                + (1 - fi) * fj * y_bb_temp[1:, :-1]
-                                + fi * fj * y_bb_temp[1:, 1:]
-                            )
-                    del x_bb_temp, y_bb_temp
+                            x_bb[j::oversamp, i::oversamp] = (1 - fj) * x1[:-1, :] + fj * x1[1:, :]
+                            y_bb[j::oversamp, i::oversamp] = (1 - fj) * y1[:-1, :] + fj * y1[1:, :]
+                    del x_bb_temp, y_bb_temp, x1, y1
                 else:
                     # create arrays for meshgrid
                     x = np.linspace(left - 0.5 + 0.5 / oversamp, right + 0.5 - 0.5 / oversamp, width)
@@ -581,22 +589,28 @@ def run_imsubtract(
                 sys.stdout.flush()
 
                 # multiply by Jacobian to H
-                # get native pixel size
+                # get native pixel size (in units of the ideal pixel, [0.11 arcsec]^2 for Roman)
                 if wcs_shortcut:
+                    # previous area call: get_pix_area(sca_wcs, region=[left, right + 1, bottom, top + 1])
+                    # note that was in steradians, this one is in ideal pixels
+
                     # this should be faster
                     native_pix = np.repeat(
                         np.repeat(
-                            get_pix_area(sca_wcs, region=[left, right + 1, bottom, top + 1]), oversamp, axis=1
+                            area_np[I_pad + bottom : I_pad + top + 1, I_pad + left : I_pad + right + 1],
+                            oversamp,
+                            axis=1,
                         ),
                         oversamp,
                         axis=0,
                     )
                 else:
-                    native_pix = get_pix_area(
-                        sca_wcs, region=[left, right + 1, bottom, top + 1], ovsamp=oversamp
+                    native_pix = (
+                        get_pix_area(sca_wcs, region=[left, right + 1, bottom, top + 1], ovsamp=oversamp)
+                        / (pix_size * 180 / np.pi) ** 2
                     )
 
-                H *= native_pix / (pix_size * 180 / np.pi) ** 2
+                H *= native_pix
 
                 print(f"+ area: {time.time()-t0:6.2f}")
                 sys.stdout.flush()
@@ -623,6 +637,7 @@ def run_imsubtract(
                         KH,
                         mode="valid",
                         nb=6,
+                        workers=workers,
                     )
 
             # subtract from the input image (using less memory)
@@ -666,7 +681,7 @@ if __name__ == "__main__":
     display = "/dev/null"
     if len(sys.argv) > 3:
         display = sys.argv[3]
-    run_imsubtract(config_file, display=display, scanum=sca)
+    run_imsubtract(config_file, display=display, scanum=sca, workers=4)
 
     end = time.time()
     elapsed = end - start
