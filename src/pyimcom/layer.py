@@ -333,7 +333,7 @@ class GalSimInject:
         return out
 
     @staticmethod
-    def genobj(lenpix, subpix, galstring, seed):
+    def genobj(lenpix, subpix, galstring, seed, morph_extraargs={}):
         """
         Generates parameters for a set of random galaxies to draw on specific pixels.
 
@@ -348,6 +348,8 @@ class GalSimInject:
             String specifying the type.
         seed : int
             Random number generator seed.
+        morph_extraargs : dict
+           Dictionary of galaxy morphology: sersic index, effective radius, and intrinsic shape
 
         Returns
         -------
@@ -383,10 +385,30 @@ class GalSimInject:
             g1 = 0.5 * np.sqrt(data[1, :]) * np.cos(2 * np.pi * data[2, :])
             g2 = 0.5 * np.sqrt(data[1, :]) * np.sin(2 * np.pi * data[2, :])
             mydict = {"sersic": {"n": 1.0, "r": 0.5 / 4 ** data[0, :], "t__r": 8.0}, "g": np.stack((g1, g2))}
+
+            ## in case user wants to set galaxy morphology
+            for arg in morph_extraargs:
+                if arg == "n":
+                    mydict["sersic"]["n"] = morph_extraargs["n"]
+                if arg == "hlr":
+                    mydict["sersic"]["r"] = morph_extraargs["hlr"]
+                if arg == "shape":
+                    g1, g2 = morph_extraargs["shape"][0], morph_extraargs["shape"][1]
+                    mydict["g"] = np.stack((g1, g2))
+
         else:
             mydict = {}
 
         return mydict
+
+    @staticmethod
+    def _value(obj, n):
+        """Helper function to get obj if it is a scalar or obj[n] if it is an array."""
+        try:
+            out = obj[n]
+        except (TypeError, IndexError):
+            out = obj
+        return out
 
     @staticmethod
     def galsim_extobj_grid(res, mywcs, inpsf, sca_nside, inpsf_oversamp, extraargs=[]):
@@ -424,6 +446,12 @@ class GalSimInject:
 
         * "shear=g1:g2" (g1, g2 : float) : shear the galaxies by (g1,g2), conserving area
 
+        * "n=n" (n : int) : Sersic index
+
+        * "hlr=hlr" (hlr : float) : Effective radius in arcsec
+
+        * "shape=g1:g2" (g1, g2 : float) : intrinsi galaxy shape by (g1,g2), conserving area
+
         """
 
         # default parameters
@@ -432,6 +460,7 @@ class GalSimInject:
         shear = None
 
         # unpack extraargs
+        morph_extraargs = {}  # dictionary to store galaxy morphology if specified by user
         for arg in extraargs:
             m = re.search(r"^seed=(\d+)$", arg, re.IGNORECASE)
             if m:
@@ -442,6 +471,17 @@ class GalSimInject:
             m = re.search(r"^shear=([^ \:]+)\:([^ \:]+)$", arg, re.IGNORECASE)
             if m:
                 shear = [float(m.group(1)), float(m.group(2))]
+            ## added extra arguments for input user to provide specific galaxy morphology
+            m = re.search(r"^n=(\S+)$", arg, re.IGNORECASE)
+            if m:
+                morph_extraargs["n"] = float(m.group(1))  # sersic index
+            m = re.search(r"^hlr=(\S+)$", arg, re.IGNORECASE)
+            if m:
+                morph_extraargs["hlr"] = float(m.group(1))  # half-light radius
+            m = re.search(r"^shape=([^ \:]+)\:([^ \:]+)$", arg, re.IGNORECASE)
+            if m:
+                # intrinsic galaxy shape (g1,g2)
+                morph_extraargs["shape"] = [float(m.group(1)), float(m.group(2))]
 
         # print('rng seed =', seed, '  transform: rot=', rot, 'shear=', shear)
 
@@ -466,7 +506,7 @@ class GalSimInject:
 
         # generate object parameters
         galstring = "exp1"
-        galtype = GalSimInject.genobj(12 * 4**res, ipix, galstring, seed)
+        galtype = GalSimInject.genobj(12 * 4**res, ipix, galstring, seed, morph_extraargs)
 
         n_in_stamp = 280
         pad = n_in_stamp + 2 * (d + 1)
@@ -509,20 +549,17 @@ class GalSimInject:
             #
             if "sersic" in galtype:
                 st_model_round = galsim.Sersic(
-                    galtype["sersic"]["n"],
-                    half_light_radius=galtype["sersic"]["r"][n],
+                    GalSimInject._value(galtype["sersic"]["n"], n),
+                    half_light_radius=GalSimInject._value(galtype["sersic"]["r"], n),
                     flux=1.0,
-                    trunc=galtype["sersic"]["t__r"] * galtype["sersic"]["r"][n],
+                    trunc=galtype["sersic"]["t__r"] * GalSimInject._value(galtype["sersic"]["r"], n),
                 )
             #
             # now transform the round object if desired
             if "g" in galtype:
-                jshear = np.asarray(
-                    [
-                        [1 + galtype["g"][0, n], galtype["g"][1, n]],
-                        [galtype["g"][1, n], 1 - galtype["g"][0, n]],
-                    ]
-                ) / np.sqrt(1.0 - galtype["g"][0, n] ** 2 - galtype["g"][1, n] ** 2)
+                g1 = GalSimInject._value(galtype["g"][0], n)
+                g2 = GalSimInject._value(galtype["g"][1], n)
+                jshear = np.asarray([[1 + g1, g2], [g2, 1 - g1]]) / np.sqrt(1.0 - g1**2 - g2**2)
                 st_model_undist = galsim.Transformation(
                     st_model_round, jac=jshear, offset=(0.0, 0.0), flux_ratio=1
                 )

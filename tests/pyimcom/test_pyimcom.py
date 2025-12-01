@@ -9,6 +9,7 @@ import os
 import pathlib
 
 import asdf
+import galsim
 import gwcs
 import numpy as np
 import pytest
@@ -89,7 +90,8 @@ myCfg_format = """
         "cstar14",
         "nstar14,2e5,100,256",
         "whitenoise1",
-        "1fnoise2"
+        "1fnoise2",
+        "gsext14,n=0.5,hlr=0.1,shape=0.2:0.1,shear=0.05:-0.12"
     ],
     "PADSIDES": "all",
     "OUTMAPS": "USTN",
@@ -679,6 +681,29 @@ def test_PyIMCOM_run1(tmp_path, setup):
         test6 = np.array([[0.24921854, -0.23588116], [-0.39272013, -0.6111549]])
         assert np.amax(np.abs(fblock[0].data[0, 5, :2, :2] - test5)) < 1e-3
         assert np.amax(np.abs(fblock[0].data[0, 6, :2, :2] - test6)) < 1e-3
+
+        # simulated Gaussian galaxy
+        xc_ = 14  # center of region
+        yc_ = 41
+        im = fblock[0].data[0, 7, yc_ - 8 : yc_ + 9, xc_ - 8 : xc_ + 9]
+        print(im)
+        print(np.sum(im))
+        moms = galsim.Image(im).FindAdaptiveMom()
+        assert np.abs(moms.moments_centroid.x + xc_ - xs - 9.0) < 0.025  # 1 mas tolerance
+        assert np.abs(moms.moments_centroid.y + yc_ - ys - 9.0) < 0.025  # 1 mas tolerance
+        # rotate moments to original frame
+        # (60 degree rotation)
+        th_ = np.pi / 180.0 * 60.0
+        e_ = (moms.observed_e1 + 1j * moms.observed_e2) * np.exp(2j * th_)
+        e1 = e_.real
+        e2 = e_.imag
+        T = (0.04 * moms.moments_sigma) ** 2 / (1 - e1**2 - e2**2) * 2.0
+        Cxx = T * (1 + e1) / 2.0
+        Cxy = T * e2 / 2.0
+        Cyy = T * (1 - e1) / 2.0
+        assert np.abs(Cxx - 0.02242) < 3e-4  # compare to analytic moments for this object
+        assert np.abs(Cxy + 0.00042) < 3e-4
+        assert np.abs(Cyy - 0.01473) < 3e-4
 
     # Test output reader
     my_block = OutImage(pth)
