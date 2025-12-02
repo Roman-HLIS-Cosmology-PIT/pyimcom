@@ -1715,6 +1715,8 @@ def conjugate_gradient(
         cost_model = state["cost_model"]
 
     else:
+        os.makedirs(test_image_dir, exist_ok=True)  # make output directory
+
         # Initialize variables
         cg_model = cfg.cg_model
         cost_model = cfg.cost_model
