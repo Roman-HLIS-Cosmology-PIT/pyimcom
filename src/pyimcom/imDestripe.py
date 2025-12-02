@@ -2016,7 +2016,6 @@ def main():
         hdulist = fits.HDUList([hdu, hdu2, hdu3])
         hdulist.writeto(outpath + filter_ + "_DS_" + obsid + "_" + scaid + ".fits", overwrite=True)
 
-        this_sca.close()
         del this_sca.image
         del this_sca
 
