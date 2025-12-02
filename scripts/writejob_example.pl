@@ -32,7 +32,7 @@ $py .= "if len(sys.argv)>3:\n";
 $py .= "    if sys.argv[3]=='draw':\n";
 $py .= "        cfg.stoptile=4\n";
 $py .= "    if sys.argv[3]=='reduce':\n";
-$py .= "        cfg.instamp_pad = 0.55 * Settings.arcsec\n";      # <-- can change INPAD for the first iteration here
+$py .= "        cfg.instamp_pad = 0.48 * Settings.arcsec\n";      # <-- can change INPAD for the first iteration here
 $py .= "cfg.tempfile = os.getenv('TMPDIR') + '/temp'\n";          # <-- can change $TMPDIR here
 $py .= "cfg()\n";
 $py .= "print(cfg.to_file(None))\n";
@@ -96,7 +96,7 @@ close OUT;
 
 # Imsubtract
 $njob++;
-$script3  = "$scriptHead#SBATCH --array=1-18\n#SBATCH --time=48:00:00\n#SBATCH --nodes=1 --ntasks-per-node=1 --cpus-per-task=8\n";
+$script3  = "$scriptHead#SBATCH --array=1-18\n#SBATCH --time=48:00:00\n#SBATCH --nodes=1 --ntasks-per-node=1 --cpus-per-task=4\n";
 $script3 .= "cd \$SLURM_SUBMIT_DIR\n";
 $script3 .= "python3 -m pyimcom.splitpsf.imsubtract $cfg \$SLURM_ARRAY_TASK_ID > $tag-S$njob-\$SLURM_ARRAY_TASK_ID.txt\n";
 open(OUT, ">", "$job-$njob.job");
@@ -161,7 +161,7 @@ close OUT;
 
 # Diagnostic report
 $njob++;
-$script7  = "$scriptHead#SBATCH --time=8:00:00\n#SBATCH --nodes=1 --ntasks-per-node=1 --cpus-per-task=4\n";
+$script7  = "$scriptHead#SBATCH --time=8:00:00\n#SBATCH --nodes=1 --ntasks-per-node=1 --cpus-per-task=6\n";
 $script7 .= "cd \$SLURM_SUBMIT_DIR\n";
 $script7 .= "python3 -m pyimcom.diagnostics.run $outstem\_00\_00.cpr.fits.gz $tag\_report > $tag-S$njob.txt";
 open(OUT, ">", "$job-$njob.job");
