@@ -99,6 +99,9 @@ import warnings
 
 from asdf.exceptions import AsdfConversionWarning, AsdfPackageVersionWarning
 
+# Is this run for testing only? (usually false)
+testing = False
+
 # Suppress ASDF warnings
 warnings.filterwarnings("ignore", category=AsdfConversionWarning)
 warnings.filterwarnings("ignore", category=AsdfPackageVersionWarning)
@@ -108,12 +111,16 @@ filters = Settings.RomanFilters
 t0_global = time.time()  # after imports
 
 # Module settings
-testing = True
 use_output_float = np.float32
 tempdir = str(os.environ["TMPDIR"]) if "TMPDIR" in os.environ else "./"
 
 # For test outputs: set sca=0 to not produce test outputs.
 img_full_output = {"obsid": 670, "scaid": 10}
+if not testing:
+    img_full_output = {"obsid": -1, "scaid": -1}  # don't do these big outputs
+
+# Location for test outputs (gets overwritten)
+testoutputs = {"test_image_dir": "./"}
 
 
 class Cost_models:
@@ -320,8 +327,8 @@ class Sca_img:
         self.image += noiseframe[4:4092, 4:4092]
         filename = self.obsid + "_" + self.scaid + "_noise"
 
-        if not os.path.exists(test_image_dir + filename + ".fits"):
-            save_fits(self.image, filename, dir=test_image_dir, overwrite=True)
+        if not os.path.exists(testoutputs["test_image_dir"] + filename + ".fits"):
+            save_fits(self.image, filename, dir=testoutputs["test_image_dir"], overwrite=True)
 
     def apply_permanent_mask(self):
         """
@@ -502,7 +509,7 @@ class Sca_img:
                         f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_'
                         f'B_{self.obsid}_{self.scaid}_interp'
                     )
-                    save_fits(B_interp, filename, dir=test_image_dir)
+                    save_fits(B_interp, filename, dir=testoutputs["test_image_dir"])
 
                 obsid_match = self.obsid == str(img_full_output["obsid"])
                 scaid_match = self.scaid == str(img_full_output["scaid"])
@@ -511,7 +518,7 @@ class Sca_img:
                         f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_'
                         f'A_{obsid_B}_{scaid_B}_interp'
                     )
-                    save_fits(B_interp, filename, dir=test_image_dir)
+                    save_fits(B_interp, filename, dir=testoutputs["test_image_dir"])
 
             this_interp += B_interp
             if make_Neff:
@@ -1254,7 +1261,8 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg):
         if example_obs and example_sca:
             hdu = fits.PrimaryHDU(I_A.image)
             hdu.writeto(
-                test_image_dir + f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_I_A_sub_masked.fits',
+                testoutputs["test_image_dir"]
+                + f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_I_A_sub_masked.fits',
                 overwrite=True,
             )
 
@@ -1268,13 +1276,14 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg):
     if img_full_output["scaid"] != 0 and testing and example_obs and example_sca:
         hdu = fits.PrimaryHDU(J_A_image * J_A_mask)
         hdu.writeto(
-            test_image_dir + f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_J_A_masked.fits',
+            testoutputs["test_image_dir"]
+            + f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_J_A_masked.fits',
             overwrite=True,
         )
 
         hdu = fits.PrimaryHDU(psi)
         hdu.writeto(
-            test_image_dir + f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_Psi.fits',
+            testoutputs["test_image_dir"] + f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_Psi.fits',
             overwrite=True,
         )
 
@@ -1520,8 +1529,10 @@ def linear_search_general(
             best_resids = working_resids
             write_to_file(f"Linear search convergence in {k} iterations")
             if testing:
-                save_fits(best_p.params, "best_p", dir=test_image_dir, overwrite=True)
-                save_fits(np.array(conv_params), "conv_params", dir=test_image_dir, overwrite=True)
+                save_fits(best_p.params, "best_p", dir=testoutputs["test_image_dir"], overwrite=True)
+                save_fits(
+                    np.array(conv_params), "conv_params", dir=testoutputs["test_image_dir"], overwrite=True
+                )
             return best_p, best_psi, best_resids, best_epsilon
 
         # Updates for next iteration, if convergence isn't yet reached
@@ -1633,7 +1644,7 @@ def linear_search_quadratic(
 
     # Convergence and update criteria and checks
     if testing:
-        save_fits(new_p.params, "best_p", dir=test_image_dir, overwrite=True)
+        save_fits(new_p.params, "best_p", dir=testoutputs["test_image_dir"], overwrite=True)
     return new_p, new_psi, new_resids, new_epsilon
 
 
@@ -1692,8 +1703,7 @@ def conjugate_gradient(
     print(f"HL Threshold (None, if cost fn is not Huber Loss): {thresh}")
     print(f"Restart?: {cfg.ds_restart}\n")
 
-    global test_image_dir
-    test_image_dir = cfg.ds_outpath + "test_images/" + str(0) + "/"
+    testoutputs["test_image_dir"] = cfg.ds_outpath + "test_images/" + str(0) + "/"
     log_file = os.path.join(cfg.ds_outpath, "cg_log.csv")
 
     if cfg.ds_restart is not None:
@@ -1715,7 +1725,7 @@ def conjugate_gradient(
         cost_model = state["cost_model"]
 
     else:
-        os.makedirs(test_image_dir, exist_ok=True)  # make output directory
+        os.makedirs(testoutputs["test_image_dir"], exist_ok=True)  # make output directory
 
         # Initialize variables
         cg_model = cfg.cg_model
@@ -1751,8 +1761,8 @@ def conjugate_gradient(
 
     for i in range(i + 1, cfg.cg_maxiter):  # noqa: B020
         write_to_file(f"### CG Iteration: {i + 1}", of)
-        test_image_dir = cfg.ds_outpath + "test_images/" + str(i + 1) + "/"
-        os.makedirs(test_image_dir, exist_ok=True)
+        testoutputs["test_image_dir"] = cfg.ds_outpath + "test_images/" + str(i + 1) + "/"
+        os.makedirs(testoutputs["test_image_dir"], exist_ok=True)
         t_start_CG_iter = time.time()
 
         # Compute the gradient
@@ -1765,8 +1775,7 @@ def conjugate_gradient(
             sys.stdout.flush()
 
         # Compute the norm of the gradient
-        global current_norm
-        current_norm = np.linalg.norm(grad)
+        current_norm = np.linalg.norm(grad)  # doesn't need to be global anymore
 
         if i == 0 and grad_prev is None:
             write_to_file(f"Initial gradient: {grad}", of)
@@ -1915,13 +1924,22 @@ def conjugate_gradient(
     return p
 
 
-def main():
+def main(cfg_file=None):
     """
-    Main function to run destriping via conjugate gradient descent
+    Main function to run destriping via conjugate gradient descent.
+
+    Parameters
+    ----------
+    cfg_file : str, optional
+        Configuration file (if not provided, reads from command line arguments).
+
     """
+
     CG_models = {"FR", "PR", "HS", "DY"}
 
-    cfg_file = sys.argv[1] if len(sys.argv) > 1 else None
+    if cfg_file is None:
+        cfg_file = sys.argv[1] if len(sys.argv) > 1 else None
+
     if cfg_file is not None:
         CFG = Config(cfg_file=cfg_file)
     else:
