@@ -231,6 +231,10 @@ The ``pyimcom.layers`` module contains instructions for building each of the dif
 
   - ``shear=`` g_1:g_2 : Shears the galaxy by the indicated amount, in coordinates where g_1 is the East-West direction and g_2 is the Northeast-Southwest direction.
 
+  - ``hlr=`` radius (in arcsec) and ``shape=`` g_1:g_2 : Overrides the default randomly drawn half-light radius and shape.
+
+  - ``n=`` n : the Sersic index (default n=1 is exponential profile).
+
 - ``noise``,str : Looks for a specific noise realization with a code written by ``romanimpreprocess``, e.g.: ``noise,RS2Csky1`` will look for the noise layer named ``'RS2Csky1'`` in the ``*_noise.asdf`` file. See the `romanimpreprocess documentation <https://github.com/Roman-HLIS-Cosmology-PIT/romanimpreprocess/tree/main/L1_to_L2>`_ for how to specify the noise layers.
 
 LABNOISETHRESHOLD: Mask based on a laboratory dark\*
