@@ -1969,28 +1969,19 @@ def main(cfg_file=None, overlaponly=False):
     write_to_file(f"{len(all_scas)} SCAs in this mosaic", filename=outfile)
     sys.stdout.flush()
 
-    if testing:
-        if os.path.isfile(outpath + "ovmat.npy"):
-            ov_mat = np.load(outpath + "ovmat.npy")
-        else:
-            ovmat_t0 = time.time()
-            write_to_file("Overlap matrix computing start", filename=outfile)
-            ov_mat = compareutils.get_overlap_matrix(all_wcs, verbose=True)
-            np.save(outpath + "ovmat.npy", ov_mat)
-            write_to_file(
-                f"Overlap matrix complete. Duration: {(time.time() - ovmat_t0) / 60} Minutes",
-                filename=outfile,
-            )
-            write_to_file(f"Overlap matrix saved to: {outpath}ovmat.npy", filename=outfile)
+    # get overlap matrix
+    if os.path.isfile(outpath + "ovmat.npy"):
+        ov_mat = np.load(outpath + "ovmat.npy")
     else:
         ovmat_t0 = time.time()
         write_to_file("Overlap matrix computing start", filename=outfile)
-        ov_mat = compareutils.get_overlap_matrix(
-            all_wcs, verbose=True
-        )  # an N_wcs x N_wcs matrix containing fractional overlap
+        ov_mat = compareutils.get_overlap_matrix(all_wcs, verbose=True, subsamp=4)
+        np.save(outpath + "ovmat.npy", ov_mat)
         write_to_file(
-            f"Overlap matrix complete. Duration: {(time.time() - ovmat_t0) / 60} Minutes", filename=outfile
+            f"Overlap matrix complete. Duration: {(time.time() - ovmat_t0) / 60} Minutes",
+            filename=outfile,
         )
+        write_to_file(f"Overlap matrix saved to: {outpath}ovmat.npy", filename=outfile)
 
     # if we're only computing overlap matrices, can stop here
     if overlaponly:
