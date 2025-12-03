@@ -15,6 +15,7 @@ str2dirstem
 """
 
 import re
+import sys
 
 import numpy as np
 
@@ -162,6 +163,7 @@ def get_overlap_matrix(list_of_wcs, pad=0, verbose=False):
                 ov[j, i] = ov[i, j]
                 if verbose:
                     print("get_overlap_matrix: ->", i, j, ov[i, j])
+                    sys.stdout.flush()
 
     return ov
 

@@ -1924,7 +1924,7 @@ def conjugate_gradient(
     return p
 
 
-def main(cfg_file=None):
+def main(cfg_file=None, overlaponly=False):
     """
     Main function to run destriping via conjugate gradient descent.
 
@@ -1932,6 +1932,8 @@ def main(cfg_file=None):
     ----------
     cfg_file : str, optional
         Configuration file (if not provided, reads from command line arguments).
+    overlaponly : bool, optional
+        Only compute the overlap matrix, then stop.
 
     """
 
@@ -1989,6 +1991,10 @@ def main(cfg_file=None):
         write_to_file(
             f"Overlap matrix complete. Duration: {(time.time() - ovmat_t0) / 60} Minutes", filename=outfile
         )
+
+    # if we're only computing overlap matrices, can stop here
+    if overlaponly:
+        return
 
     sys.stdout.flush()
     neighbors = get_neighbors(all_scas, ov_mat)
