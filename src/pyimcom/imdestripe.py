@@ -99,8 +99,10 @@ import warnings
 
 from asdf.exceptions import AsdfConversionWarning, AsdfPackageVersionWarning
 
-# Is this run for testing only? (usually false)
-testing = False
+testoutputs = {
+    "testing": False,  # Is this run for testing only? (usually False)
+    "test_image_dir": "./",  # Location for test outputs (gets overwritten)
+}
 
 # Suppress ASDF warnings
 warnings.filterwarnings("ignore", category=AsdfConversionWarning)
@@ -116,11 +118,8 @@ tempdir = str(os.environ["TMPDIR"]) if "TMPDIR" in os.environ else "./"
 
 # For test outputs: set sca=0 to not produce test outputs.
 img_full_output = {"obsid": 670, "scaid": 10}
-if not testing:
+if not testoutputs["testing"]:
     img_full_output = {"obsid": -1, "scaid": -1}  # don't do these big outputs
-
-# Location for test outputs (gets overwritten)
-testoutputs = {"test_image_dir": "./"}
 
 
 class Cost_models:
@@ -290,7 +289,10 @@ class Sca_img:
             self.mask *= np.logical_not(
                 object_mask
             )  # self.mask = True for good pixels, so set object_mask'ed pixels to False
-            if not os.path.exists(cfg.ds_outpath + self.obsid + "_" + self.scaid + "_mask.fits") and testing:
+            if (
+                not os.path.exists(cfg.ds_outpath + self.obsid + "_" + self.scaid + "_mask.fits")
+                and testoutputs["testing"]
+            ):
                 mask_img = self.mask.astype("uint8")
                 save_fits(
                     mask_img,
@@ -501,7 +503,7 @@ class Sca_img:
                     I_B, self, B_mask_interp, mask=I_B.mask
                 )  # interpolate B pixel mask onto A grid
 
-            if img_full_output["scaid"] != 0 and testing:
+            if img_full_output["scaid"] != 0 and testoutputs["testing"]:
                 obsid_match = obsid_B == str(img_full_output["obsid"])
                 scaid_match = scaid_B == str(img_full_output["scaid"])
                 if obsid_match and scaid_match and make_Neff:
@@ -1255,7 +1257,7 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg):
     I_A.subtract_parameters(p, j)
     I_A.apply_all_mask()
 
-    if img_full_output["scaid"] != 0 and testing:
+    if img_full_output["scaid"] != 0 and testoutputs["testing"]:
         example_obs = obsid_A == str(img_full_output["obsid"])
         example_sca = scaid_A == str(img_full_output["scaid"])
         if example_obs and example_sca:
@@ -1273,7 +1275,7 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg):
     result = f(psi, thresh) if thresh is not None else f(psi)
     local_epsilon = np.sum(result)
 
-    if img_full_output["scaid"] != 0 and testing and example_obs and example_sca:
+    if img_full_output["scaid"] != 0 and testoutputs["testing"] and example_obs and example_sca:
         hdu = fits.PrimaryHDU(J_A_image * J_A_mask)
         hdu.writeto(
             testoutputs["test_image_dir"]
@@ -1528,7 +1530,7 @@ def linear_search_general(
             best_psi = working_psi
             best_resids = working_resids
             write_to_file(f"Linear search convergence in {k} iterations")
-            if testing:
+            if testoutputs["testing"]:
                 save_fits(best_p.params, "best_p", dir=testoutputs["test_image_dir"], overwrite=True)
                 save_fits(
                     np.array(conv_params), "conv_params", dir=testoutputs["test_image_dir"], overwrite=True
@@ -1643,7 +1645,7 @@ def linear_search_quadratic(
     sys.stdout.flush()
 
     # Convergence and update criteria and checks
-    if testing:
+    if testoutputs["testing"]:
         save_fits(new_p.params, "best_p", dir=testoutputs["test_image_dir"], overwrite=True)
     return new_p, new_psi, new_resids, new_epsilon
 
