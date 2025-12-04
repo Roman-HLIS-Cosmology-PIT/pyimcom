@@ -1,0 +1,30 @@
+#!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --exclusive
+#SBATCH --time=140:00:00
+#SBATCH --job-name=imdestripe_H_mosaictest
+#SBATCH --mail-type=BEGIN,END,FAIL
+#SBATCH --mail-user=laliotis.2@osu.edu
+#SBATCH --output=/fs/scratch/PCON0003/klaliotis/imdestripe/mosaic_test/imdestripe_test.out.%j
+#SBATCH --account=PAS2340
+
+#Set echo
+set -x
+
+#Activate Conda Environment
+source /users/PCON0003/klaliotis/.conda/envs/
+source activate local
+
+# Explicitly set the number of OpenMP threads
+export OMP_NUM_THREADS=2
+
+# Explicitly set the temp directory OR comment out to use os.environ default
+# export TMPDIR=/fs/scratch/PCON0003/klaliotis/tmp
+
+# Verify the environment variables
+echo "OMP_NUM_THREADS: $OMP_NUM_THREADS"
+
+#Run programs
+cd /fs/scratch/PCON0003/klaliotis/pyimcom/src/pyimcom
+
+python3 imDestripe.py

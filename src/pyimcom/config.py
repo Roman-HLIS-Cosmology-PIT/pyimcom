@@ -294,9 +294,24 @@ class Config:
         "kappaC_arr",
         "uctarget",
         "sigmamax",  # SECTION VIII
+        "ds_model",
+        "ds_rows",
+        "ds_outpath",
+        "ds_outstem",
+        "cg_model",
+        "cost_model",
+        "ds_obsfile",
+        "ds_noisefile",
+        "ds_restart",
+        "cost_prior",
+        "resid_model",
+        "hub_thresh",
+        "cg_maxiter",
+        "cg_tol",
+        "gaindir",  # SECTION IX
         "tileschm",
         "rerun",
-        "mosaic",  # SECTION IX
+        "mosaic",  # SECTION X
     )
 
     def __init__(self, cfg_file: str = "", inmode=None) -> None:
@@ -358,6 +373,15 @@ class Config:
 
         if self.linear_algebra == "Empirical" or self.kappaC_arr.size == 1:
             self.outmaps = self.outmaps.replace("K", "")
+
+        ### SECTION IX: DESTRIPING PARAMS ###
+        if hasattr(self, "cost_model"):
+            if self.cost_model == "quadratic":
+                self.resid_model = "quad_prime"
+            elif self.cost_model == "absolute":
+                self.resid_model = "abs_prime"
+            elif self.cost_model == "huber_loss":
+                self.resid_model = "hub_prime"
 
     def _from_dict(self, cfg_dict: dict) -> None:
         """
@@ -477,6 +501,16 @@ class Config:
         elif self.linear_algebra == "Empirical":
             # no-quality control option
             self.no_qlt_ctrl = cfg_dict.get("EMPIRNQC", False)
+
+        ### SECTION IX: DESTRIPING PARAMS ###
+        self.ds_model, self.ds_rows = cfg_dict.get("DSMODEL", [None, None])
+        self.ds_outpath, self.ds_outstem = cfg_dict.get("DSOUT", [None, None])
+        self.cg_model, self.cg_maxiter, self.cg_tol = cfg_dict.get("CGMODEL", [None, None, None])
+        self.cost_model, self.cost_prior, self.hub_thresh = cfg_dict.get("DSCOST", [None, None, None])
+        self.ds_obsfile = cfg_dict.get("DSOBSFILE")
+        self.ds_noisefile = cfg_dict.get("DSNOISEFILE", False)
+        self.ds_restart = cfg_dict.get("DSRESTART")
+        self.gaindir = cfg_dict.get("GAINDIR", False)
 
         # Lagrange multiplier (kappa) information
         # list of kappa/C values, ascending order

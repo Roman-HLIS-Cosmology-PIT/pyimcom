@@ -15,6 +15,7 @@ str2dirstem
 """
 
 import re
+import sys
 
 import numpy as np
 
@@ -59,7 +60,7 @@ def getfootprint(mywcs, pad):
     return np.array([M[0, 0], M[0, 1], M[0, 2], np.amax(this_p)])
 
 
-def map_sca2sca(target_wcs, ref_wcs, pad=0, dtype=np.float64):
+def map_sca2sca(target_wcs, ref_wcs, pad=0, dtype=np.float64, subsamp=1):
     """
     Finds the pixel mappings from a 'reference' WCS to a 'target' WCS.
 
@@ -73,6 +74,9 @@ def map_sca2sca(target_wcs, ref_wcs, pad=0, dtype=np.float64):
         Number of pixels by which to pad the input *and* output exposures.
     dtype : type, optional
         Ouput data type for xf and yf (note is_in_ref is always Boolean).
+    subsamp : int, optional
+        Samples every subsamp-th pixel (allows overlap to be computed faster).
+        Starts with pixel ``[subsamp//2, subsamp//2]``.
 
     Returns
     -------
@@ -92,6 +96,9 @@ def map_sca2sca(target_wcs, ref_wcs, pad=0, dtype=np.float64):
         np.linspace(-pad, nside - 1 + pad, nside + 2 * pad),
         np.linspace(-pad, nside - 1 + pad, nside + 2 * pad),
     )
+    if subsamp > 1:
+        xi = xi[subsamp // 2 :: subsamp, subsamp // 2 :: subsamp]
+        yi = yi[subsamp // 2 :: subsamp, subsamp // 2 :: subsamp]
     ra, dec = target_wcs.all_pix2world(xi, yi, 0)
     del xi, yi
     xf, yf = ref_wcs.all_world2pix(ra, dec, 0)
@@ -102,7 +109,7 @@ def map_sca2sca(target_wcs, ref_wcs, pad=0, dtype=np.float64):
     return xf.astype(dtype), yf.astype(dtype), is_in_ref
 
 
-def get_overlap_matrix(list_of_wcs, pad=0, verbose=False):
+def get_overlap_matrix(list_of_wcs, pad=0, verbose=False, subsamp=1):
     """
     Computes the fractional overlap matrix of a list of WCSs.
 
@@ -116,6 +123,8 @@ def get_overlap_matrix(list_of_wcs, pad=0, verbose=False):
         Number of pixels to pad around each side.
     verbose : bool, optional
         Whether to print details to the terminal.
+    subsamp : int, optional
+        Samples every subsamp-th pixel (allows overlap to be computed faster).
 
     Returns
     -------
@@ -156,12 +165,15 @@ def get_overlap_matrix(list_of_wcs, pad=0, verbose=False):
     for i in range(1, N):
         for j in range(i):
             if ov[i, j]:
-                x_, y_, m_ = map_sca2sca(list_of_wcs[i], list_of_wcs[j], pad=pad, dtype=np.float32)
+                x_, y_, m_ = map_sca2sca(
+                    list_of_wcs[i], list_of_wcs[j], pad=pad, dtype=np.float32, subsamp=subsamp
+                )
                 del x_, y_
                 ov[i, j] = np.count_nonzero(m_) / np.size(m_)
                 ov[j, i] = ov[i, j]
                 if verbose:
                     print("get_overlap_matrix: ->", i, j, ov[i, j])
+                    sys.stdout.flush()
 
     return ov
 
