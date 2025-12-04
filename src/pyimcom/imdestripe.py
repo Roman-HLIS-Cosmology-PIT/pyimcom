@@ -1937,6 +1937,11 @@ def main(cfg_file=None, overlaponly=False):
     overlaponly : bool, optional
         Only compute the overlap matrix, then stop.
 
+    Returns
+    -------
+    str
+        Prefix for destriped images. Add f"_{obsid}_{sca}.fits" to get the full file name.
+
     """
 
     CG_models = {"FR", "PR", "HS", "DY"}
@@ -2041,6 +2046,8 @@ def main(cfg_file=None, overlaponly=False):
     gc.collect()
     write_to_file(f"Destriped images saved to {outpath + filter_} _DS_*.fits", filename=outfile)
     write_to_file(f"Total hours elapsed: {(time.time() - t0) / 3600}", filename=outfile)
+
+    return outpath + filter_ + "_DS"
 
 
 if __name__ == "__main__":
