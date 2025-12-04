@@ -9,7 +9,8 @@ authors = [
     { name = "Katherine Laliotis", email = "laliotis.2@osu.edu" },
     { name = "Masaya Yamamoto", email = "my5871@princeton.edu" },
     { name = "Emily Macbeth", email = "macbeth@arizona.edu" },
-    { name = "Axel Guinot", email = "aguinot@andrew.cmu.edu" }
+    { name = "Axel Guinot", email = "aguinot@andrew.cmu.edu" },
+    { name = "Federico Berlfein", email = "fberlfei@andrew.cmu.edu" }
 ]
 maintainers = [
     { name = "Roman High Latitude Imaging Survey Cosmology Project Infrastructure Team" }
