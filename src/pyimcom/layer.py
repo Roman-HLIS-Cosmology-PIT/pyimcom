@@ -79,8 +79,8 @@ class GalSimInject:
     """
 
     @staticmethod
-    def get_psf(inpsf_path,idsca):
-        '''
+    def get_psf(inpsf_path, idsca):
+        """
         Get input PSF array at given position.
 
         This is an interface for layer.get_all_data and psfutil.PSFGrp._build_inpsfgrp.
@@ -96,33 +96,35 @@ class GalSimInject:
         Returns
         -------
         tuple : np.array, shape : see smooth_and_pad
-            Input PSF array at given position. 
+            Input PSF array at given position.
 
-        '''
-        #from .coadd import InImage
-        import fitsio
-        fname = inpsf_path + '/psf_polyfit_{:d}.fits'.format(idsca[0])
+        """
+        # from .coadd import InImage
+        fname = inpsf_path + f"/psf_polyfit_{idsca[0]:d}.fits"
         sskip = 0
         readskip = False
-        assert exists(fname), 'Error: input psf does not exist'
+        assert exists(fname), "Error: input psf does not exist"
         with fits.open(fname) as f:
-            if readskip: sskip = int(f[0].header['GSSKIP'])
-            inpsf_cube = f[idsca[1]+sskip].data[:, :, :]
-
+            if readskip:
+                sskip = int(f[0].header["GSSKIP"])
+            inpsf_cube = f[idsca[1] + sskip].data[:, :, :]
 
         return inpsf_cube
-        
+
     @staticmethod
-    def get_psf_pos(inpsf_cube, inwcs, psf_compute_point, inpsf_oversamp = 8):
+    def get_psf_pos(inpsf_cube, inwcs, psf_compute_point, inpsf_oversamp=8):
         from .coadd import InImage
+
         tophatwidth_use = inpsf_oversamp
         pixloc = inwcs.all_world2pix(np.array([[*psf_compute_point]]).astype(np.float64), 0)[0]
-        lpoly = InImage.LPolyArr(1, (pixloc[0]-2043.5)/2044., (pixloc[1]-2043.5)/2044.)
+        lpoly = InImage.LPolyArr(1, (pixloc[0] - 2043.5) / 2044.0, (pixloc[1] - 2043.5) / 2044.0)
         # pixels are in C/Python convention since pixloc was set this way
-        this_psf = InImage.smooth_and_pad(
-            np.einsum('a,aij->ij', lpoly, inpsf_cube), tophatwidth=tophatwidth_use)/64
-        # divide by 64=8**2 since anlsim files are in fractional intensity per s_in**2 instead of per (s_in/8)**2
-
+        this_psf = (
+            InImage.smooth_and_pad(np.einsum("a,aij->ij", lpoly, inpsf_cube), tophatwidth=tophatwidth_use)
+            / 64
+        )
+        # divide by 64=8**2 since anlsim files are in fractional intensity per s_in**2 instead of
+        # per (s_in/8)**2
 
         return this_psf
 
@@ -459,7 +461,7 @@ class GalSimInject:
         return out
 
     @staticmethod
-    def galsim_extobj_grid(res, mywcs, inpsf, sca_nside, inpsf_oversamp, extraargs=[], chrom = False):
+    def galsim_extobj_grid(res, mywcs, inpsf, sca_nside, inpsf_oversamp, extraargs=[], chrom=False):
         """
         Draws a grid of galaxies on an SCA image.
 
@@ -1409,16 +1411,17 @@ def get_all_data(inimage):
             )
 
         # galsim extobj grid using PSF with different SED
-        m = re.search(r'^gsextchrom(\d+)', extrainput[i], re.IGNORECASE)
+        m = re.search(r"^gsextchrom(\d+)", extrainput[i], re.IGNORECASE)
         if m:
             # set path to where PSF with different SED lives
-            inpsfchrom_path = extrainput[i].split(',')[1] 
-            chrom_inpsf = GalSimInject.get_psf(inpsfchrom_path,idsca)
+            inpsfchrom_path = extrainput[i].split(",")[1]
+            chrom_inpsf = GalSimInject.get_psf(inpsfchrom_path, idsca)
             res = int(m.group(1))
-            extargs = extrainput[i].split(',')[2:]
-            print('making chromatic grid using GalSim: ', res, idsca, 'extended object type:', extargs)
+            extargs = extrainput[i].split(",")[2:]
+            print("making chromatic grid using GalSim: ", res, idsca, "extended object type:", extargs)
             inimage.indata[i, :, :] = GalSimInject.galsim_extobj_grid(
-                res, inwcs, chrom_inpsf, Stn.sca_nside, inpsf_oversamp, extraargs=extargs,  chrom = True)
+                res, inwcs, chrom_inpsf, Stn.sca_nside, inpsf_oversamp, extraargs=extargs, chrom=True
+            )
 
         # noise realizations saved from romanimpreprocess
         # supported in L2_2506 and later
