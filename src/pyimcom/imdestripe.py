@@ -798,7 +798,7 @@ def get_scas(filter_, obsfile, cfg, indata_type="fits"):
     n_scas = 0
     all_scas = []
     all_wcs = []
-    for f in glob.glob(obsfile + filter_ + "_*"):
+    for f in sorted(glob.glob(obsfile + filter_ + "_*")):
         m = re.search(r"(\w\d+)_(\d+)_(\d+)", f)
         if m:
             if indata_type == "fits":
