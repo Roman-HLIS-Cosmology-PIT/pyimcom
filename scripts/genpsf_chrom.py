@@ -10,6 +10,44 @@ from scipy.ndimage import gaussian_filter
 def get_psf_fits(
     obsid, outdir, oversample_factor=8, sed_type="flat", stamp_size=512, sed=None, normalize=True
 ):
+    """
+    This function builds an oversampled PSF image for each of the 18 SCAs of a Roman
+    WFI exposure and writes a multi-extension FITS file.  For each SCA, several PSFs
+    are evaluated at fixed reference positions, mapped to Legendre polynomial
+    coefficients (0th, d/du, d/dv, d^2/dudv). Example use is provided at bottom
+    of this file.
+
+    Parameters
+    ----------
+    obsid : int
+        Observation ID.
+    outdir : str
+        Directory where the output file will be written.
+    oversample_factor : int, optional
+        Oversampling factor used when drawing the PSF. Default is 8.
+    sed_type : {"flat", "lin", "quad", "real"}, optional
+        Type of SED used for the PSF:
+            - "flat":    constant photon SED
+            - "lin":     SED proportional to λ
+            - "quad":    SED proportional to λ²
+            - "real":    a user-supplied `galsim.SED` object via the `sed` argument
+    stamp_size : int, optional
+        Size (in pixels) of the square oversampled PSF image to draw. Default: 512.
+    sed : galsim.SED, optional
+        Actual SED object used only when ``sed_type="real"``. 
+    normalize : bool, optional
+        If True, normalize the PSF flux to unity through the bandpass of each SCA’s
+        WAS image. Default: True.
+
+    Returns
+    ------
+    A FITS file written to::
+
+        <outdir>/psf_polyfit_<obsid>.fits
+
+    containing 19 HDUs (1 primary + 18 SCAs).
+    """
+    
     st_model = galsim.DeltaFunction()
 
     if sed_type == "flat":

@@ -81,24 +81,22 @@ class GalSimInject:
     @staticmethod
     def get_psf(inpsf_path, idsca):
         """
-        Get input PSF array at given position.
-
-        This is an interface for layer.get_all_data and psfutil.PSFGrp._build_inpsfgrp.
-
+        Load the PSF coefficient cube for a specific SCA.
+    
         Parameters
         ----------
-        psf_compute_point : np.array, shape : (2,)
-            Point to compute PSF in RA and Dec.
-        use_shortrange : bool, optional
-            If True and PSFSPLIT is set, then pulls only the short-range PSF G^(S).
-            The default is False.
-
+        inpsf_path : str
+            Directory containing the file ``psf_polyfit_<obsid>.fits``.
+        idsca : tuple
+            ``(obsid, sca_index)`` specifying the observation ID and SCA HDU to read.
+    
         Returns
         -------
-        tuple : np.array, shape : see smooth_and_pad
-            Input PSF array at given position.
-
+        ndarray
+            PSF image cube with shape (4, nx, ny).
+    
         """
+
         # from .coadd import InImage
         fname = inpsf_path + f"/psf_polyfit_{idsca[0]:d}.fits"
         sskip = 0
@@ -113,6 +111,26 @@ class GalSimInject:
 
     @staticmethod
     def get_psf_pos(inpsf_cube, inwcs, psf_compute_point, inpsf_oversamp=8):
+        """
+        Evaluate the PSF at a specific sky position using the polynomial
+        coefficient cube.
+    
+        Parameters
+        ----------
+        inpsf_cube : ndarray
+            PSF coefficient array (ncoeff, ny, nx) from `get_psf`.
+        inwcs : galsim.wcs.BaseWCS
+            WCS used to convert the sky coordinate into pixel coordinates.
+        psf_compute_point : tuple
+            (ra, dec) position at which to evaluate the PSF.
+        inpsf_oversamp : int, optional
+            Oversampling factor of the PSF coefficients. Default is 8.
+    
+        Returns
+        -------
+        ndarray
+            Oversampled PSF image evaluated at the requested position.
+        """
         from .coadd import InImage
 
         tophatwidth_use = inpsf_oversamp
