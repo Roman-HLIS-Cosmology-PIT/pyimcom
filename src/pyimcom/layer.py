@@ -82,19 +82,19 @@ class GalSimInject:
     def get_psf(inpsf_path, idsca):
         """
         Load the PSF coefficient cube for a specific SCA.
-    
+
         Parameters
         ----------
         inpsf_path : str
             Directory containing the file ``psf_polyfit_<obsid>.fits``.
         idsca : tuple
             ``(obsid, sca_index)`` specifying the observation ID and SCA HDU to read.
-    
+
         Returns
         -------
         ndarray
             PSF image cube with shape (4, nx, ny).
-    
+
         """
 
         # from .coadd import InImage
@@ -114,7 +114,7 @@ class GalSimInject:
         """
         Evaluate the PSF at a specific sky position using the polynomial
         coefficient cube.
-    
+
         Parameters
         ----------
         inpsf_cube : ndarray
@@ -125,7 +125,7 @@ class GalSimInject:
             (ra, dec) position at which to evaluate the PSF.
         inpsf_oversamp : int, optional
             Oversampling factor of the PSF coefficients. Default is 8.
-    
+
         Returns
         -------
         ndarray

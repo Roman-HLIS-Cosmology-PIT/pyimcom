@@ -47,7 +47,7 @@ def get_psf_fits(
 
     containing 19 HDUs (1 primary + 18 SCAs).
     """
-    
+
     st_model = galsim.DeltaFunction()
 
     if sed_type == "flat":
