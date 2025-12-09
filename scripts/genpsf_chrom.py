@@ -28,13 +28,13 @@ def get_psf_fits(
     sed_type : {"flat", "lin", "quad", "real"}, optional
         Type of SED used for the PSF:
             - "flat":    constant photon SED
-            - "lin":     SED proportional to λ
-            - "quad":    SED proportional to λ²
+            - "lin":     SED proportional to the wavelength
+            - "quad":    SED proportional to the wavelength squared
             - "real":    a user-supplied `galsim.SED` object via the `sed` argument
     stamp_size : int, optional
         Size (in pixels) of the square oversampled PSF image to draw. Default: 512.
     sed : galsim.SED, optional
-        Actual SED object used only when ``sed_type="real"``. 
+        Actual SED object used only when ``sed_type="real"``.
     normalize : bool, optional
         If True, normalize the PSF flux to unity through the bandpass of each SCA’s
         WAS image. Default: True.

@@ -92,7 +92,7 @@ myCfg_format = """
         "whitenoise1",
         "1fnoise2",
         "gsext14,n=0.5,hlr=0.1,shape=0.2:0.1,shear=0.05:-0.12",
-        "gschromext14,$TMPDIR/psf,n=0.5,hlr=0.1,shape=0.2:0.1,shear=0.05:-0.12"
+        "gsextchrom14,$TMPDIR/psf,n=0.5,hlr=0.1,shape=0.2:0.1,shear=0.05:-0.12"
     ],
     "PADSIDES": "all",
     "OUTMAPS": "USTN",
