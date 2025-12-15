@@ -112,8 +112,8 @@ class NoiseReport(ReportSection):
 
         self.tex += "\\section{Injected noise layers section}\n\n"
 
-        # example output slabs for white, 1/f, and lab noise
-        self.outslab = [None, None, None]
+        # example output slabs for white, 1/f, lab, and simulated noise
+        self.outslab = [None, None, None, None]
 
         # there are several sets of files to build here
         self.build_noisespec(m_ab, bin_flag, alpha)
@@ -262,6 +262,9 @@ class NoiseReport(ReportSection):
                         m = re.match(r"^labnoise$", layers[i])
                         if m:
                             noiselayers[str(m[0])] = i
+                        m = re.match(r"^noise,(\S+)$", layers[i])
+                        if m:
+                            noiselayers[str(m[0])] = i
                     print("# Noise Layers (format is layer:use_slice): ", noiselayers)
                     NLK = list(noiselayers.keys())  # save for shorthand -- note this is in insertion order!
 
@@ -286,12 +289,14 @@ class NoiseReport(ReportSection):
                 else:
                     raise Exception("Error: bin flag must be 0 (no binning) or 1 (8x8 binning)")
 
+                with ReadFile(infile) as f:
+                    infile_data = np.copy(
+                        f[0].data[0, :, bdpad : L + bdpad, bdpad : L + bdpad].astype(np.float32)
+                    )
+
                 for i_layer, noiselayer in enumerate(NLK):
                     use_slice = noiselayers[noiselayer]
-                    with ReadFile(infile) as f:
-                        indata = np.copy(
-                            f[0].data[0, use_slice, bdpad : L + bdpad, bdpad : L + bdpad]
-                        ).astype(np.float32)
+                    indata = infile_data[use_slice, :, :]
                     # Number of radial bins is side length div. into 8 from binning and then (floor) div. by 2
                     nradbins = L // 16
                     # Note that with the new clipping this is L again, the Aug. 2024 clipping needed (L-bdpad)
@@ -308,12 +313,7 @@ class NoiseReport(ReportSection):
                             (s_in**2) * area * tfr / (h_jy * gain)
                         )  # factor to convert LN from flux DN/fr/s to intensity microJy/arcsec^2
                         if filter == "K" and whitenoisekey is not None:
-                            with ReadFile(infile) as f:
-                                wndata = np.copy(
-                                    f[0].data[
-                                        0, noiselayers[whitenoisekey], bdpad : L + bdpad, bdpad : L + bdpad
-                                    ]
-                                ).astype(np.float32)
+                            wndata = np.copy(infile_data[noiselayers[whitenoisekey]])
                             wndata *= np.sqrt((B1 - B0) / t_exp) * tfr / gain  # convert WN to DN/fr
                             indata += wndata  # add to lab noise
                         indata = indata / norm_LN
@@ -371,6 +371,8 @@ class NoiseReport(ReportSection):
                         self.outslab[1] = il
                     if key_layer[il][:8] == "labnoise":
                         self.outslab[2] = il
+                    if key_layer[il][:6] == "noise," and "b" in key_layer[il]:
+                        self.outslab[3] = il
                 if len(NLK) >= 1:
                     del key_
                 hdr["AREAUNIT"] = "arcsec**2"
@@ -649,14 +651,14 @@ class NoiseReport(ReportSection):
 
             matplotlib.rcParams.update({"font.size": 10})
             F = plt.figure(figsize=(9, 5.5))
-            ntypes = ["white", "1/f", "lab"]
-            vmax = [0.01, 0.3, 0.05]
-            pos = ["Left", "Center", "Right"]
+            ntypes = ["white", "1/f", "lab", "simulated"]
+            vmax = [0.01, 0.3, 0.05, 5e-5]
+            pos = ["Upper left", "Upper right", "Lower left", "Lower right"]
             um = 0.5 / self.s_out
-            unit_ = ["arcsec$^2$", "arcsec$^2$", r"$\mu$Jy$^2$/arcsec$^2$"]
-            for k in range(3):
+            unit_ = ["arcsec$^2$", "arcsec$^2$", r"$\mu$Jy$^2$/arcsec$^2$", r"(DN/s)$^2$ arcsec$^2$"]
+            for k in range(4):
                 if self.outslab[k] is not None:
-                    S = F.add_subplot(1, 3, k + 1)
+                    S = F.add_subplot(2, 2, k + 1)
                     S.set_title("Power spectrum: " + ntypes[k] + " noise\n" + unit_[k], usetex=True)
                     S.set_xlabel("u [cycles/arcsec]")
                     S.set_ylabel("v [cycles/arcsec]")
@@ -670,7 +672,7 @@ class NoiseReport(ReportSection):
                             extent=(-um, um, -um, um),
                             norm=colors.LogNorm(vmin=vmax[k] / 300.0, vmax=vmax[k] * 1.0000001, clip=True),
                         )
-                    F.colorbar(im, location="bottom")
+                    F.colorbar(im, location="right")
             outfile = self.datastem + "_" + filter + self.suffix + "_3panel.pdf"
             F.set_tight_layout(True)
             F.savefig(outfile)
@@ -687,7 +689,7 @@ class NoiseReport(ReportSection):
                 + "_3panel.pdf}\n"
             )
             self.tex += "\\caption{\\label{fig:noise3panel}The 2D power spectra of the noise realizations.\n"
-            for k in range(3):
+            for k in range(4):
                 self.tex += r" {\em " + pos[k] + " panel} (" + ntypes[k] + " noise): "
                 if self.outslab[k] is not None:
                     self.tex += (

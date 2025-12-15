@@ -15,6 +15,7 @@ make_picture_1band
 """
 
 import os
+import sys
 
 import numpy as np
 from matplotlib import cm
@@ -196,6 +197,7 @@ def make_picture_1band(
             if os.path.exists(fname):
                 with ReadFile(fname) as f:
                     print(pad, np.shape(f[0].data), fname)
+                    sys.stdout.flush()
                     sh = np.shape(f[0].data)  # this is needed for trimming correctly if pad=0
                     D = np.mean(
                         f[0]

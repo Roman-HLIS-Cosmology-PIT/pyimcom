@@ -280,20 +280,40 @@ def gen_truthcats(pars):
 
                 truthcat = GalSimInject.genobj(12 * 4**res, ipix, "exp1", seed)
 
+                # if this object was forced to a shape, include that here
+                for param in params:
+                    m = re.match(r"hlr=(\S*)", param)
+                    if m:
+                        truthcat["sersic"]["r"][:] = float(m.group(1))
+                for param in params:
+                    m = re.match(r"shape=(\S*)", param)
+                    if m:
+                        shape = re.split(r":", m.group(1))
+                        truthcat["g"][0, :] = float(shape[0])
+                        truthcat["g"][1, :] = float(shape[1])
+                # rotation
+                for param in params:
+                    m = re.match(r"rot=(\S*)", param)
+                    if m:
+                        theta = float(m.group[1]) * np.pi / 180.0
+                        g_i = truthcat["g"][0, :] + truthcat["g"][1, :] * 1j
+                        g_i *= np.exp(2j * np.pi * theta)
+                        truthcat["g"][0, :] = g_i.real
+                        truthcat["g"][1, :] = g_i.imag
+
+                # shear the truth catalog
                 if shear is not None:
                     g_i = truthcat["g"][0, :] + truthcat["g"][1, :] * 1j
-                    q_i = (1 - numpy.absolute(g_i)) / (1 + numpy.absolute(g_i))
+                    # q_i = (1 - numpy.absolute(g_i)) / (1 + numpy.absolute(g_i))
 
                     apply_shear = re.split(r":", shear)
                     g_t = float(apply_shear[0]) + float(apply_shear[1]) * 1j
-                    q_t = (1 - numpy.absolute(g_t)) / (1 + numpy.absolute(g_t))
+                    # q_t = (1 - numpy.absolute(g_t)) / (1 + numpy.absolute(g_t))
 
                     g_f = (g_i + g_t) / (1 + numpy.conj(g_t) * g_i)  # transformations
-                    r_f = truthcat["sersic"]["r"][:] * numpy.sqrt(q_t / q_i)
 
                     truthcat["g"][0, :] = g_f.real  # update the catalog
                     truthcat["g"][1, :] = g_f.imag
-                    truthcat["sersic"]["r"][:] = r_f
 
                 # Include results in the table (for gsext objects)
                 resolutionTables[this_res].add_column(
