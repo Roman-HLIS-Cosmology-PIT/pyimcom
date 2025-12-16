@@ -95,10 +95,9 @@ class LayerReport(ReportSection):
         self.tex += " to preserve horizontal space.\n\n"
         self.tex += "The layers are:\n\\begin{itemize}\n"
         for il in range(nlayers):
-            if il == nlayers - 1:
-                self.tex += " and "
+            self.tex += "\\item"
             self.tex += f" [{il:d}] "
-            self.tex += "\\item {\\tt " + str(layers[il]) + "}"
+            self.tex += "{\\tt " + str(layers[il]) + "}"
             if il != nlayers - 1:
                 self.tex += ";"
                 if il == nlayers - 2:

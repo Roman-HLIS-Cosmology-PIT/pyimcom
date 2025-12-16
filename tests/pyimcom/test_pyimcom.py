@@ -25,6 +25,7 @@ from pyimcom.analysis import OutImage
 from pyimcom.coadd import Block
 from pyimcom.compress.compressutils import CompressedOutput, ReadFile
 from pyimcom.config import Config
+from pyimcom.diagnostics.layer_diagnostics import LayerReport
 from pyimcom.diagnostics.mosaicimage import MosaicImage
 from pyimcom.diagnostics.noise_diagnostics import NoiseReport
 from pyimcom.diagnostics.report import ValidationReport
@@ -730,7 +731,7 @@ def test_PyIMCOM_run1(tmp_path, setup):
     rpt = ValidationReport(
         str(tmp_path) + "/out/testout_F_00_00.fits", str(tmp_path) + "/rpt/report-F", clear_all=True
     )
-    sectionlist = [MosaicImage, SimulatedStar, NoiseReport]
+    sectionlist = [MosaicImage, SimulatedStar, NoiseReport, LayerReport]
     for cls in sectionlist:
         s = cls(rpt)
         s.build()  # specify nblockmax to do just the lower corner
