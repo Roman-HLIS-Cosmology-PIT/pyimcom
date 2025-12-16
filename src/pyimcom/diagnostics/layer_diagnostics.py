@@ -44,7 +44,8 @@ class LayerReport(ReportSection):
         self.tex += "\\section{Layer statistics}\n\n"
 
         # figure out which layers we have
-        layers = ["SCI"] + self.cfg.extrainput
+        layers = self.cfg.extrainput + []
+        layers[0] = "SCI"
         nlayers = len(layers)
 
         # dimensions
@@ -88,19 +89,22 @@ class LayerReport(ReportSection):
             del data
 
         # now build table, in segments of size up to ncolmax
-        ncolmax = 8
+        ncolmax = 6
         self.tex += "The percentiles of the various layers are included in the table below."
         self.tex += " Note that a maximum of " + str(ncolmax) + "layers are shown in each table"
         self.tex += " to preserve horizontal space.\n\n"
-        self.tex += "The layers are:"
+        self.tex += "The layers are:\n\\begin{itemize}\n"
         for il in range(nlayers):
             if il == nlayers - 1:
                 self.tex += " and "
             self.tex += f" [{il:d}] "
-            self.tex += "{\\tt " + str(layers[il]) + "}"
+            self.tex += "\\item {\\tt " + str(layers[il]) + "}"
             if il != nlayers - 1:
                 self.tex += ";"
-        self.tex += ".\n\n"
+                if il == nlayers - 2:
+                    self.tex += " and"
+                self.tex += "\n"
+        self.tex += ".\n\\end{itemize}\n"
         start = 0
         while start < nlayers:
             cols = list(range(start, min(start + ncolmax, nlayers)))
