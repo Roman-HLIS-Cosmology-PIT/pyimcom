@@ -957,8 +957,18 @@ class Mask:
             filename = _get_sca_imagefile(
                 cfg.inpath, idsca, obsdata, cfg.informat, extraargs={"type": "mask"}
             )
-            with fits.open(filename) as f:
-                return f["MASK"].data == 0
+            if filename[-5:] == ".fits":
+                with fits.open(filename) as f:
+                    return f["MASK"].data == 0
+            if filename[-5:] == ".asdf":
+                with asdf.open(filename) as f:
+                    if "mask" not in f:
+                        # revert to old file
+                        warnings.warn("No mask in ASDF file, looking for FITS mask.")
+                        with fits.open(filename[:-5] + "_mask.fits") as ff:
+                            return ff["MASK"].data == 0
+                    return f["mask"] == 0
+            raise ValueError("Unrecognized file extension for mask file.")
         # default return all good
         return np.ones((Stn.sca_nside, Stn.sca_nside), dtype=bool)
 
@@ -1050,7 +1060,7 @@ def _get_sca_imagefile(path, idsca, obsdata, format_, extraargs=None):
         # insert sim layers here
         if extraargs is not None and "type" in extraargs:
             if extraargs["type"] == "mask":
-                out = path + f"/sim_L2_{filter:s}_{idsca[0]:d}_{scastr:s}_mask.fits"
+                out = path + f"/sim_L2_{filter:s}_{idsca[0]:d}_{scastr:s}.asdf"  # now in same file
             if extraargs["type"] == "labnoise":
                 out = path + f"/labnoise/slope_{idsca[0]:d}_{scastr:s}.fits"
             if extraargs["type"] == "truth":
