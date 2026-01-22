@@ -88,6 +88,7 @@ The configuration file (JSON format) must specify:
         "CGMODEL": ["PR", 12, 1e-3],
     }
 
+
 The required fields are described as follows:
 * ``FILTER``: Filter name (Y106, J129, H158, F184, K213)
 * ``DSOBSFILE``: Path to input SCA images to destripe
@@ -165,9 +166,9 @@ Each conjugate gradient iteration performs the following:
    * Quadratic cost: Direct calculation via ``linear_search_quadratic()``
    * Other cost models: Bisection+secant method via ``linear_search_general()``
 
-5. **Parameter Update**: p_new = p + :math:`\alpha \times` direction
+5. **Parameter Update**: :math:`p_{new} = p + \alpha \cdot direction`
 
-6. **Convergence Check**: Stop if :math:`\|\|\nabla \varepsilon\|\| <` tolerance
+6. **Convergence Check**: Stop if :math:`\lVert \nabla \varepsilon \rVert <` tolerance
 
 Interfaces: C Routines
 ==========================
