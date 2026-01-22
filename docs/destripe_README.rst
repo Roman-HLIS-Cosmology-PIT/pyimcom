@@ -13,7 +13,7 @@ This happens iteratively using the method of conjugate gradient descent-- an ini
 
 The full process is outlined in the flowchart below:
 
-.. image:: destripe_flowchart.png
+.. image:: destriping_flowchart.png
   :width: 800
   :alt: Workflow for image destriping
 
