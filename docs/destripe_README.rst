@@ -110,7 +110,7 @@ Represents a single SCA image with metadata, masking, and coordinate transforms.
 
 **Key attributes:**
 
-* ``image``: 2D array of pixel values (4088×4088)
+* ``image``: 2D array of pixel values (4088 x 4088)
 * ``w``: WCS object for coordinate transformations
 * ``mask``: Boolean array marking valid pixels
 * ``g_eff``: Effective gain per pixel
@@ -128,7 +128,7 @@ Holds destriping parameters for all SCAs in the mosaic.
 
 **Attributes:**
 
-* ``params``: 2D array (N_scas × N_parameters)
+* ``params``: 2D array (N_SCAs x N_parameters)
 * ``model``: Destriping model ('constant' or 'linear')
 * ``n_rows``: Number of detector rows
 
@@ -143,7 +143,7 @@ Manages cost function and derivative selection.
 
 **Supported models:**
 
-* ``quadratic``: f(x) = x²
+* ``quadratic``: f(x) = x^2
 * ``absolute``: f(x) = |x|
 * ``huber_loss``: Smooth combination of quadratic and absolute
 
@@ -153,21 +153,21 @@ Details: Iteration Step
 
 Each conjugate gradient iteration performs the following:
 
-1. **Cost Calculation**: Compute ε = Σ f(I_A - J_A) where I_A is the original SCA,
+1. **Cost Calculation**: Compute :math:`\varepsilon = \sum f(I_A - J_A)` where I_A is the original SCA,
     J_A is interpolated from overlapping SCAs, and f is the cost function model
 
-2. **Gradient Computation**: Calculate ∇ε via ``residual_function()`` using forward and transpose interpolations
+2. **Gradient Computation**: Calculate :math:`\nabla \varepsilon` via ``residual_function()`` using forward and transpose interpolations
 
-3. **Direction Update**: Compute search direction using selected CG variant (Fletcher-Reeves, or Polak-Ribière (default))
+3. **Direction Update**: Compute search direction using selected CG variant (Fletcher-Reeves, or Polak-Ribiere (default))
 
-4. **Line Search**: Find optimal step size α along direction
+4. **Line Search**: Find optimal step size :math:`\alpha` along direction
 
    * Quadratic cost: Direct calculation via ``linear_search_quadratic()``
    * Other cost models: Bisection+secant method via ``linear_search_general()``
 
-5. **Parameter Update**: p_new = p + α × direction
+5. **Parameter Update**: p_new = p + :math:`\alpha \times` direction
 
-6. **Convergence Check**: Stop if ||∇ε|| < tolerance
+6. **Convergence Check**: Stop if :math:`\|\|\nabla \varepsilon\|\| <` tolerance
 
 Interfaces: C Routines
 ==========================
