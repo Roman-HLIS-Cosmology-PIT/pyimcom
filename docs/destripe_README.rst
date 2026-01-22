@@ -1,5 +1,5 @@
 Image Destriping
-###################
+################
 
 imDestripe is an iterative algorithm for removing stripes of noise from images prior to combining them with PyIMCOM. 
 
@@ -35,7 +35,7 @@ The destriping workflow consists of two main steps:
 2. **Destripe**: Run the conjugate gradient optimization
 
 Basic usage
-~~~~~~~~~~~
+-----------
 
 .. code-block:: python
 
@@ -70,10 +70,10 @@ To destripe a specific noise layer:
 
 
 Setup
-=======
+=====
 
 Configuration
-----------------
+-------------
 
 The configuration file (JSON format) must specify:
 
@@ -150,7 +150,7 @@ Manages cost function and derivative selection.
 
 
 Details: Iteration Step
-==========================
+=======================
 
 Each conjugate gradient iteration performs the following:
 
@@ -171,7 +171,7 @@ Each conjugate gradient iteration performs the following:
 6. **Convergence Check**: Stop if :math:`\lVert \nabla \varepsilon \rVert <` tolerance
 
 Interfaces: C Routines
-==========================
+======================
 
 This module relies on ``pyimcom_croutines`` (C routines) for performance-critical operations.
 
@@ -211,7 +211,7 @@ interpolated grid must be mapped back to the original detector coordinates.
 
 
 Interfaces: PyIMCOM
-====================
+===================
 
 The destriping module can be called through the roman-hlis-l2-driver as part of the Pyimcom overall routine.
 This allows destriping to be integrated into the full image combination pipeline for RST data.
