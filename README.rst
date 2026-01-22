@@ -46,6 +46,8 @@ Running PyIMCOM
 
 - `PSF splitting <docs/splitpsf_README.rst>`_ (under development).
 
+- `Image destriping <docs/destripe_README.rst>`_
+
 - `How to compress PyIMCOM output files <docs/compress_README.rst>`_
 
 Post-processing of PyIMCOM outputs
