@@ -1,5 +1,5 @@
 Image Destriping
-#############
+###################
 
 imDestripe is an iterative algorithm for removing stripes of noise from images prior to combining them with PyIMCOM. 
 
@@ -27,7 +27,7 @@ For more details on the algorithm, see the `imDestripe paper <https://arxiv.org/
 * Handles both FITS and ASDF input formats
 
 Quick start: running the workflow
-=================================
+==================================
 
 The destriping workflow consists of two main steps:
 
@@ -47,7 +47,7 @@ Basic usage
 This will:
 
 * Read input ASDF files specified in the configuration
-* Convert them to temporary FITS files with TAN-SIP WCS approximations
+* Convert them to temporary FITS files
 * Run the destriping algorithm on the science layer
 * Run destriping on each noise layer sequentially
 * Update the original ASDF files in place with destriped data
@@ -70,10 +70,10 @@ To destripe a specific noise layer:
 
 
 Setup
-=================================
+=======
 
 Configuration
----------------------
+----------------
 
 The configuration file (JSON format) must specify:
 
@@ -99,48 +99,6 @@ The required fields are described as follows:
 * ``CGMODEL``: Conjugate gradient model type (one of "PR" (Polak-Ribiere), "FR" (Fletcher-Reeves)), 
     maximum number of iterations, and convergence tolerance
 
-Destriping Algorithm for Roman Space Telescope Images
-######################################################
-
-This module removes correlated noise stripes from Roman Space Telescope (RST) SCA (Sensor Chip Assembly) images using conjugate gradient optimization. It minimizes a cost function that measures differences between overlapping images, enabling consistent photometry across the mosaic.
-
-**Key Features:**
-
-* Supports multiple cost functions (quadratic, absolute value, Huber loss)
-* Parallel processing for efficient computation
-* Checkpoint/restart capability for long runs
-* Handles both FITS and ASDF input formats
-
-Overview
-========
-
-The destriping algorithm works by:
-
-1. Computing interpolated versions of each SCA from its overlapping neighbors
-2. Minimizing the cost function ε = Σ f(I_A - J_A) where I_A is the original SCA and J_A is the interpolated version
-3. Using conjugate gradient descent to find optimal stripe removal parameters
-4. Subtracting the fitted stripe pattern from each SCA
-
-Quick Start
-===========
-
-Running the workflow
---------------------
-
-.. code-block:: python
-
-    from destripe import main
-
-    # Run with configuration file
-    output_prefix = main(cfg_file='config.yaml')
-
-    # Output: destriped images saved as {output_prefix}_{obsid}_{scaid}.fits
-
-To compute only the overlap matrix:
-
-.. code-block:: python
-
-    main(cfg_file='config.yaml', overlaponly=True)
 
 Major Classes
 =============
@@ -189,38 +147,9 @@ Manages cost function and derivative selection.
 * ``absolute``: f(x) = |x|
 * ``huber_loss``: Smooth combination of quadratic and absolute
 
-Setup
-=====
-
-Configuration
--------------
-
-Required configuration (via YAML or Config object):
-
-* ``ds_obsfile``: Path to input SCA images
-* ``ds_outpath``: Output directory
-* ``use_filter``: Filter name (Y106, J129, H158, F184, K213)
-* ``ds_model``: Destriping model ('constant' or 'linear')
-* ``cost_model``: Cost function ('quadratic', 'absolute', 'huber_loss')
-* ``cg_model``: Conjugate gradient variant (FR, PR, HS, DY)
-* ``cg_maxiter``: Maximum iterations
-* ``cg_tol``: Convergence tolerance
-
-**Example:**
-
-.. code-block:: yaml
-
-    ds_obsfile: "/path/to/data/"
-    ds_outpath: "/path/to/output/"
-    use_filter: "F184"
-    ds_model: "constant"
-    cost_model: "quadratic"
-    cg_model: "FR"
-    cg_maxiter: 100
-    cg_tol: 1e-4
 
 Details: Iteration Step
-==============
+==========================
 
 Each conjugate gradient iteration performs the following:
 
@@ -241,7 +170,7 @@ Each conjugate gradient iteration performs the following:
 6. **Convergence Check**: Stop if ||∇ε|| < tolerance
 
 Interfaces: C Routines
-====================
+==========================
 
 This module relies on ``pyimcom_croutines`` (C routines) for performance-critical operations.
 
