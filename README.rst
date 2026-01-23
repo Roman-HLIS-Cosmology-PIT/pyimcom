@@ -36,7 +36,7 @@ Overview of PyIMCOM concepts
 Running PyIMCOM
 ---------------
 
-- You will want to install the C kernel `furry-parakeet <https://github.com/hirata10/furry-parakeet>`_ for best performance and for some of the advanced features.
+- You will want to install the C kernel `furry-parakeet <https://github.com/hirata10/furry-parakeet>`_ for best performance and for some of the advanced features. (``pip`` will install this as a dependency.)
 
 - `How to build a mosaic in PyIMCOM <docs/run_README.rst>`_
 
@@ -44,9 +44,9 @@ Running PyIMCOM
 
 - `Input file formats <docs/input_README.rst>`_
 
-- `PSF splitting <docs/splitpsf_README.rst>`_
-
 - `Image destriping <docs/destripe_README.rst>`_
+
+- `PSF splitting <docs/splitpsf_README.rst>`_
 
 - `How to compress PyIMCOM output files <docs/compress_README.rst>`_
 
