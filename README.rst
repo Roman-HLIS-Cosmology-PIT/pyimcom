@@ -44,7 +44,7 @@ Running PyIMCOM
 
 - `Input file formats <docs/input_README.rst>`_
 
-- `PSF splitting <docs/splitpsf_README.rst>`_ (under development).
+- `PSF splitting <docs/splitpsf_README.rst>`_
 
 - `Image destriping <docs/destripe_README.rst>`_
 
@@ -65,7 +65,7 @@ Information relevant to various runs we have done in the past
 References
 **********
 
-- Optimal Linear Image Combination. `Rowe et al. ApJ 741:46 (2011) <https://ui.adsabs.harvard.edu/abs/2011ApJ...741...46R/abstract>`_
+- Optimal linear image combination. `Rowe et al. ApJ 741:46 (2011) <https://ui.adsabs.harvard.edu/abs/2011ApJ...741...46R/abstract>`_
 
 - Simulating image coaddition with the Nancy Grace Roman Space Telescope - I. Simulation methodology and general results. `Hirata et al. MNRAS 528:2533 (2024) <https://ui.adsabs.harvard.edu/abs/2024MNRAS.528.2533H/abstract>`_
 
@@ -73,6 +73,10 @@ References
 
 - Analysis of Biasing from Noise from the Nancy Grace Roman Space Telescope: Implications for Weak Lensing. `Laliotis et al. PASP 136:124506 (2024) <https://ui.adsabs.harvard.edu/abs/2024PASP..136l4506L/abstract>`_
 
-- Simulating image coaddition with the Nancy Grace Roman Space Telescope: III. Software improvements and new linear algebra strategies. `Cao et al., ApJS accepted, arXiv: 2410.05442 <https://ui.adsabs.harvard.edu/abs/2024arXiv241005442C/abstract>`_
+- Simulating image coaddition with the Nancy Grace Roman Space Telescope: III. Software improvements and new linear algebra strategies. `Cao et al., ApJS 277:55 (2025) <https://ui.adsabs.harvard.edu/abs/2025ApJS..277...55C/abstract>`_
 
-- OpenUniverse2024: A shared, simulated view of the sky for the next generation of cosmological surveys. `OpenUniverse et al. arXiv: 2501.05632 <https://ui.adsabs.harvard.edu/abs/2025arXiv250105632O/abstract>`_
+- OpenUniverse2024: A shared, simulated view of the sky for the next generation of cosmological surveys. `OpenUniverse et al. MNRAS 544:3799 (2025) <https://ui.adsabs.harvard.edu/abs/2025MNRAS.544.3799O/abstract>`_
+
+- Simulating image coaddition with the Nancy Grace Roman Space Telescope. IV. Hyperparameter Optimization and Experimental Features. `Cao et al. ApJ, accepted, arXiv:2509.18286 <https://ui.adsabs.harvard.edu/abs/2025arXiv250918286C/abstract>`_
+
+- Removing correlated noise stripes from the Nancy Grace Roman Space Telescope survey images. `Laliotis et al. PASJ, submitted, arXiv:2512.05949 <https://ui.adsabs.harvard.edu/abs/2025arXiv251205949L/abstract>`_
