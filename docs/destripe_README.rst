@@ -85,20 +85,21 @@ The configuration file (JSON format) must specify:
         "DSOUT": ["/path/to/output/", "_output_stem.txt"],
         "DSMODEL": ["constant", 4088],
         "DSCOST": ["quadratic", 0, 0],
-        "CGMODEL": ["PR", 12, 1e-3],
+        "CGMODEL": ["PR", 12, 1e-3]
     }
 
 
 The required fields are described as follows:
+
 * ``FILTER``: Filter name (Y106, J129, H158, F184, K213)
 * ``DSOBSFILE``: Path to input SCA images to destripe
 * ``DSOUT``: Output directory and filename stem
 * ``DSMODEL``: Stripe model type and number of rows per image
 * ``DSCOST``: Cost function type (one of "quadratic", "absolute", "huber_loss"), 
-    cost function prior (not implemented-- must be 0 for now), 
-    and threshold for Huber Loss function (leave as 0 if not using Huber Loss)
+  cost function prior (not implemented-- must be 0 for now), 
+  and threshold for Huber Loss function (leave as 0 if not using Huber Loss)
 * ``CGMODEL``: Conjugate gradient model type (one of "PR" (Polak-Ribiere), "FR" (Fletcher-Reeves)), 
-    maximum number of iterations, and convergence tolerance
+  maximum number of iterations, and convergence tolerance
 
 
 Major Classes
@@ -145,7 +146,7 @@ Manages cost function and derivative selection.
 **Supported models:**
 
 * ``quadratic``: f(x) = x^2
-* ``absolute``: f(x) = |x|
+* ``absolute``: f(x) = abs(x)
 * ``huber_loss``: Smooth combination of quadratic and absolute
 
 
@@ -155,7 +156,7 @@ Details: Iteration Step
 Each conjugate gradient iteration performs the following:
 
 1. **Cost Calculation**: Compute :math:`\varepsilon = \sum f(I_A - J_A)` where I_A is the original SCA,
-    J_A is interpolated from overlapping SCAs, and f is the cost function model
+   J_A is interpolated from overlapping SCAs, and f is the cost function model
 
 2. **Gradient Computation**: Calculate :math:`\nabla \varepsilon` via ``residual_function()`` using forward and transpose interpolations
 
