@@ -2,6 +2,7 @@
 
 from pyimcom import imdestripe
 
+
 def test_get_ids():
     """Test function for splitting an obsid,sca pair."""
 
