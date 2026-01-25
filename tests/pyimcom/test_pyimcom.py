@@ -718,10 +718,10 @@ def test_PyIMCOM_run1(tmp_path, setup):
     # Test coverage
     coverage1 = my_block.get_mean_coverage()
     coverage2 = my_block.get_mean_coverage(padding=True)
-    print(np.shape(coverage1), np.shape(coverage2))
-    print(np.amin(coverage2), np.median(coverage2), np.amax(coverage2))
-    print(coverage2)
-    assert coverage2[0, 0] == -1 # this will fail
+    assert np.amin(coverage1)>=2.5
+    assert np.amin(coverage2)>=2.5
+    assert np.amin(coverage1)<=3.5
+    assert np.amin(coverage2)<=3.5
 
     ## Configuration test ##
 
