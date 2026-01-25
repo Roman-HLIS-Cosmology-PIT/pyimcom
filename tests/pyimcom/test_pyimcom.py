@@ -715,9 +715,9 @@ def test_PyIMCOM_run1(tmp_path, setup):
     assert np.shape(sci_image) == (100, 100)
     assert np.abs(sci_image.ravel()[843] - 0.18244877) < 1e-4
 
-	# Test coverage
-	coverage1 = my_block.get_mean_coverage()
-	coverage2 = my_block.get_mean_coverage(padding=True)
+    # Test coverage
+    coverage1 = my_block.get_mean_coverage()
+    coverage2 = my_block.get_mean_coverage(padding=True)
     print(np.shape(coverage1), np.shape(coverage2))
     print(np.amin(coverage2), np.median(coverage2), np.amax(coverage2))
     print(coverage2)
