@@ -92,7 +92,8 @@ myCfg_format = """
         "nstar14,2e5,100,256",
         "whitenoise1",
         "1fnoise2",
-        "gsext14,n=0.5,hlr=0.1,shape=0.2:0.1,shear=0.05:-0.12"
+        "gsext14,n=0.5,hlr=0.1,shape=0.2:0.1,shear=0.05:-0.12",
+        "gstrstar14"
     ],
     "PADSIDES": "all",
     "OUTMAPS": "USTN",
@@ -676,6 +677,12 @@ def test_PyIMCOM_run1(tmp_path, setup):
         assert diff < 5e-4
         dmax = np.amax(fblock[0].data[0, 4, :, :])
         assert np.abs(dmax - 35879.0) < 500.0
+
+        # difference between gsstar and gstrstar
+        diff = np.amax(np.abs(fblock[0].data[0, 1, :, :] - fblock[0].data[0, 8, :, :]))
+        diff /= np.amax(np.abs(fblock[0].data[0, 1, :, :]))
+        print(diff)
+        assert diff < 0.05
 
         # values from noise layers
         test5 = np.array([[0.7601451, 0.9042513], [0.64049757, 0.70962816]])
