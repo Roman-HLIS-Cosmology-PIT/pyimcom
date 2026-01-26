@@ -728,7 +728,7 @@ def test_PyIMCOM_run1(tmp_path, setup):
     outfidelity = my_block.get_output_map("FIDELITY")
     print(np.shape(outfidelity), np.amin(outfidelity), np.median(outfidelity), np.amax(outfidelity))
     print(outfidelity)
-    print(myblock.hdu_list["FIDELITY"].data)
+    print(my_block.hdu_list["FIDELITY"].data)
     assert np.median(outfidelity) == -1  # will fail
 
     ## Configuration test ##
