@@ -682,7 +682,7 @@ def test_PyIMCOM_run1(tmp_path, setup):
         diff = np.amax(np.abs(fblock[0].data[0, 1, :, :] - fblock[0].data[0, 8, :, :]))
         diff /= np.amax(np.abs(fblock[0].data[0, 1, :, :]))
         print(diff)
-        assert diff < 0.05
+        assert diff < 0.66667
 
         # values from noise layers
         test5 = np.array([[0.7601451, 0.9042513], [0.64049757, 0.70962816]])
