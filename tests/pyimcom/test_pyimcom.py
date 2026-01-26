@@ -727,9 +727,11 @@ def test_PyIMCOM_run1(tmp_path, setup):
     # Test output map reader
     outfidelity = my_block.get_output_map("FIDELITY")
     print(np.shape(outfidelity), np.amin(outfidelity), np.median(outfidelity), np.amax(outfidelity))
-    print(outfidelity)
-    print(my_block.hdu_list["FIDELITY"].data)
-    assert np.median(outfidelity) == -1  # will fail
+    assert np.amin(outfidelity) > 1.0e-6
+    assert np.median(outfidelity) > 1.3e-6
+    assert np.median(outfidelity) < 1.5e-6
+    assert np.amax(outfidelity) < 1.0e-5
+	assert np.shape(outfidelity) == (100, 100)
 
     ## Configuration test ##
 
