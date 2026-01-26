@@ -731,7 +731,7 @@ def test_PyIMCOM_run1(tmp_path, setup):
     assert np.median(outfidelity) > 1.3e-6
     assert np.median(outfidelity) < 1.5e-6
     assert np.amax(outfidelity) < 1.0e-5
-	assert np.shape(outfidelity) == (100, 100)
+    assert np.shape(outfidelity) == (100, 100)
 
     ## Configuration test ##
 
