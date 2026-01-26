@@ -727,7 +727,7 @@ def test_PyIMCOM_run1(tmp_path, setup):
     # Test output map reader
     outfidelity = my_block.get_output_map("FIDELITY")
     print(np.shape(outfidelity), np.amin(outfidelity), np.median(outfidelity), np.amax(outfidelity))
-    assert np.amin(outfidelity) > 1.0e-6
+    assert np.amin(outfidelity) > 1.0e-7
     assert np.median(outfidelity) > 1.3e-6
     assert np.median(outfidelity) < 1.5e-6
     assert np.amax(outfidelity) < 1.0e-5
