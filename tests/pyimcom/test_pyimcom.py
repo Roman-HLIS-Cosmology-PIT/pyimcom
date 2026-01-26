@@ -722,10 +722,10 @@ def test_PyIMCOM_run1(tmp_path, setup):
     assert coverage2 >= 2.5
     assert coverage1 <= 3.5
     assert coverage2 <= 3.5
-	del coverage1, coverage2
+    del coverage1, coverage2
 
     # Test output map reader
-	outfidelity = my_block.get_output_map("FIDELITY")
+    outfidelity = my_block.get_output_map("FIDELITY")
     print(np.shape(outfidelity), np.amin(outfidelity), np.median(outfidelity), np.amax(outfidelity))
     print(outfidelity)
     print(myblock.hdu_list["FIDELITY"].data)
