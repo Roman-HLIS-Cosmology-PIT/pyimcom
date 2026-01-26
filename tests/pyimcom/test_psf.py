@@ -3,6 +3,7 @@
 import numpy as np
 from pyimcom.psfutil import OutPSF, PSFGrp
 
+
 def test_simple_airy():
     """Test function for simple Airy disc."""
 
@@ -36,5 +37,5 @@ def test_interpolators():
 
     w = np.zeros(10)
     OutPSF.iD5512C_getw(w, 0.5)
-    w[5] -= 1.
+    w[5] -= 1.0
     assert np.all(np.abs(w) < 1e-8)
