@@ -14,8 +14,7 @@ from pyimcom import imdestripe
 from pyimcom.config import Config
 
 
-# Test constants
-DEGREE = np.pi / 180.0
+# Tools for tests: create WCS, create config, create simple SCA-like object
 
 def create_test_wcs(crval, test_size=100, offset=False):
     """
@@ -125,28 +124,9 @@ def make_simple_sca(type="constant", offset=False):
     sca = SimpleSCA(test_image, test_wcs, test_shape, g_eff=test_g_eff)
     return sca
 
-def test_get_ids():
-    """Test function for splitting an obsid,sca pair."""
-
-    s = "mybeginning_670_16.myending"  # string to parse
-    obsid, scaid = imdestripe.get_ids(s)
-    print(obsid, scaid)
-    # check if we parsed correctly
-    assert obsid == "670"
-    assert scaid == "16"
-
-def test_object_mask():
-    """Test function for creating an object mask."""
-
-    # create a test image with a bright object in the center
-    test_image = np.zeros((100, 100), dtype=np.float32)
-    test_image[40:60, 40:60] = 100.0  # bright square in the center
-
-    # create an object mask
-    mask = imdestripe.apply_object_mask(test_image, threshold=10.0)
-
-    # check if the mask correctly identifies the object
-    assert np.sum(mask) == 400  # 20x20 square should be masked
+###############################
+# Big tests
+###############################
 
 class TestInterpolateImageBilinear:
     """Test class for bilinear interpolation of images."""
@@ -236,4 +216,71 @@ class TestTransposeInterpolate:
             f"  <I(x), y>   = {lhs:.10e}\n"
             f"  <x, I^T(y)> = {rhs:.10e}\n"
             f"  Relative error = {relative_error:.10e}\n"
+        )
+
+    
+
+
+
+###############################
+# Little tests
+###############################
+
+def test_get_ids():
+    """Test function for splitting an obsid,sca pair."""
+
+    s = "mybeginning_670_16.myending"  # string to parse
+    obsid, scaid = imdestripe.get_ids(s)
+    print(obsid, scaid)
+    # check if we parsed correctly
+    assert obsid == "670"
+    assert scaid == "16"
+
+def test_object_mask():
+    """Test function for creating an object mask."""
+
+    # create a test image with a bright object in the center
+    test_image = np.zeros((100, 100), dtype=np.float32)
+    test_image[40:60, 40:60] = 100.0  # bright square in the center
+
+    # create an object mask
+    mask = imdestripe.apply_object_mask(test_image, threshold=10.0)
+
+    # check if the mask correctly identifies the object
+    assert np.sum(mask) == 400  # 20x20 square should be masked
+
+def test_transpose_par():
+    """Test function for parameters transpose function. """
+    img = np.arange(10)[:, np.newaxis] * np.ones((10, 20))
+    transposed_img = imdestripe.transpose_par(img)
+
+    expected = np.arange(10)*20
+    assert np.allclose(transposed_img, expected)
+
+def test_parameters(self):
+    """Test initialization of Parameters class."""
+    
+    cfg = create_test_config()
+    scalist = ["H158_001_01.fits"]
+
+    p = imdestripe.Parameters(cfg, scalist)
+
+    #Check initialization
+    assert p.params.shape == (1,100)
+    assert p.model == "constant"
+    assert p.n_rows == 100
+    assert p.params_per_row == 1
+
+    test_vals = np.arange(10) * 0.1
+    p.params[0, :] = test_vals # set some test values
+
+    param_image = p.forward_par(0)
+    assert param_image.shape == (10, 10)
+    
+    for i in range(10):
+        expected_value = test_vals[i]
+        row_values = param_image[i, :]
+        np.testing.assert_array_almost_equal(
+            row_values, expected_value,
+            err_msg=f"Row {i} should have constant value {expected_value}"
         )
