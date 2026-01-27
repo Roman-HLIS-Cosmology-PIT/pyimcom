@@ -1,7 +1,7 @@
 """File name test functions. Right now tests error handling."""
 
-import numpy as np
 from pyimcom.compress.compressutils import CompressedOutput, ReadFile
+
 
 def test_fname_errs():
     """Test exceptions: file name errors."""
