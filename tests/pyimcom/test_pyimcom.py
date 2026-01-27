@@ -782,6 +782,22 @@ def test_PyIMCOM_run1(tmp_path, setup):
 
     # Test updating the right side of this block
     my_block._load_or_save_hdu_list()  # load all the data into memory
+    # just for the test, fool IMCOM into thinking we used auto so that it will run
+    my_cfg = Config("".join(my_block.hdu_list["CONFIG"].data["text"].tolist()))
+    my_cfg.pad_sides = "auto"
+    config_hdu = fits.TableHDU.from_columns(
+        [
+            fits.Column(
+                name="text",
+                array=my_cfg.to_file(None).splitlines(),
+                format="A512",
+                ascii=True,
+            )
+        ]
+    )
+    config_hdu.header["EXTNAME"] = "CONFIG"
+    my_block.hdu_list["CONFIG"] = config_hdu
+    # with the configuration patched, keep going
     pth2 = pathlib.Path(tmp_path / f"out/testout_F_{ibx+1:02d}_{iby:02d}.fits")
     right_image = OutImage(pth2)
     d1 = np.copy(my_block.hdu_list["PRIMARY"].data[0, 0, :, -1])
