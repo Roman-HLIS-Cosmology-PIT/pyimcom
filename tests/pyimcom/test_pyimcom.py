@@ -780,6 +780,17 @@ def test_PyIMCOM_run1(tmp_path, setup):
     assert fields[4] == "1fnoise2"
     assert np.abs(float(fields[5]) - 2.96809) < 1e-4
 
+    # Test updating the right side of this block
+    pth2 = pathlib.Path(tmp_path / f"out/testout_F_{ibx+1:02d}_{iby:02d}.fits")
+    right_image = OutImage(pth2)
+    d1 = np.copy(self.hdu_list["PRIMARY"].data[0, 0, :, -1])
+    my_block._update_hdu_data(right_image, "right", add_mode=False)
+    d2 = np.copy(self.hdu_list["PRIMARY"].data[0, 0, :, -1])
+    er = np.amax(np.abs(d1-d2))/np.amax(np.abs(d1)
+    print(er)
+    assert er > 1.0e-6
+    assert er < 0.5
+
 
 def test_compress(tmp_path):
     """
