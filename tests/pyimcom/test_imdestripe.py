@@ -101,7 +101,6 @@ def make_simple_sca(type="constant", offset=False):
     SimpleSCA
         A simple SCA-like object with test image and WCS.
     """
-    np.random.seed(13)  # for reproducibility
     test_size = 100
 
     if type == "constant":
@@ -115,6 +114,9 @@ def make_simple_sca(type="constant", offset=False):
         y0, x0, sigma = 30, 30, 5.0
         y, x = np.indices((test_size, test_size))
         test_image = np.exp(-((x-x0)**2 + (y-y0)**2) / (2*sigma**2))
+    elif type == "random":
+        np.random.seed(13)  # for reproducibility
+        test_image = np.random.rand(test_size, test_size).astype(np.float64)
 
     test_wcs = create_test_wcs((150.0, 2.0), test_size=test_size, offset=offset)
     test_shape = test_image.shape
@@ -183,12 +185,55 @@ class TestInterpolateImageBilinear:
         sca_B = make_simple_sca(type="gaussian_peak")
         interp_image = np.zeros_like(sca_A.image)
 
-        imdestripe.interpolate_image_bilinear(sca_B, sca_A interp_image)
-
+        imdestripe.interpolate_image_bilinear(sca_B, sca_A, interp_image)
         peak_y, peak_x = np.unravel_index(np.argmax(interp_image), interp_image.shape)
 
         # Allow ±2 pixel tolerance due to interpolation
         assert abs(peak_x - 40) <= 2, f"Peak x-position should be ~40, got {peak_x}"
         assert abs(peak_y - 45) <= 2, f"Peak y-position should be ~45, got {peak_y}"
 
+class TestTransposeInterpolate:
+    """Test class for transpose bilinear interpolation of images."""
 
+    def test_identity_transpose(self):
+        """Test transpose bilinear interpolation where source and target WCS are identical"""
+        sca_A = make_simple_sca(type="gradient")
+        sca_B = make_simple_sca(type="gradient")
+        interp_image = np.zeros_like(sca_A.image)
+
+        imdestripe.transpose_interpolate_image_bilinear(sca_A, sca_B, interp_image)
+
+        # The interpolated image should be the same as the original image
+        assert np.allclose(interp_image, sca_A.image)
+    
+    def test_adjoint_property(self):
+        """Test the adjoint property of bilinear interpolation and its transpose."""
+        sca_A = make_simple_sca(type="random")
+        sca_B = make_simple_sca(type="random", offset=True)
+
+        image_A = sca_A.image
+        image_B = sca_B.image
+
+        interp_image = np.zeros_like(image_B)
+        imdestripe.interpolate_image_bilinear(sca_B, sca_A, interp_image)
+
+        transpose_image = np.zeros_like(image_A)
+        imdestripe.transpose_interpolate(image_A, sca_A.w, sca_B, transpose_image)
+
+        lhs = np.sum(interp_image * image_A)
+        rhs = np.sum(image_B * transpose_image)
+
+        relative_error = abs(lhs - rhs) / (abs(lhs) + 1e-10)
+
+        print(f"\nAdjoint property test:")
+        print(f"  <I(x), y>   = {lhs:.10e}")
+        print(f"  <x, I^T(y)> = {rhs:.10e}")
+        print(f"  Relative error = {relative_error:.10e}")
+        
+        # These must be equal within numerical precision
+        assert relative_error < 1e-6, (
+            f"CRITICAL FAILURE: Adjoint property violated!\n"
+            f"  <I(x), y>   = {lhs:.10e}\n"
+            f"  <x, I^T(y)> = {rhs:.10e}\n"
+            f"  Relative error = {relative_error:.10e}\n"
+        )
