@@ -800,6 +800,7 @@ def test_PyIMCOM_run1(tmp_path, setup):
     # with the configuration patched, keep going
     pth2 = pathlib.Path(tmp_path / f"out/testout_F_{ibx+1:02d}_{iby:02d}.fits")
     right_image = OutImage(pth2)
+    right_image._load_or_save_hdu_list()
     d1 = np.copy(my_block.hdu_list["PRIMARY"].data[0, 0, :, -1])
     my_block._update_hdu_data(right_image, "right", add_mode=False)
     d2 = np.copy(my_block.hdu_list["PRIMARY"].data[0, 0, :, -1])
