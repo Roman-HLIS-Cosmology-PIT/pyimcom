@@ -786,7 +786,7 @@ def test_PyIMCOM_run1(tmp_path, setup):
     d1 = np.copy(self.hdu_list["PRIMARY"].data[0, 0, :, -1])
     my_block._update_hdu_data(right_image, "right", add_mode=False)
     d2 = np.copy(self.hdu_list["PRIMARY"].data[0, 0, :, -1])
-    er = np.amax(np.abs(d1-d2))/np.amax(np.abs(d1)
+    er = np.amax(np.abs(d1-d2))/np.amax(np.abs(d1))
     print(er)
     assert er > 1.0e-6
     assert er < 0.5
