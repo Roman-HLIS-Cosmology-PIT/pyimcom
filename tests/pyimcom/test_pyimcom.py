@@ -96,7 +96,7 @@ myCfg_format = """
         "gstrstar14"
     ],
     "PADSIDES": "all",
-    "OUTMAPS": "USTN",
+    "OUTMAPS": "USTKN",
     "OUT": "$TMPDIR/out/testout_F",
     "INPAD": 0.8,
     "NPIXPSF": 42,
