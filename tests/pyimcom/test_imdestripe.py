@@ -39,6 +39,7 @@ def create_test_wcs(crval, test_size=100, offset=False):
     outwcs.wcs.ctype = ["RA---TAN", "DEC--TAN"]
     outwcs.wcs.cdelt = np.array([-3.0556e-5, 3.0556e-5]) # ~0.11 arcsec/pixel
     outwcs.wcs.crval = list(crval)
+    outwcs.array_shape = (test_size, test_size)
     
     return outwcs
 
@@ -137,7 +138,7 @@ class TestInterpolateImageBilinear:
         sca_B = make_simple_sca(type="gradient")
         interp_image = np.zeros_like(sca_A.image)
 
-        imdestripe.interpolate_image_bilinear(sca_A, sca_B, interp_image)
+        imdestripe.interpolate_image_bilinear(sca_B, sca_A, interp_image)
 
         # The interpolated image should be the same as the original image
         assert np.allclose(interp_image, sca_A.image)
@@ -148,7 +149,7 @@ class TestInterpolateImageBilinear:
         sca_B = make_simple_sca(type="constant", offset=True)
         interp_image = np.zeros_like(sca_A.image)
 
-        imdestripe.interpolate_image_bilinear(sca_A, sca_B, interp_image)
+        imdestripe.interpolate_image_bilinear(sca_B, sca_A, interp_image)
 
         # The interpolated image should be the same as the original constant image
         assert np.allclose(interp_image, sca_A.image)
@@ -326,3 +327,13 @@ def test_parameters(self):
             err_msg=f"Row {i} should have constant value {expected_value}"
         )
 
+def test_cost_function():
+    """ Very simple test function for cost function computation."""
+
+    diff = 5
+    diff_img = np.full((100, 100), diff, dtype=np.float32)
+
+    expected_cost = 100**2 * diff**2
+    cost = imdestripe.quadratic(diff)
+
+    assert np.isclose(cost, expected_cost), f"Cost should be {expected_cost}, got {cost}"
