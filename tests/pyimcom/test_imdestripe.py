@@ -181,7 +181,7 @@ class TestTransposeInterpolate:
         sca_B = make_simple_sca(type="gradient")
         interp_image = np.zeros_like(sca_A.image)
 
-        imdestripe.transpose_interpolate_image_bilinear(sca_A, sca_B, interp_image)
+        imdestripe.transpose_interpolate(sca_A, sca_B, interp_image)
 
         # The interpolated image should be the same as the original image
         assert np.allclose(interp_image, sca_A.image)
@@ -218,9 +218,50 @@ class TestTransposeInterpolate:
             f"  Relative error = {relative_error:.10e}\n"
         )
 
+def test_residual_gradient():
+    """Test function for residual gradient computation."""
+
+    sca_A = make_simple_sca(type="random")
+    sca_B = make_simple_sca(type="random", offset=True)
+
+    cfg = create_test_config()
+    scalist = ["sca_a", "sca_b"]
+    wcslist = [sca_A.w, sca_B.w]
+    neighbors = {0: [1], 1: [0]}
+    cost_model = imdestripe.Cost_models(cfg)
+
+    # Create two psi difference images with known values
+    psi = np.zeros((2, sca_A.image.shape[0], sca_A.image.shape[1]), dtype=np.float32)
+    psi[0, :, :] = 1.
+    psi[1, :, :] = 2.
+
+    # Analytical gradient
+    grad = imdestripe.residual_function(
+            psi, cost_model.f_prime, scalist, wcslist, neighbors, 
+            thresh=None, workers=1, cfg=cfg
+        )
     
-
-
+    # Numerical gradient : finite difference
+    delta = 1e-5
+    p = imdestripe.Parameters(cfg, scalist)
+    
+    epsilon_0, _ = imdestripe.cost_function(
+        p, cost_model.f, None, 1, scalist, neighbors, cfg
+    )
+    
+    grad_numerical = np.zeros_like(grad)
+    for i in range(grad.shape[0]):
+        for j in range(grad.shape[1]):
+            p_perturbed = imdestripe.Parameters(cfg, scalist)
+            p_perturbed.params = p.params.copy()
+            p_perturbed.params[i, j] += delta
+            
+            epsilon_plus, _ = imdestripe.cost_function(
+                p_perturbed, cost_model.f, None, 1, scalist, neighbors, cfg
+            )
+            
+            grad_numerical[i, j] = (epsilon_plus - epsilon_0) / delta
+    
 
 ###############################
 # Little tests
@@ -244,7 +285,7 @@ def test_object_mask():
     test_image[40:60, 40:60] = 100.0  # bright square in the center
 
     # create an object mask
-    mask = imdestripe.apply_object_mask(test_image, threshold=10.0)
+    mask = imdestripe.apply_object_mask(test_image, threshold_c=10.0)
 
     # check if the mask correctly identifies the object
     assert np.sum(mask) == 400  # 20x20 square should be masked
@@ -284,3 +325,4 @@ def test_parameters(self):
             row_values, expected_value,
             err_msg=f"Row {i} should have constant value {expected_value}"
         )
+
