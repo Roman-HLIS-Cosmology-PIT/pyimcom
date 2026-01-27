@@ -781,6 +781,7 @@ def test_PyIMCOM_run1(tmp_path, setup):
     assert np.abs(float(fields[5]) - 2.96809) < 1e-4
 
     # Test updating the right side of this block
+    my_block._load_or_save_hdu_list()  # load all the data into memory
     pth2 = pathlib.Path(tmp_path / f"out/testout_F_{ibx+1:02d}_{iby:02d}.fits")
     right_image = OutImage(pth2)
     d1 = np.copy(my_block.hdu_list["PRIMARY"].data[0, 0, :, -1])
@@ -790,6 +791,8 @@ def test_PyIMCOM_run1(tmp_path, setup):
     print(er)
     assert er > 1.0e-6
     assert er < 0.5
+    my_block._load_or_save_hdu_list(load_mode=False)  # close the data
+    assert not hasattr(self, "hdu_list")
 
 
 def test_compress(tmp_path):
