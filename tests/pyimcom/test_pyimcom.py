@@ -792,7 +792,7 @@ def test_PyIMCOM_run1(tmp_path, setup):
     assert er > 1.0e-6
     assert er < 0.5
     my_block._load_or_save_hdu_list(load_mode=False)  # close the data
-    assert not hasattr(self, "hdu_list")
+    assert not hasattr(my_block, "hdu_list")
 
 
 def test_compress(tmp_path):
