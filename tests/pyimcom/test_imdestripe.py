@@ -332,10 +332,10 @@ def test_cost_function():
     """ Very simple test function for cost function computation."""
 
     diff = 5
-    diff_img = np.full((100, 100), diff, dtype=np.float32)
+    diff_img = np.full((10, 10), diff, dtype=np.float32)
 
-    expected_cost = 100**2 * diff**2
-    cost = imdestripe.quadratic(diff)
+    expected_cost = 10**2 * diff**2
+    cost = np.sum(imdestripe.quadratic(diff_img))
 
     assert np.isclose(cost, expected_cost), f"Cost should be {expected_cost}, got {cost}"
 
