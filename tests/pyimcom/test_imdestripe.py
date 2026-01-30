@@ -229,7 +229,11 @@ def test_residual_gradient():
     scalist = ["sca_a", "sca_b"]
     wcslist = [sca_A.w, sca_B.w]
     neighbors = {0: [1], 1: [0]}
-    cost_model = imdestripe.Cost_models(cfg)
+    
+    def f(x):
+        return x**2  # Quadratic cost function
+    def f_prime(x):
+        return 2 * x  # Derivative of quadratic cost function
 
     # Create two psi difference images with known values
     psi = np.zeros((2, sca_A.image.shape[0], sca_A.image.shape[1]), dtype=np.float32)
@@ -238,7 +242,7 @@ def test_residual_gradient():
 
     # Analytical gradient
     grad = imdestripe.residual_function(
-            psi, cost_model.f_prime, scalist, wcslist, neighbors, 
+            psi, f_prime, scalist, wcslist, neighbors, 
             thresh=None, workers=1, cfg=cfg
         )
     
@@ -247,7 +251,7 @@ def test_residual_gradient():
     p = imdestripe.Parameters(cfg, scalist)
     
     epsilon_0, _ = imdestripe.cost_function(
-        p, cost_model.f, None, 1, scalist, neighbors, cfg
+        p, f, None, 1, scalist, neighbors, cfg
     )
     
     grad_numerical = np.zeros_like(grad)
@@ -258,7 +262,7 @@ def test_residual_gradient():
             p_perturbed.params[i, j] += delta
             
             epsilon_plus, _ = imdestripe.cost_function(
-                p_perturbed, cost_model.f, None, 1, scalist, neighbors, cfg
+                p_perturbed, f, None, 1, scalist, neighbors, cfg
             )
             
             grad_numerical[i, j] = (epsilon_plus - epsilon_0) / delta
