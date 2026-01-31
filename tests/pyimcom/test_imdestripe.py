@@ -154,11 +154,15 @@ class TestInterpolateImageBilinear:
         sca_A = make_simple_sca(type="constant")
         sca_B = make_simple_sca(type="constant", offset=True)
         interp_image = np.zeros_like(sca_A.image, dtype=np.float64)
-
+    
         imdestripe.interpolate_image_bilinear(sca_B, sca_A, interp_image)
 
-        # The interpolated image should be the same as the original constant image
-        assert np.allclose(interp_image, sca_A.image)
+        valid_mask = interp_image != 0.0  # the interpolated image will have zeros where no data maps
+        n_valid = np.sum(valid_mask)
+    
+        assert n_valid > 5000, f"Should have substantial overlap, got {n_valid} pixels"
+        assert np.allclose(interp_image[valid_mask], 13.0)
+
 
     def test_interpolation_shifted(self):
         """
