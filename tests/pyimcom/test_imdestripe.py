@@ -416,7 +416,7 @@ def test_residual_gradient():
     # Analytical gradient
     grad = imdestripe.residual_function(
             psi, f_prime, scalist, wcslist, neighbors, 
-            thresh=None, workers=1, cfg=cfg
+            thresh=None, workers=0, cfg=cfg
         )
     
     # Numerical gradient : finite difference
