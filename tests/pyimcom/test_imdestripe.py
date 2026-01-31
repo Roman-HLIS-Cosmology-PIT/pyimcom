@@ -477,7 +477,7 @@ def test_transpose_par():
     expected = np.arange(10)*20
     assert np.allclose(transposed_img, expected)
 
-def test_parameters(self):
+def test_parameters():
     """Test initialization of Parameters class."""
     
     cfg = create_test_config()
@@ -515,23 +515,3 @@ def test_cost_function():
     cost = np.sum(imdestripe.quadratic(diff_img))
 
     assert np.isclose(cost, expected_cost), f"Cost should be {expected_cost}, got {cost}"
-
-
-def interpolation_shape_debug():
-    """Debug interpolation issues."""
-    sca_A = make_simple_sca(type="constant")
-    sca_B = make_simple_sca(type="constant")
-    
-    print(f"Image A shape: {sca_A.image.shape}, dtype: {sca_A.image.dtype}")
-    print(f"Image B shape: {sca_B.image.shape}, dtype: {sca_B.image.dtype}")
-    print(f"Image A WCS array_shape: {sca_A.w.array_shape}")
-    print(f"Image B WCS array_shape: {sca_B.w.array_shape}")
-    
-    interp_image = np.zeros_like(sca_A.image, dtype=np.float64)
-    print(f"Interp image dtype: {interp_image.dtype}")
-    print(f"Interp image before: {interp_image[0, 0]}")
-    
-    imdestripe.interpolate_image_bilinear(sca_B, sca_A, interp_image)
-    
-    print(f"Interp image after: min={np.min(interp_image)}, max={np.max(interp_image)}, mean={np.mean(interp_image)}")
-    print(f"Expected: all values should be ~13.0")
