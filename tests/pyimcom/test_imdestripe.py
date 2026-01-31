@@ -124,7 +124,7 @@ def make_simple_sca(type="constant", offset=False):
         np.random.seed(13)  # for reproducibility
         test_image = np.random.rand(test_size, test_size).astype(np.float64)
 
-    test_wcs = create_test_wcs(150.0, 2.0, 1, 1, test_size=test_size, offset=offset)
+    test_wcs = create_test_wcs(150.0, 2.0, test_size=test_size, offset=offset)
     test_shape = test_image.shape
     test_g_eff = np.ones(test_shape, dtype=np.float64)
 
