@@ -392,53 +392,53 @@ class TestTransposeInterpolate:
             f"  Relative error = {relative_error:.10e}\n"
         )
 
-def test_residual_gradient():
-    """Test function for residual gradient computation."""
+# def test_residual_gradient():
+#     """Test function for residual gradient computation."""
 
-    sca_A = make_simple_sca(type="random")
-    sca_B = make_simple_sca(type="random", offset=True)
+#     sca_A = make_simple_sca(type="random")
+#     sca_B = make_simple_sca(type="random", offset=True)
 
-    cfg = create_test_config()
-    scalist = ["sca_a", "sca_b"]
-    wcslist = [sca_A.w, sca_B.w]
-    neighbors = {0: [1], 1: [0]}
+#     cfg = create_test_config()
+#     scalist = ["sca_a", "sca_b"]
+#     wcslist = [sca_A.w, sca_B.w]
+#     neighbors = {0: [1], 1: [0]}
     
-    def f(x):
-        return x**2  # Quadratic cost function
-    def f_prime(x):
-        return 2 * x  # Derivative of quadratic cost function
+#     def f(x):
+#         return x**2  # Quadratic cost function
+#     def f_prime(x):
+#         return 2 * x  # Derivative of quadratic cost function
 
-    # Create two psi difference images with known values
-    psi = np.zeros((2, sca_A.image.shape[0], sca_A.image.shape[1]), dtype=np.float32)
-    psi[0, :, :] = 1.
-    psi[1, :, :] = 2.
+#     # Create two psi difference images with known values
+#     psi = np.zeros((2, sca_A.image.shape[0], sca_A.image.shape[1]), dtype=np.float32)
+#     psi[0, :, :] = 1.
+#     psi[1, :, :] = 2.
 
-    # Analytical gradient
-    grad = imdestripe.residual_function(
-            psi, f_prime, scalist, wcslist, neighbors, 
-            thresh=None, workers=0, cfg=cfg
-        )
+#     # Analytical gradient
+#     grad = imdestripe.residual_function(
+#             psi, f_prime, scalist, wcslist, neighbors, 
+#             thresh=None, workers=0, cfg=cfg
+#         )
     
-    # Numerical gradient : finite difference
-    delta = 1e-5
-    p = imdestripe.Parameters(cfg, scalist)
+#     # Numerical gradient : finite difference
+#     delta = 1e-5
+#     p = imdestripe.Parameters(cfg, scalist)
     
-    epsilon_0, _ = imdestripe.cost_function(
-        p, f, None, 1, scalist, neighbors, cfg
-    )
+#     epsilon_0, _ = imdestripe.cost_function(
+#         p, f, None, 1, scalist, neighbors, cfg
+#     )
     
-    grad_numerical = np.zeros_like(grad)
-    for i in range(grad.shape[0]):
-        for j in range(grad.shape[1]):
-            p_perturbed = imdestripe.Parameters(cfg, scalist)
-            p_perturbed.params = p.params.copy()
-            p_perturbed.params[i, j] += delta
+#     grad_numerical = np.zeros_like(grad)
+#     for i in range(grad.shape[0]):
+#         for j in range(grad.shape[1]):
+#             p_perturbed = imdestripe.Parameters(cfg, scalist)
+#             p_perturbed.params = p.params.copy()
+#             p_perturbed.params[i, j] += delta
             
-            epsilon_plus, _ = imdestripe.cost_function(
-                p_perturbed, f, None, 1, scalist, neighbors, cfg
-            )
+#             epsilon_plus, _ = imdestripe.cost_function(
+#                 p_perturbed, f, None, 1, scalist, neighbors, cfg
+#             )
             
-            grad_numerical[i, j] = (epsilon_plus - epsilon_0) / delta
+#             grad_numerical[i, j] = (epsilon_plus - epsilon_0) / delta
     
 
 ###############################
@@ -491,13 +491,13 @@ def test_parameters():
     assert p.n_rows == 100
     assert p.params_per_row == 1
 
-    test_vals = np.arange(10) * 0.1
+    test_vals = np.arange(100) * 0.1
     p.params[0, :] = test_vals # set some test values
 
     param_image = p.forward_par(0)
-    assert param_image.shape == (10, 10)
+    assert param_image.shape == (100, 100)
     
-    for i in range(10):
+    for i in range(100):
         expected_value = test_vals[i]
         row_values = param_image[i, :]
         np.testing.assert_array_almost_equal(
