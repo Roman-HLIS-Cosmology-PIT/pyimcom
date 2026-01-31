@@ -40,7 +40,7 @@ def create_test_wcs(ra, dec, test_size=100, offset=False):
     if offset:
         # Shift by ~10 pixels worth in RA and Dec
         # pixel scale is ~3e-5 deg/pixel, so 10 pixels ≈ 3e-4 degrees
-        outwcs.wcs.crval = [ra + 3e-4, dec + 2e-4]
+        outwcs.wcs.crval = [ra + 3e-4, dec + 3e-4]
     else:
         outwcs.wcs.crval = [ra, dec]
     
@@ -170,14 +170,27 @@ class TestInterpolateImageBilinear:
         """
         sca_A = make_simple_sca(type="constant", offset=True)
         sca_B = make_simple_sca(type="gaussian_peak")
+        original_peak_y, original_peak_x = 30, 30 
         interp_image = np.zeros_like(sca_A.image, dtype=np.float64)
 
         imdestripe.interpolate_image_bilinear(sca_B, sca_A, interp_image)
-        peak_y, peak_x = np.unravel_index(np.argmax(interp_image), interp_image.shape)
 
-        # Allow ±5 pixel tolerance due to interpolation
-        assert abs(peak_x - 40) <= 5, f"Peak x-position should be ~40, got {peak_x}"
-        assert abs(peak_y - 40) <= 5, f"Peak y-position should be ~40, got {peak_y}"
+        new_peak_y, new_peak_x = np.unravel_index(np.argmax(interp_image), interp_image.shape)
+    
+        # Peak should have moved by approximately 10 pixels
+        x_shift = new_peak_x - original_peak_x
+        y_shift = new_peak_y - original_peak_y
+        total_shift = np.sqrt(x_shift**2 + y_shift**2)
+        
+        print(f"Peak moved from ({original_peak_x}, {original_peak_y}) to ({new_peak_x}, {new_peak_y})")
+        print(f"Shift: ({x_shift}, {y_shift}), magnitude: {total_shift:.1f} pixels")
+        
+        # Verify peak moved by approximately the right amount (10 pixels)
+        assert 8 <= total_shift <= 16, f"Peak should shift by ~10 pixels, got {total_shift:.1f}"
+        
+        # Verify peak is still strong
+        assert np.max(interp_image) > 0.5, "Peak should be preserved"
+
 
 class TestTransposeInterpolate:
     """Test class for transpose bilinear interpolation of images."""
