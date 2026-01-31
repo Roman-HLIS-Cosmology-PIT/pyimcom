@@ -22,12 +22,14 @@ def create_test_wcs(ra, dec, test_size=100, offset=False):
     
     Parameters
     ----------
-    crval : tuple of float
-        Reference point (RA, Dec) in degrees
-    pa : float
-        Position angle in degrees
+    ra : float
+        Right ascension in degrees
+    dec : float
+        Declination in degrees
     test_size : int
         Size of image
+    offset : bool
+        Whether to offset the center pixel.
     
     Returns
     -------
