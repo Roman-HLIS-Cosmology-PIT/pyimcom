@@ -212,6 +212,7 @@ def create_test_wcs(ra, dec, pa, sca, test_size=100, offset=False):
         outwcs.wcs.crval = [ra, dec]
     
     outwcs.wcs.lonpole = pa - 180.0 if pa >= 180.0 else pa + 180.0
+    outwcs.array_shape = (test_size, test_size)
     
     return outwcs
 
