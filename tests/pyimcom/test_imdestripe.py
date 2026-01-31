@@ -146,6 +146,18 @@ class TestInterpolateImageBilinear:
 
         imdestripe.interpolate_image_bilinear(sca_B, sca_A, interp_image)
 
+        interior_mask = np.ones((100, 100), dtype=bool)
+        interior_mask[-1, :] = False  # Last row
+        interior_mask[:, -1] = False  # Last column
+        
+        print(f"Number of valid interior pixels: {np.sum(interior_mask)}")
+        print(f"Number of non-zero pixels in output: {np.sum(interp_image != 0)}")
+        print(f"First row of output: {interp_image[0, :10]}")
+        print(f"First row expected: {sca_A.image[0, :10]}")
+        
+        # Check if interior pixels match
+        assert np.allclose(interp_image[interior_mask], sca_A.image[interior_mask])
+
         # The interpolated image should be the same as the original image
         assert np.allclose(interp_image, sca_A.image)
 
