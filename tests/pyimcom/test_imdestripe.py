@@ -6,13 +6,13 @@ import numpy as np
 from astropy import wcs
 from pyimcom import imdestripe
 
-
 # Tools for tests: create WCS, create config, create simple SCA-like object
+
 
 def create_test_wcs(ra, dec, test_size=100, offset=False):
     """
     Create a simple WCS for testing (similar to make_simple_wcs in PyIMCOM tests)
-    
+
     Parameters
     ----------
     ra : float
@@ -23,7 +23,7 @@ def create_test_wcs(ra, dec, test_size=100, offset=False):
         Size of image
     offset : bool
         Whether to offset the center pixel.
-    
+
     Returns
     -------
     astropy.wcs.WCS
@@ -40,16 +40,17 @@ def create_test_wcs(ra, dec, test_size=100, offset=False):
         outwcs.wcs.crval = [ra, dec]
     outwcs.wcs.lonpole = 180.0
     outwcs.array_shape = (test_size, test_size)
-    
+
     return outwcs
 
 
 def create_test_config(ds_rows=100, ds_model="constant", cost_model="quadratic"):
     """
     Create a minimal config object for testing.
-    
+
     Returns a Config-like object with necessary attributes.
     """
+
     class TestConfig:
         def __init__(self):
             self.ds_rows = ds_rows
@@ -67,7 +68,7 @@ def create_test_config(ds_rows=100, ds_model="constant", cost_model="quadratic")
             self.gaindir = False
             self.hub_thresh = 1.0
             self.ds_restart = None
-    
+
     return TestConfig()
 
 
@@ -76,6 +77,7 @@ class SimpleSCA:
     Simplified SCA-like object for testing without full imdestripe Sca_img object initialization.
     Mimics the Sca_img interface needed for interpolation tests.
     """
+
     def __init__(self, image, w, shape, g_eff=None):
         self.image = image.astype(np.float64)
         self.w = w
@@ -112,7 +114,7 @@ def make_simple_sca(type="constant", offset=False):
     elif type == "gaussian_peak":
         y0, x0, sigma = 30, 30, 5.0
         y, x = np.indices((test_size, test_size))
-        test_image = np.exp(-((x - x0) ** 2 + (y - y0) ** 2) / (2 * sigma ** 2))
+        test_image = np.exp(-((x - x0) ** 2 + (y - y0) ** 2) / (2 * sigma**2))
     elif type == "random":
         np.random.seed(13)  # for reproducibility
         test_image = np.random.rand(test_size, test_size).astype(np.float64)
@@ -124,9 +126,11 @@ def make_simple_sca(type="constant", offset=False):
     sca = SimpleSCA(test_image, test_wcs, test_shape, g_eff=test_g_eff)
     return sca
 
+
 ###############################
 # Big tests
 ###############################
+
 
 class TestInterpolateImageBilinear:
     """Test class for bilinear interpolation of images."""
@@ -142,12 +146,12 @@ class TestInterpolateImageBilinear:
         interior_mask = np.ones((100, 100), dtype=bool)
         interior_mask[-1, :] = False  # Last row
         interior_mask[:, -1] = False  # Last column
-        
+
         print(f"Number of valid interior pixels: {np.sum(interior_mask)}")
         print(f"Number of non-zero pixels in output: {np.sum(interp_image != 0)}")
         print(f"First row of output: {interp_image[0, :10]}")
         print(f"First row expected: {sca_A.image[0, :10]}")
-        
+
         # Check if interior pixels match
         assert np.allclose(interp_image[interior_mask], sca_A.image[interior_mask])
 
@@ -159,15 +163,14 @@ class TestInterpolateImageBilinear:
         sca_A = make_simple_sca(type="constant")
         sca_B = make_simple_sca(type="constant", offset=True)
         interp_image = np.zeros_like(sca_A.image, dtype=np.float64)
-    
+
         imdestripe.interpolate_image_bilinear(sca_B, sca_A, interp_image)
 
         valid_mask = interp_image != 0.0  # the interpolated image will have zeros where no data maps
         n_valid = np.sum(valid_mask)
-    
+
         assert n_valid > 5000, f"Should have substantial overlap, got {n_valid} pixels"
         assert np.allclose(interp_image[valid_mask], 13.0)
-
 
     def test_interpolation_shifted(self):
         """
@@ -179,24 +182,24 @@ class TestInterpolateImageBilinear:
         """
         sca_A = make_simple_sca(type="constant", offset=True)
         sca_B = make_simple_sca(type="gaussian_peak")
-        original_peak_y, original_peak_x = 30, 30 
+        original_peak_y, original_peak_x = 30, 30
         interp_image = np.zeros_like(sca_A.image, dtype=np.float64)
 
         imdestripe.interpolate_image_bilinear(sca_B, sca_A, interp_image)
 
         new_peak_y, new_peak_x = np.unravel_index(np.argmax(interp_image), interp_image.shape)
-    
+
         # Peak should have moved by approximately 10 pixels
         x_shift = new_peak_x - original_peak_x
         y_shift = new_peak_y - original_peak_y
         total_shift = np.sqrt(x_shift**2 + y_shift**2)
-        
+
         print(f"Peak moved from ({original_peak_x}, {original_peak_y}) to ({new_peak_x}, {new_peak_y})")
         print(f"Shift: ({x_shift}, {y_shift}), magnitude: {total_shift:.1f} pixels")
-        
+
         # Verify peak moved by approximately the right amount (10 pixels)
         assert 8 <= total_shift <= 16, f"Peak should shift by ~10 pixels, got {total_shift:.1f}"
-        
+
         # Verify peak is still strong
         assert np.max(interp_image) > 0.5, "Peak should be preserved"
 
@@ -215,18 +218,18 @@ class TestTransposeInterpolate:
         interior_mask = np.ones((100, 100), dtype=bool)
         interior_mask[-1, :] = False  # Last row
         interior_mask[:, -1] = False  # Last column
-        
+
         print(f"Number of valid interior pixels: {np.sum(interior_mask)}")
         print(f"Number of non-zero pixels in output: {np.sum(interp_image != 0)}")
         print(f"First row of output: {interp_image[0, :10]}")
         print(f"First row expected: {sca_A.image[0, :10]}")
-        
+
         # Check if interior pixels match
         assert np.allclose(interp_image[interior_mask], sca_A.image[interior_mask])
 
         # This fails because the last row and column are skipped in interpolation so they come back as zeros.
         # assert np.allclose(interp_image, sca_A.image)
-    
+
     def test_adjoint_property(self):
         """Test the adjoint property of bilinear interpolation and its transpose."""
         sca_A = make_simple_sca(type="random")
@@ -250,7 +253,7 @@ class TestTransposeInterpolate:
         print(f"  <I(x), y>   = {lhs:.10e}")
         print(f"  <x, I^T(y)> = {rhs:.10e}")
         print(f"  Relative error = {relative_error:.10e}")
-        
+
         # These must be equal within numerical precision
         assert relative_error < 1e-6, (
             f"CRITICAL FAILURE: Adjoint property violated!\n"
@@ -259,13 +262,19 @@ class TestTransposeInterpolate:
             f"  Relative error = {relative_error:.10e}\n"
         )
 
+
 def f(x):
     """Quadratic cost function for testing."""
     return x**2  # Quadratic cost function
+
+
 def f_prime(x):
     """Derivative of quadratic cost function for testing."""
     return 2 * x  # Derivative of quadratic cost function
+
+
 cfg = create_test_config()
+
 
 def test_residual_gradient(config=cfg):
     """Test function for residual gradient computation."""
@@ -284,30 +293,31 @@ def test_residual_gradient(config=cfg):
 
     # Analytical gradient
     grad = imdestripe.residual_function(
-            psi, f_prime, scalist, wcslist, neighbors, thresh=None, workers=2, cfg=config
-            )
-    
+        psi, f_prime, scalist, wcslist, neighbors, thresh=None, workers=2, cfg=config
+    )
+
     # Numerical gradient : finite difference
     delta = 1e-5
     p = imdestripe.Parameters(config, scalist)
-    
+
     epsilon_0, _ = imdestripe.cost_function(p, f, None, 1, scalist, neighbors, config)
-    
+
     grad_numerical = np.zeros_like(grad)
     for i in range(grad.shape[0]):
         for j in range(grad.shape[1]):
             p_perturbed = imdestripe.Parameters(config, scalist)
             p_perturbed.params = p.params.copy()
             p_perturbed.params[i, j] += delta
-            
+
             epsilon_plus, _ = imdestripe.cost_function(p_perturbed, f, None, 1, scalist, neighbors, config)
-            
+
             grad_numerical[i, j] = (epsilon_plus - epsilon_0) / delta
-    
+
 
 ###############################
 # Little tests
 ###############################
+
 
 def test_get_ids():
     """Test function for splitting an obsid,sca pair."""
@@ -318,6 +328,7 @@ def test_get_ids():
     # check if we parsed correctly
     assert obsid == "670"
     assert scaid == "16"
+
 
 def test_object_mask():
     """Test function for creating an object mask."""
@@ -333,6 +344,7 @@ def test_object_mask():
     assert np.sum(mask) >= 400  # At least the bright region is masked
     assert np.sum(mask) <= 700  # Plus some dilation
 
+
 def test_transpose_par():
     """Test function for parameters transpose function."""
     img = np.arange(10)[:, np.newaxis] * np.ones((10, 20))
@@ -341,15 +353,16 @@ def test_transpose_par():
     expected = np.arange(10) * 20
     assert np.allclose(transposed_img, expected)
 
+
 def test_parameters():
     """Test initialization of Parameters class."""
-    
+
     cfg = create_test_config()
     scalist = ["H158_001_01.fits"]
 
     p = imdestripe.Parameters(cfg, scalist)
 
-    #Check initialization
+    # Check initialization
     assert p.params.shape == (1, 100)
     assert p.model == "constant"
     assert p.n_rows == 100
@@ -360,13 +373,14 @@ def test_parameters():
 
     param_image = p.forward_par(0)
     assert param_image.shape == (100, 100)
-    
+
     for i in range(10):
         expected_value = test_vals[i]
         row_values = param_image[i, :]
         np.testing.assert_array_almost_equal(
             row_values, expected_value, err_msg=f"Row {i} should have constant value {expected_value}"
         )
+
 
 def test_cost_function():
     """Very simple test function for cost function computation."""
