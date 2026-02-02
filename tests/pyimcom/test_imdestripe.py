@@ -4,14 +4,7 @@ Many of these functions / tests are adapted from test_pyimcom for internal consi
 
 import numpy as np
 from astropy import wcs
-from astropy.io import fits
-from astropy.modeling import models
-import tempfile
-import os
-import pathlib
-
 from pyimcom import imdestripe
-from pyimcom.config import Config
 
 
 # Tools for tests: create WCS, create config, create simple SCA-like object
@@ -36,7 +29,7 @@ def create_test_wcs(ra, dec, test_size=100, offset=False):
     astropy.wcs.WCS
     """
     outwcs = wcs.WCS(naxis=2)
-    outwcs.wcs.crpix = [test_size/2, test_size/2]
+    outwcs.wcs.crpix = [test_size / 2, test_size / 2]
     outwcs.wcs.cdelt = np.array([-3.0556e-5, 3.0556e-5])
     outwcs.wcs.ctype = ["RA---ARC", "DEC--ARC"]
     if offset:
@@ -45,7 +38,6 @@ def create_test_wcs(ra, dec, test_size=100, offset=False):
         outwcs.wcs.crval = [ra + 3e-4, dec + 3e-4]
     else:
         outwcs.wcs.crval = [ra, dec]
-    
     outwcs.wcs.lonpole = 180.0
     outwcs.array_shape = (test_size, test_size)
     
@@ -82,7 +74,6 @@ def create_test_config(ds_rows=100, ds_model="constant", cost_model="quadratic")
 class SimpleSCA:
     """
     Simplified SCA-like object for testing without full imdestripe Sca_img object initialization.
-    
     Mimics the Sca_img interface needed for interpolation tests.
     """
     def __init__(self, image, w, shape, g_eff=None):
@@ -121,7 +112,7 @@ def make_simple_sca(type="constant", offset=False):
     elif type == "gaussian_peak":
         y0, x0, sigma = 30, 30, 5.0
         y, x = np.indices((test_size, test_size))
-        test_image = np.exp(-((x-x0)**2 + (y-y0)**2) / (2*sigma**2))
+        test_image = np.exp(-((x - x0) ** 2 + (y - y0) ** 2) / (2 * sigma ** 2))
     elif type == "random":
         np.random.seed(13)  # for reproducibility
         test_image = np.random.rand(test_size, test_size).astype(np.float64)
@@ -255,7 +246,7 @@ class TestTransposeInterpolate:
 
         relative_error = abs(lhs - rhs) / (abs(lhs) + 1e-10)
 
-        print(f"\nAdjoint property test:")
+        print("\nAdjoint property test:")
         print(f"  <I(x), y>   = {lhs:.10e}")
         print(f"  <x, I^T(y)> = {rhs:.10e}")
         print(f"  Relative error = {relative_error:.10e}")
@@ -288,22 +279,19 @@ def test_residual_gradient(config=cfg):
 
     # Create two psi difference images with known values
     psi = np.zeros((2, sca_A.image.shape[0], sca_A.image.shape[1]), dtype=np.float32)
-    psi[0, :, :] = 1.
-    psi[1, :, :] = 2.
+    psi[0, :, :] = 1.0
+    psi[1, :, :] = 2.0
 
     # Analytical gradient
     grad = imdestripe.residual_function(
-            psi, f_prime, scalist, wcslist, neighbors, 
-            thresh=None, workers=2, cfg=config
-        )
+            psi, f_prime, scalist, wcslist, neighbors, thresh=None, workers=2, cfg=config
+            )
     
     # Numerical gradient : finite difference
     delta = 1e-5
     p = imdestripe.Parameters(config, scalist)
     
-    epsilon_0, _ = imdestripe.cost_function(
-        p, f, None, 1, scalist, neighbors, config
-    )
+    epsilon_0, _ = imdestripe.cost_function(p, f, None, 1, scalist, neighbors, config)
     
     grad_numerical = np.zeros_like(grad)
     for i in range(grad.shape[0]):
@@ -312,9 +300,7 @@ def test_residual_gradient(config=cfg):
             p_perturbed.params = p.params.copy()
             p_perturbed.params[i, j] += delta
             
-            epsilon_plus, _ = imdestripe.cost_function(
-                p_perturbed, f, None, 1, scalist, neighbors, config
-            )
+            epsilon_plus, _ = imdestripe.cost_function(p_perturbed, f, None, 1, scalist, neighbors, config)
             
             grad_numerical[i, j] = (epsilon_plus - epsilon_0) / delta
     
@@ -348,11 +334,11 @@ def test_object_mask():
     assert np.sum(mask) <= 700  # Plus some dilation
 
 def test_transpose_par():
-    """Test function for parameters transpose function. """
+    """Test function for parameters transpose function."""
     img = np.arange(10)[:, np.newaxis] * np.ones((10, 20))
     transposed_img = imdestripe.transpose_par(img)
 
-    expected = np.arange(10)*20
+    expected = np.arange(10) * 20
     assert np.allclose(transposed_img, expected)
 
 def test_parameters():
@@ -364,13 +350,13 @@ def test_parameters():
     p = imdestripe.Parameters(cfg, scalist)
 
     #Check initialization
-    assert p.params.shape == (1,100)
+    assert p.params.shape == (1, 100)
     assert p.model == "constant"
     assert p.n_rows == 100
     assert p.params_per_row == 1
 
     test_vals = np.arange(100) * 0.1
-    p.params[0, :] = test_vals # set some test values
+    p.params[0, :] = test_vals  # set some test values
 
     param_image = p.forward_par(0)
     assert param_image.shape == (100, 100)
@@ -379,12 +365,11 @@ def test_parameters():
         expected_value = test_vals[i]
         row_values = param_image[i, :]
         np.testing.assert_array_almost_equal(
-            row_values, expected_value,
-            err_msg=f"Row {i} should have constant value {expected_value}"
+            row_values, expected_value, err_msg=f"Row {i} should have constant value {expected_value}"
         )
 
 def test_cost_function():
-    """ Very simple test function for cost function computation."""
+    """Very simple test function for cost function computation."""
 
     diff = 5
     diff_img = np.full((10, 10), diff, dtype=np.float32)
