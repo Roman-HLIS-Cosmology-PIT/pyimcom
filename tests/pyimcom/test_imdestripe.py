@@ -44,6 +44,29 @@ def create_test_wcs(ra, dec, test_size=100, offset=False):
     return outwcs
 
 
+class TestConfig:
+    """
+    Class defining a minimal config object for testing.
+    """
+
+    def __init__(self, ds_rows=100, ds_model="constant", cost_model="quadratic"):
+        self.ds_rows = ds_rows
+        self.ds_model = ds_model
+        self.cost_model = cost_model
+        self.cg_model = "PR"
+        self.cg_maxiter = 10
+        self.cg_tol = 1e-4
+        self.ds_obsfile = ""
+        self.ds_outpath = ""
+        self.ds_outstem = ""
+        self.use_filter = "H158"
+        self.permanent_mask = None
+        self.ds_noisefile = False
+        self.gaindir = False
+        self.hub_thresh = 1.0
+        self.ds_restart = None
+
+
 def create_test_config(ds_rows=100, ds_model="constant", cost_model="quadratic"):
     """
     Create a minimal config object for testing.
@@ -51,25 +74,9 @@ def create_test_config(ds_rows=100, ds_model="constant", cost_model="quadratic")
     Returns a Config-like object with necessary attributes.
     """
 
-    class TestConfig:
-        def __init__(self):
-            self.ds_rows = ds_rows
-            self.ds_model = ds_model
-            self.cost_model = cost_model
-            self.cg_model = "PR"
-            self.cg_maxiter = 10
-            self.cg_tol = 1e-4
-            self.ds_obsfile = ""
-            self.ds_outpath = ""
-            self.ds_outstem = ""
-            self.use_filter = "H158"
-            self.permanent_mask = None
-            self.ds_noisefile = False
-            self.gaindir = False
-            self.hub_thresh = 1.0
-            self.ds_restart = None
+    config = TestConfig(ds_rows=ds_rows, ds_model=ds_model, cost_model=cost_model)
 
-    return TestConfig()
+    return config
 
 
 class SimpleSCA:
@@ -147,13 +154,8 @@ class TestInterpolateImageBilinear:
         interior_mask[-1, :] = False  # Last row
         interior_mask[:, -1] = False  # Last column
 
-        print(f"Number of valid interior pixels: {np.sum(interior_mask)}")
-        print(f"Number of non-zero pixels in output: {np.sum(interp_image != 0)}")
-        print(f"First row of output: {interp_image[0, :10]}")
-        print(f"First row expected: {sca_A.image[0, :10]}")
-
         # Check if interior pixels match
-        assert np.allclose(interp_image[interior_mask], sca_A.image[interior_mask])
+        assert np.allclose(interp_image[interior_mask], sca_A.image[interior_mask], atol=1e-8)
 
         # This fails because the last row and column are skipped in interpolation so they come back as zeros.
         # assert np.allclose(interp_image, sca_A.image)
@@ -219,11 +221,6 @@ class TestTransposeInterpolate:
         interior_mask[-1, :] = False  # Last row
         interior_mask[:, -1] = False  # Last column
 
-        print(f"Number of valid interior pixels: {np.sum(interior_mask)}")
-        print(f"Number of non-zero pixels in output: {np.sum(interp_image != 0)}")
-        print(f"First row of output: {interp_image[0, :10]}")
-        print(f"First row expected: {sca_A.image[0, :10]}")
-
         # Check if interior pixels match
         assert np.allclose(interp_image[interior_mask], sca_A.image[interior_mask])
 
@@ -273,14 +270,12 @@ def f_prime(x):
     return 2 * x  # Derivative of quadratic cost function
 
 
-cfg = create_test_config()
-
-
-def test_residual_gradient(config=cfg):
+def test_residual_gradient():
     """Test function for residual gradient computation."""
 
     sca_A = make_simple_sca(type="random")
     sca_B = make_simple_sca(type="random", offset=True)
+    cfg = create_test_config()
 
     scalist = ["sca_a", "sca_b"]
     wcslist = [sca_A.w, sca_B.w]
@@ -293,23 +288,23 @@ def test_residual_gradient(config=cfg):
 
     # Analytical gradient
     grad = imdestripe.residual_function(
-        psi, f_prime, scalist, wcslist, neighbors, thresh=None, workers=2, cfg=config
+        psi, f_prime, scalist, wcslist, neighbors, thresh=None, workers=2, cfg=cfg
     )
 
     # Numerical gradient : finite difference
     delta = 1e-5
-    p = imdestripe.Parameters(config, scalist)
+    p = imdestripe.Parameters(cfg, scalist)
 
-    epsilon_0, _ = imdestripe.cost_function(p, f, None, 1, scalist, neighbors, config)
+    epsilon_0, _ = imdestripe.cost_function(p, f, None, 1, scalist, neighbors, cfg)
 
     grad_numerical = np.zeros_like(grad)
     for i in range(grad.shape[0]):
         for j in range(grad.shape[1]):
-            p_perturbed = imdestripe.Parameters(config, scalist)
+            p_perturbed = imdestripe.Parameters(cfg, scalist)
             p_perturbed.params = p.params.copy()
             p_perturbed.params[i, j] += delta
 
-            epsilon_plus, _ = imdestripe.cost_function(p_perturbed, f, None, 1, scalist, neighbors, config)
+            epsilon_plus, _ = imdestripe.cost_function(p_perturbed, f, None, 1, scalist, neighbors, cfg)
 
             grad_numerical[i, j] = (epsilon_plus - epsilon_0) / delta
 
