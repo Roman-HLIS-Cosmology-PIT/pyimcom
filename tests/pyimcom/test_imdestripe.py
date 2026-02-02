@@ -274,14 +274,14 @@ def f(x):
 def f_prime(x):
     """Derivative of quadratic cost function for testing."""
     return 2 * x  # Derivative of quadratic cost function
+cfg = create_test_config()
 
-def test_residual_gradient():
+def test_residual_gradient(config=cfg):
     """Test function for residual gradient computation."""
 
     sca_A = make_simple_sca(type="random")
     sca_B = make_simple_sca(type="random", offset=True)
 
-    cfg = create_test_config()
     scalist = ["sca_a", "sca_b"]
     wcslist = [sca_A.w, sca_B.w]
     neighbors = {0: [1], 1: [0]}
@@ -294,26 +294,26 @@ def test_residual_gradient():
     # Analytical gradient
     grad = imdestripe.residual_function(
             psi, f_prime, scalist, wcslist, neighbors, 
-            thresh=None, workers=2, cfg=cfg
+            thresh=None, workers=2, cfg=config
         )
     
     # Numerical gradient : finite difference
     delta = 1e-5
-    p = imdestripe.Parameters(cfg, scalist)
+    p = imdestripe.Parameters(config, scalist)
     
     epsilon_0, _ = imdestripe.cost_function(
-        p, f, None, 1, scalist, neighbors, cfg
+        p, f, None, 1, scalist, neighbors, config
     )
     
     grad_numerical = np.zeros_like(grad)
     for i in range(grad.shape[0]):
         for j in range(grad.shape[1]):
-            p_perturbed = imdestripe.Parameters(cfg, scalist)
+            p_perturbed = imdestripe.Parameters(config, scalist)
             p_perturbed.params = p.params.copy()
             p_perturbed.params[i, j] += delta
             
             epsilon_plus, _ = imdestripe.cost_function(
-                p_perturbed, f, None, 1, scalist, neighbors, cfg
+                p_perturbed, f, None, 1, scalist, neighbors, config
             )
             
             grad_numerical[i, j] = (epsilon_plus - epsilon_0) / delta
