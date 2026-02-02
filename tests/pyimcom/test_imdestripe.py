@@ -269,8 +269,10 @@ class TestTransposeInterpolate:
         )
 
 def f(x):
+    """Quadratic cost function for testing."""
     return x**2  # Quadratic cost function
 def f_prime(x):
+    """Derivative of quadratic cost function for testing."""
     return 2 * x  # Derivative of quadratic cost function
 
 def test_residual_gradient():
