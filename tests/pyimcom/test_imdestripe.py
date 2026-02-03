@@ -3,6 +3,7 @@ Many of these functions / tests are adapted from test_pyimcom for internal consi
 """
 
 import numpy as np
+import pytest
 from astropy import wcs
 from pyimcom import imdestripe
 
@@ -270,6 +271,7 @@ def f_prime(x):
     return 2 * x  # Derivative of quadratic cost function
 
 
+@pytest.mark.skip(reason="Requires real SCA files on disk - integration test")
 def test_residual_gradient():
     """Test function for residual gradient computation."""
 
@@ -307,6 +309,9 @@ def test_residual_gradient():
             epsilon_plus, _ = imdestripe.cost_function(p_perturbed, f, None, 1, scalist, neighbors, cfg)
 
             grad_numerical[i, j] = (epsilon_plus - epsilon_0) / delta
+
+    # Compare analytical and numerical gradients
+    assert np.allclose(grad, grad_numerical, atol=1e-4), "Analytical and numerical gradients do not match!"
 
 
 ###############################
