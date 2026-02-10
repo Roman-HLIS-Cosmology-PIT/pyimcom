@@ -40,6 +40,7 @@ from scipy.ndimage import convolve
 
 from .config import Settings as Stn
 from .config import fpaCoords
+import coadd
 
 try:
     from furry_parakeet.pyimcom_croutines import iD5512C
@@ -1121,6 +1122,28 @@ def check_if_idsca_exists(cfg, obsdata, idsca):
     fname = _get_sca_imagefile(cfg.inpath, idsca, obsdata, cfg.informat)
     exists_ = exists(fname)
     return exists_, fname
+
+def setup_inimage(cfg, idsca):
+    """
+    Instantiate the (0,0) block and then the InImage with a "dummy" block for use in get_all_data
+
+    Parameters
+    ----------
+    cfg : pyimcom.config.Config
+         Configuration information.
+    idsca : (int, int)
+        Observation ID, SCA pair.
+
+    Returns
+    -------
+    inimage : pyimcom.coadd.InImage
+        An input image structure
+    
+    """
+    block_zero = coadd.Block(cfg, this_sub=0, run_coadd=False)
+    inimage = coadd.InImage(block_zero, idsca)
+
+    return inimage
 
 
 def get_all_data(inimage):
