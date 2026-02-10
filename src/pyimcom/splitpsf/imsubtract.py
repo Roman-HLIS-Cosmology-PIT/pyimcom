@@ -17,6 +17,7 @@ import os
 import re
 import sys
 import time
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import asdf
 import matplotlib
@@ -25,8 +26,6 @@ import numpy as np
 from astropy.io import fits
 from astropy.wcs import WCS
 from astropy.wcs.wcsapi import SlicedLowLevelWCS
-from concurrent.futures import ProcessPoolExecutor, as_completed
-
 
 # import from furry_parakeet
 from furry_parakeet import (
@@ -229,8 +228,15 @@ def get_wcs_from_infile(infile):
 
 
 def run_imsubtract_single(
-    cfgdata, scaid,  obsid, path, expname, display=None, local_output=False, fft_workers=None, 
-    wcs_shortcut=True
+    cfgdata,
+    scaid,
+    obsid,
+    path,
+    expname,
+    display=None,
+    local_output=False,
+    fft_workers=None,
+    wcs_shortcut=True,
 ):
     """
     Main routine to run imsubtract on a single image.
@@ -238,7 +244,7 @@ def run_imsubtract_single(
     Parameters
     ----------
     cfgdata : Config object
-        a pyimcom Config object  
+        a pyimcom Config object
     scaid: int
         SCA ID for the image to be subtracted. Should be in range 1..18, inclusive.
     obsid: int
@@ -446,9 +452,7 @@ def run_imsubtract_single(
                         c="blueviolet",
                         marker="o",
                     )
-                    pltshow(
-                        plt, display, {"type": "window", "obsid": obsid, "sca": sca, "ix": ix, "iy": iy}
-                    )
+                    pltshow(plt, display, {"type": "window", "obsid": obsid, "sca": sca, "ix": ix, "iy": iy})
 
             print(f"+ figure: {time.time()-t0:6.2f}")
             sys.stdout.flush()
@@ -535,9 +539,7 @@ def run_imsubtract_single(
             sys.stdout.flush()
 
             # add padding to the block (with window applied)
-            block_padded = np.pad(block, 5, mode="constant", constant_values=0)[None, :, :].astype(
-                np.float64
-            )
+            block_padded = np.pad(block, 5, mode="constant", constant_values=0)[None, :, :].astype(np.float64)
             x_bb += 5
             y_bb += 5
 
@@ -605,7 +607,6 @@ def run_imsubtract_single(
         # subtract from the input image (using less memory)
         I_img[n, :, :] -= KH[first_index:-first_index:oversamp, first_index:-first_index:oversamp]
 
-    # save outside of the layer for loop
     # write output file for each exposure
     fname = f"{info}_{obsid:08d}_{scaid:02d}_subI.fits"
     if local_output:
@@ -617,18 +618,22 @@ def run_imsubtract_single(
     with fits.open(path + "/" + expname) as f_in:
         fits.HDUList([fits.PrimaryHDU(data=I_img), f_in[1]]).writeto(fname, overwrite=True)
 
-        
+
 def run_imsubtract_all(cfg_file, workers=4, max_imgs=None, display=None):
     """
     Main routine to run imsubtract on all images in the cache.
-    
+
     Parameters
     ----------
     cfg_file: str
         Path to the config file.
+    workers: int, optional
+        Number of workers to use for parallel processing. Default is 4.
     max_imgs: int, optional
         If provided, does computations for a maximum number of SCAs. Most users will
         want the default of None; this is provided mainly for testing.
+    display: str or None, optional
+        Display location for intermediate steps. Default is None.
     """
     # load the file using Config and get information
     cfgdata = Config(cfg_file)
@@ -653,7 +658,7 @@ def run_imsubtract_all(cfg_file, workers=4, max_imgs=None, display=None):
     print("List of exposures:", exps)
 
     # Run imsubtract on each exposure in parallel using ProcessPoolExecutor
-    count=0
+    count = 0
     with ProcessPoolExecutor(max_workers=workers) as executor:
         futures = []
         for exp in exps:
@@ -661,12 +666,21 @@ def run_imsubtract_all(cfg_file, workers=4, max_imgs=None, display=None):
             if m2:
                 obsid = int(m2.group(2))
                 scaid = int(m2.group(3))
-                futures.append(executor.submit(run_imsubtract_single, cfgdata, scaid, obsid, path, 
-                                               exp, display=display, fft_workers=None))
-        
+                futures.append(
+                    executor.submit(
+                        run_imsubtract_single,
+                        cfgdata,
+                        scaid,
+                        obsid,
+                        path,
+                        exp,
+                        display=display,
+                        fft_workers=None,
+                    )
+                )
+
         # Wait for all futures to complete
         for future in as_completed(futures):
-
             count += 1
             if max_imgs is not None and count > max_imgs:
                 break
@@ -675,7 +689,6 @@ def run_imsubtract_all(cfg_file, workers=4, max_imgs=None, display=None):
                 future.result()
             except Exception as e:
                 print(f"Worker failed with exception {e}", flush=True)
-                
 
 
 if __name__ == "__main__":
@@ -695,15 +708,9 @@ if __name__ == "__main__":
     if sca == 0:
         sca = None
 
-    if len(sys.argv) > 3:
-        display = sys.argv[3]
-    else:
-        display = None
+    display = sys.argv[3] if len(sys.argv) > 3 else None
 
-    try:
-        workers = os.cpu_count()
-    except:
-        workers = 4
+    workers = os.cpu_count()
 
     run_imsubtract_all(config_file, workers, max_imgs=None, display=display)
 
