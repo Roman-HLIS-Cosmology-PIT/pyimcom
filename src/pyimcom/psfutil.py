@@ -326,6 +326,9 @@ class OutPSF:
 
         """
 
+        # extract the value if we were given an array with one element
+        if isinstance(fh, np.ndarray):
+            fh = float(fh.ravel()[0])
         fh2 = fh * fh
         e_ = (
             ((+1.651881673372979740e-05 * fh2 - 3.145538007199505447e-04) * fh2 + 1.793518183780194427e-03)
