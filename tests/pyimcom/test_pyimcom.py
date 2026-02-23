@@ -596,16 +596,16 @@ def test_drawlayers(tmp_path, setup):
 	path1 = str(tmp_path) + "/cache"
 	exp = "in"
 	idsca_list = []
-    for _, _, files in os.walk(path):
-        for file in files:
-            if file.startswith(exp):
-                m = re.search(r"_(\d{8})_(\d{2})\.fits$", file[len(exp) :])
-                if m:
-                    idsca_list.append((int(m.group(1)), int(m.group(2))))
-    print("looking for inputs -->", idsca_list)
+	for _, _, files in os.walk(path):
+		for file in files:
+			if file.startswith(exp):
+				m = re.search(r"_(\d{8})_(\d{2})\.fits$", file[len(exp) :])
+				if m:
+					idsca_list.append((int(m.group(1)), int(m.group(2))))
+	print("looking for inputs -->", idsca_list)
 
     # now do the comparisons
-    for idsca in idsca_list:
+	for idsca in idsca_list:
 		(id, sca) = idsca
 		f1 = str(tmp_path) + f"/cache/in_{id:08d}_{sca:02d}\.fits"
 		f2 = str(tmp_path) + f"/cache/otherin_{id:08d}_{sca:02d}\.fits"
@@ -613,7 +613,7 @@ def test_drawlayers(tmp_path, setup):
 			print(d1[0].data, d2[0].data)
 			assert np.allclose(d1[0].data, d2[0].data)
 
-    assert cfg is None  # will fail -- remove
+assert cfg is None  # will fail -- remove
 
 
 def test_PyIMCOM_run1(tmp_path, setup):
