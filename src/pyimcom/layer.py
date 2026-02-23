@@ -1460,7 +1460,7 @@ def build_one_layer(cfg, idsca):
 
     return
 
-def build_all_layers(cfg, path, workers=2):
+def build_all_layers(cfg, workers=2):
     """
     Build layers for all the exposures in the directory path
 
@@ -1468,8 +1468,6 @@ def build_all_layers(cfg, path, workers=2):
     ----------
     cfg : pyimcom.config.Config object
         the configuration file
-    path : str
-        path to the input images
     workers : int
         number of workers to use in parallel processing
     
@@ -1477,17 +1475,17 @@ def build_all_layers(cfg, path, workers=2):
     from concurrent.futures import ProcessPoolExecutor, as_completed
     import os
 
-    m = re.search(r"^(.*)\/(.*)", path)
+    m = re.search(r"^(.*)\/(.*)", cfg.inpath)
     if m:
         path = m.group(1)
         exp = m.group(2)
-
+    
     idsca_list = []
 
     for _, _, files in os.walk(path):
         for file in files:
             if file.startswith(exp):
-                m = re.search(r"_(\d{8})_(\d{2})\.fits$", file[len(exp) :])
+                m = re.search(r"_(\d+)_(\d+)\.fits$", file[len(exp) :])
                 if m:
                     idsca_list.append((int(m.group(1)), int(m.group(2))))
 
