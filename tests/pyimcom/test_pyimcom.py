@@ -30,6 +30,7 @@ from pyimcom.diagnostics.mosaicimage import MosaicImage
 from pyimcom.diagnostics.noise_diagnostics import NoiseReport
 from pyimcom.diagnostics.report import ValidationReport
 from pyimcom.diagnostics.stars import SimulatedStar
+from pyimcom.layer import build_all_layers
 from pyimcom.psfutil import OutPSF
 from pyimcom.truthcats import gen_truthcats_from_cfg
 from pyimcom.wcsutil import _stand_alone_test
@@ -564,6 +565,55 @@ def setup(tmp_path):
     cfg2.outstem += "_iter"
     cfg2()
     Block(cfg=cfg2, this_sub=1)
+
+
+def test_drawlayers(tmp_path, setup):
+	"""
+	See if we can successfully draw layers with the build_all_layers function.
+
+    Parameters
+    ----------
+    tmp_path : str
+        Directory in which to run the test.
+    setup : function
+        For pytest fixture.
+
+    Returns
+    -------
+    None
+
+	"""
+
+    # first, get the configuration file.
+    with open(tmp_path / "cfg2.txt", "w") as f:
+        f.write(myCfg_format.replace("cache/in", "cache/otherin").replace("$TMPDIR", str(tmp_path)))
+
+    # build layers
+    cfg = Config(str(tmp_path / "cfg2.txt"))
+    build_all_layers(cfg)
+
+    # figure out which layers we wanted
+    path1 = str(tmp_path) + "/cache"
+    exp = "in"
+    idsca_list = []
+    for _, _, files in os.walk(path):
+        for file in files:
+            if file.startswith(exp):
+                m = re.search(r"_(\d{8})_(\d{2})\.fits$", file[len(exp) :])
+                if m:
+                    idsca_list.append((int(m.group(1)), int(m.group(2))))
+    print("looking for inputs -->", idsca_list)
+
+    # now do the comparisons
+    for idsca in idsca_list:
+		(id, sca) = idsca
+		f1 = str(tmp_path) + f"/cache/in_{id:08d}_{sca:02d}\.fits"
+		f2 = str(tmp_path) + f"/cache/otherin_{id:08d}_{sca:02d}\.fits"
+		with fits.open(f1) as d1, fits.open(f2) as d2:
+			print(d1[0].data, d2[0].data)
+			assert np.allclose(d1[0].data, d2[0].data)
+
+    assert cfg is None  # will fail -- remove
 
 
 def test_PyIMCOM_run1(tmp_path, setup):
