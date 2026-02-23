@@ -585,8 +585,8 @@ def test_drawlayers(tmp_path, setup):
 	"""
 
     # first, get the configuration file.
-    with open(tmp_path / "cfg2.txt", "w") as f:
-        f.write(myCfg_format.replace("cache/in", "cache/otherin").replace("$TMPDIR", str(tmp_path)))
+	with open(tmp_path / "cfg2.txt", "w") as f:
+		f.write(myCfg_format.replace("cache/in", "cache/otherin").replace("$TMPDIR", str(tmp_path)))
 
     # build layers
     cfg = Config(str(tmp_path / "cfg2.txt"))
