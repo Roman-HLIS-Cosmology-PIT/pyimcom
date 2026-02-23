@@ -589,13 +589,13 @@ def test_drawlayers(tmp_path, setup):
 		f.write(myCfg_format.replace("cache/in", "cache/otherin").replace("$TMPDIR", str(tmp_path)))
 
     # build layers
-    cfg = Config(str(tmp_path / "cfg2.txt"))
-    build_all_layers(cfg)
+	cfg = Config(str(tmp_path / "cfg2.txt"))
+	build_all_layers(cfg)
 
     # figure out which layers we wanted
-    path1 = str(tmp_path) + "/cache"
-    exp = "in"
-    idsca_list = []
+	path1 = str(tmp_path) + "/cache"
+	exp = "in"
+	idsca_list = []
     for _, _, files in os.walk(path):
         for file in files:
             if file.startswith(exp):
