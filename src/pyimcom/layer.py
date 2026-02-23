@@ -40,7 +40,7 @@ from scipy.ndimage import convolve
 
 from .config import Settings as Stn
 from .config import fpaCoords
-import .coadd
+from .coadd import Block, InImage
 
 try:
     from furry_parakeet.pyimcom_croutines import iD5512C
@@ -1453,8 +1453,8 @@ def build_one_layer(cfg, idsca):
     
     """
 
-    block_zero = coadd.Block(cfg, this_sub=0, run_coadd=False)
-    inimage = coadd.InImage(block_zero, idsca)
+    block_zero = Block(cfg, this_sub=0, run_coadd=False)
+    inimage = InImage(block_zero, idsca)
 
     get_all_data(inimage)
 
