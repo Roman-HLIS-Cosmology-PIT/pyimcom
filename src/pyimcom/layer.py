@@ -40,7 +40,7 @@ from scipy.ndimage import convolve
 
 from .config import Settings as Stn
 from .config import fpaCoords
-import coadd
+import .coadd
 
 try:
     from furry_parakeet.pyimcom_croutines import iD5512C
