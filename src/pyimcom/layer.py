@@ -38,9 +38,10 @@ from astropy.io import fits
 from filelock import FileLock, Timeout
 from scipy.ndimage import convolve
 
+from . import coadd
 from .config import Settings as Stn
 from .config import fpaCoords
-from . import coadd
+
 try:
     from furry_parakeet.pyimcom_croutines import iD5512C
 except ImportError:
@@ -1438,18 +1439,23 @@ def get_all_data(inimage):
         except Timeout:
             pass
 
+
 def build_one_layer(cfg, idsca):
     """
     Build layers for one InImage
     Instantiates the inimage with a "dummy" block 0
-    
+
     Parameters
     ----------
     cfg : pyimcom.config.Config object
         the configuration file
     idsca : tuple, (int, int)
         the obsid, scaid pair of the image to build
-    
+
+    Returns
+    -------
+    None
+
     """
 
     block_zero = coadd.Block(cfg, this_sub=0, run_coadd=False)
@@ -1457,7 +1463,8 @@ def build_one_layer(cfg, idsca):
 
     get_all_data(inimage)
 
-    return
+    return None
+
 
 def build_all_layers(cfg, workers=2):
     """
@@ -1469,16 +1476,16 @@ def build_all_layers(cfg, workers=2):
         the configuration file
     workers : int
         number of workers to use in parallel processing
-    
+
     """
-    from concurrent.futures import ProcessPoolExecutor, as_completed
     import os
+    from concurrent.futures import ProcessPoolExecutor, as_completed
 
     m = re.search(r"^(.*)\/(.*)", cfg.inpath)
     if m:
         path = m.group(1)
         exp = m.group(2)
-    
+
     idsca_list = []
 
     for _, _, files in os.walk(path):
@@ -1489,14 +1496,13 @@ def build_all_layers(cfg, workers=2):
                     idsca_list.append((int(m.group(1)), int(m.group(2))))
 
     with ProcessPoolExecutor(max_workers=workers) as executor:
-            futures = []
-            for idsca in idsca_list:
-                futures.append(
-                    executor.submit(build_one_layer, cfg, idsca))
+        futures = []
+        for idsca in idsca_list:
+            futures.append(executor.submit(build_one_layer, cfg, idsca))
 
-            # Wait for all futures to complete
-            for future in as_completed(futures):
-                try:
-                    future.result()
-                except Exception as e:
-                    print(f"Worker failed with exception {e}", flush=True)
+        # Wait for all futures to complete
+        for future in as_completed(futures):
+            try:
+                future.result()
+            except Exception as e:
+                print(f"Worker failed with exception {e}", flush=True)
