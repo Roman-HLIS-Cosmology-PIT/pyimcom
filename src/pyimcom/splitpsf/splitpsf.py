@@ -8,9 +8,10 @@ import scipy
 import scipy.signal
 from astropy.io import fits
 from scipy.special import eval_legendre, roots_legendre
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 from ..coadd import InImage
-from ..config import Settings
+from ..config import Settings, Config
 from ..layer import _get_sca_imagefile
 from ..wcsutil import PyIMCOM_WCS, local_partial_pixel_derivatives2
 
@@ -429,8 +430,144 @@ def split_psf_to_fits(psf_file, wcs_format, pars, outfile):
     print("K2int:", K2int)
 
 
-# ### MAIN DRIVER ### #
+# External driver
+def split_psf_single(cfg_dict, iobs, filter, targetdir, psfsplit_pars):
+    """
+    Run Split PSF on one observation
 
+    Parameters
+    ----------
+    cfg_dict : dict
+        The configuration dictionary containing all necessary parameters for the split PSF process.
+    iobs : int
+        The index of the observation to process.
+    filter : str
+        The filter name for the observation.
+    targetdir : str
+        The directory where the output PSF files will be saved.
+    psfsplit_pars : dict
+        The PSF splitting parameters.
+    """
+    
+    # different file name options depending on the simulation type
+    psf_file = cfg_dict["INPSF"][0] + "/" + InImage.psf_filename(cfg_dict["INPSF"][1], iobs)
+    sci_filename = _get_sca_imagefile(
+        cfg_dict["INDATA"][0], (iobs, -1), filter, cfg_dict["INPSF"][1]
+    )
+
+    if os.path.exists(psf_file) and filter == use_filter:
+        # Need to transfer this file
+        outfile = targetdir + f"/psf_{iobs:d}.fits"
+        print(f"{iobs:8d}/{Nobs:8d} found, file is at " + psf_file, "-->", outfile)
+        print("   sci in =", sci_filename)
+        split_psf_to_fits(
+            psf_file,
+            sci_filename,
+            psfsplit_pars,
+            outfile,
+        )
+
+
+def split_psf_all(cfg, workers, max_observations=np.inf):
+    """
+    Run Split PSF on all observations
+
+    Parameters
+    ----------
+    cfg : pyimcom.config.Config
+        The configuration object containing all necessary parameters for the split PSF process.
+    max_observations : int, optional
+        The maximum number of observations to process (for testing purposes).
+        Default is infinity, meaning all observations will be processed
+    """
+    # Convert config to dictionary
+    cfg_dict = cfg.to_dict()
+
+    if "INLAYERCACHE" not in cfg_dict:
+        raise KeyError("Couldn't find INLAYERCACHE.")
+
+    # get target PSF properties
+    if cfg_dict["OUTPSF"] != "GAUSSIAN":
+        raise ValueError("SplitPSF currently only works for Gaussian PSF.")
+    
+    sigma = float(cfg_dict["EXTRASMOOTH"])
+    print("PSF sigma (input pixels) -->", sigma)
+
+    # get number of rows
+    with fits.open(cfg_dict["OBSFILE"]) as f:
+        Nobs = f[1].header["NAXIS2"]
+        filters_obs = f[1].data["filter"] # filters_obs[iobs] is the filter for observation iobs
+    print(Nobs, "observations to search")
+    print(filters_obs)
+
+    # extract oversampling factor
+    ovsamp = int(cfg_dict["INPSF"][2])
+    print(f"Input PSFs are {ovsamp:f}x oversampled")
+
+    # extract PSF splitting parameters
+    r1 = float(cfg_dict["PSFSPLIT"][0])
+    r2 = float(cfg_dict["PSFSPLIT"][1])
+    epsilon = float(cfg_dict["PSFSPLIT"][2])
+    print(r1, r2, epsilon)
+
+    # decide on stamp size; multiple of 8, must include r2 radius
+    smallstampsize = int(np.ceil(r2 * ovsamp * 2 + 4))
+    smallstampsize += 8 - smallstampsize % 8
+    print("chosen stamp size = ", smallstampsize)
+
+    # where to put the files
+    targetdir = cfg_dict["INLAYERCACHE"] + ".psf"
+    try:
+        os.mkdir(targetdir)
+        print("made directory -->", targetdir)
+    except OSError as error:
+        print("Couldn't make directory", targetdir, ":", error)
+
+    use_filter = Settings.RomanFilters[int(cfg_dict["FILTER"])]
+    print("Selecting observations from filter", use_filter)
+    print("")
+
+    psfsplit_pars = {
+                "smallstamp_size": smallstampsize,
+                "sigmaGamma": sigma,
+                "r_in": r1,
+                "r_out": r2,
+                "eps": epsilon,
+                "SAVEZETA": False,
+                "oversamp": ovsamp,
+            }
+    # Note: 'SAVEZETA': True is for diagnostics/figures only. The zeta HDUs are not actually needed for
+    # the calculation, and you might want to keep it off to save space.
+
+    count = 0
+    # Process Nobs observations in parallel using ProcessPoolExecutor
+    with ProcessPoolExecutor(max_workers=workers) as executor:
+        futures = []
+        for iobs in range(Nobs):
+            futures.append(executor.submit(
+                split_psf_single,
+                cfg_dict,
+                iobs,
+                filters_obs[iobs],
+                targetdir,
+                psfsplit_pars
+            ))
+        
+        # Wait for all futures to complete and handle any exceptions
+        for future in as_completed(futures):
+            count+=1
+            if count == max_observations:
+                break
+            try:
+                future.result()  # This will raise an exception if the function raised one
+            except Exception as e:
+                print(f"An error occurred: {e}")
+
+    
+
+
+# ### MAIN DRIVER ### #
+# Leaving this alone for now but could transition it to use split_psf_all()
 if __name__ == "__main__":
     """Call with python3 -m pyimcom.splitpsf [config_file]"""
 
