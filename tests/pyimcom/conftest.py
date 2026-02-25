@@ -3,36 +3,26 @@
 import copy
 import os
 
-import pytest
-from astropy.io import fits
-from astropy.table import Table
-from astropy.modeling import models
-from astropy import coordinates as coord
-from astropy import units as u
-from astropy import wcs
-from astropy.wcs.wcsapi import SlicedLowLevelWCS
 import asdf
-import galsim
 import gwcs
 import numpy as np
+import pytest
+from astropy import coordinates as coord
+from astropy import units as u
+from astropy.io import fits
+from astropy.modeling import models
+from astropy.table import Table
 from furry_parakeet.pyimcom_croutines import gridD5512C
 from gwcs import coordinate_frames as cf
-from pyimcom.analysis import OutImage
 from pyimcom.coadd import Block
-from pyimcom.compress.compressutils import CompressedOutput, ReadFile
 from pyimcom.config import Config
-from pyimcom.diagnostics.layer_diagnostics import LayerReport
-from pyimcom.diagnostics.mosaicimage import MosaicImage
-from pyimcom.diagnostics.noise_diagnostics import NoiseReport
-from pyimcom.diagnostics.report import ValidationReport
-from pyimcom.diagnostics.stars import SimulatedStar
 from pyimcom.psfutil import OutPSF
 from pyimcom.truthcats import gen_truthcats_from_cfg
 from pyimcom.wcsutil import _stand_alone_test
 from scipy.signal import convolve
 
 # Import the configuration format from test_pyimcom
-from .test_pyimcom import myCfg_format, make_simple_wcs, degree, cra, cdec, sra, sdec, sig, sc, nside
+from .test_pyimcom import cdec, cra, degree, make_simple_wcs, myCfg_format, nside, sdec, sra
 
 
 @pytest.fixture
@@ -255,3 +245,5 @@ def setup(tmp_path):
     cfg2.outstem += "_iter"
     cfg2()
     Block(cfg=cfg2, this_sub=1)
+
+    return cfg

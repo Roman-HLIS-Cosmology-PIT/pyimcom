@@ -1,6 +1,6 @@
 import numpy as np
 from astropy.io import fits
-from pyimcom.splitpsf.imsubtract import fftconvolve_multi
+from pyimcom.splitpsf.imsubtract import fftconvolve_multi, run_imsubtract_all
 from pyimcom.splitpsf.splitpsf import split_psf_to_fits
 from scipy.signal import fftconvolve
 
@@ -96,3 +96,27 @@ def test_fftconvolve_multi():
     print(np.amax(np.abs(out2)))
     print(np.amax(np.abs(out1 - out2)))
     assert np.amax(np.abs(out1 - out2)) < 1e-9 * np.amax(np.abs(out1))
+
+
+def test_run_imsubtract_all_with_config(setup):
+    """Test that run_imsubtract_all loads the config and looks for files in the right place.
+
+    The setup fixture creates the config file and directory structure but doesn't
+    populate the cache with the .fits files that run_imsubtract_all looks for.
+    This test verifies the function can load the config and process correctly
+    (finding zero files, as expected).
+    """
+    cfg = setup
+    import pathlib
+
+    cfg_file = str(pathlib.Path(cfg.inlayercache).parent.parent / "cfg.txt")
+
+    # Verify the config file exists
+    import os
+
+    assert os.path.exists(cfg_file), f"Config file not found at {cfg_file}"
+
+    # Call run_imsubtract_all with max_imgs=None and max_workers=1
+    # It should successfully load the config, find zero images (cache is empty),
+    # and complete without error
+    run_imsubtract_all(cfg_file, workers=1, max_imgs=None, display="/dev/null")
