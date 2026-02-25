@@ -15,6 +15,21 @@ from .noise_diagnostics import NoiseReport
 from .report import ValidationReport
 from .stars import SimulatedStar
 
+
+def run_report(input_fits, output_stem="_report"):
+    rpt = ValidationReport(input_fits, output_stem, clear_all=True)
+    sectionlist = [MosaicImage, LayerReport, SimulatedStar, NoiseReport]
+    for cls in sectionlist:
+        s = cls(rpt)
+        s.build()  # specify nblockmax to do just the lower corner
+        rpt.addsections([s])
+        del s
+    rpt.compile()
+
+    print("--> pdflatex log -->")
+    print(str(rpt.compileproc.stdout))
+
+
 if __name__ == "__main__":
     rpt = ValidationReport(sys.argv[1], sys.argv[2], clear_all=True)
     sectionlist = [MosaicImage, LayerReport, SimulatedStar, NoiseReport]
