@@ -459,10 +459,7 @@ def split_psf_single(cfg_dict, iobs, filter, targetdir, psfsplit_pars, TEST_FILE
         sci_filename = _get_sca_imagefile(cfg_dict["INDATA"][0], (iobs, -1), filter, cfg_dict["INPSF"][1])
 
     if os.path.exists(psf_file):
-        if TEST_FILES is not None:
-            outfile = TEST_FILES[2]
-        else:
-            outfile = targetdir + f"/psf_{iobs:d}.fits"
+        outfile = TEST_FILES[2] if TEST_FILES is not None else targetdir + f"/psf_{iobs:d}.fits"
         print(f"{iobs:8d}/{Nobs:8d} found, file is at " + psf_file, "-->", outfile)
         print("   sci in =", sci_filename)
         split_psf_to_fits(
@@ -481,6 +478,8 @@ def split_psf_all(cfg, workers, max_observations=np.inf):
     ----------
     cfg : pyimcom.config.Config
         The configuration object containing all necessary parameters for the split PSF process.
+    workers : int
+        The number of worker processes to use for parallel processing.
     max_observations : int, optional
         The maximum number of observations to process (for testing purposes).
         Default is infinity, meaning all observations will be processed
