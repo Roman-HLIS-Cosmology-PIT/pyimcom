@@ -608,8 +608,8 @@ def test_drawlayers(tmp_path, setup):
     # now do the comparisons
     for idsca in idsca_list:
         (id, sca) = idsca
-        f1 = str(tmp_path) + rf"/cache/in_{id:08d}_{sca:02d}\.fits"
-        f2 = str(tmp_path) + rf"/cache/otherin_{id:08d}_{sca:02d}\.fits"
+        f1 = str(tmp_path) + rf"/cache/in_{id:08d}_{sca:02d}.fits"
+        f2 = str(tmp_path) + rf"/cache/otherin_{id:08d}_{sca:02d}.fits"
         with fits.open(f1) as d1, fits.open(f2) as d2:
             print(d1[0].data, d2[0].data)
             assert np.allclose(d1[0].data, d2[0].data)
