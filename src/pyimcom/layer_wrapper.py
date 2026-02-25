@@ -15,7 +15,8 @@ import re
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 from . import coadd
-from .layers import get_all_data
+from .layer import get_all_data
+
 
 def build_one_layer(cfg, idsca):
     """
