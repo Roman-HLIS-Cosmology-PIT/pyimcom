@@ -31,7 +31,7 @@ from pyimcom.diagnostics.mosaicimage import MosaicImage
 from pyimcom.diagnostics.noise_diagnostics import NoiseReport
 from pyimcom.diagnostics.report import ValidationReport
 from pyimcom.diagnostics.stars import SimulatedStar
-from pyimcom.layer import build_all_layers
+from pyimcom.layer_wrapper import build_all_layers
 from pyimcom.psfutil import OutPSF
 from pyimcom.truthcats import gen_truthcats_from_cfg
 from pyimcom.wcsutil import _stand_alone_test
