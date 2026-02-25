@@ -37,6 +37,7 @@ def build_one_layer(cfg, idsca):
     """
 
     block_zero = coadd.Block(cfg, this_sub=0, run_coadd=False)
+    block_zero.parse_config()  # This loads the observation table, which is needed next.
     inimage = coadd.InImage(block_zero, idsca)
 
     get_all_data(inimage)
