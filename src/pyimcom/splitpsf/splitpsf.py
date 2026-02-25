@@ -431,7 +431,7 @@ def split_psf_to_fits(psf_file, wcs_format, pars, outfile):
 
 
 # External driver
-def split_psf_single(cfg_dict, iobs, filter, targetdir, psfsplit_pars):
+def split_psf_single(cfg_dict, iobs, filter, targetdir, psfsplit_pars, TEST_FILES=None):
     """
     Run Split PSF on one observation
 
@@ -447,17 +447,24 @@ def split_psf_single(cfg_dict, iobs, filter, targetdir, psfsplit_pars):
         The directory where the output PSF files will be saved.
     psfsplit_pars : dict
         The PSF splitting parameters.
+    TEST_FILES : list of strs, optional
+        List of [ "path/to//PSF/file", "wcs/format", "path/to/output/file" ] FOR TESTING ONLY
     """
-    
-    # different file name options depending on the simulation type
-    psf_file = cfg_dict["INPSF"][0] + "/" + InImage.psf_filename(cfg_dict["INPSF"][1], iobs)
-    sci_filename = _get_sca_imagefile(
-        cfg_dict["INDATA"][0], (iobs, -1), filter, cfg_dict["INPSF"][1]
-    )
 
-    if os.path.exists(psf_file) and filter == use_filter:
-        # Need to transfer this file
-        outfile = targetdir + f"/psf_{iobs:d}.fits"
+    if TEST_FILES is not None:
+        psf_file = TEST_FILES[0]
+        sci_filename = TEST_FILES[1]
+    else:
+        psf_file = cfg_dict["INPSF"][0] + "/" + InImage.psf_filename(cfg_dict["INPSF"][1], iobs)
+        sci_filename = _get_sca_imagefile(
+            cfg_dict["INDATA"][0], (iobs, -1), filter, cfg_dict["INPSF"][1]
+        )
+
+    if os.path.exists(psf_file):
+        if TEST_FILES is not None:
+            outfile = TEST_FILES[2]
+        else:
+            outfile = targetdir + f"/psf_{iobs:d}.fits"
         print(f"{iobs:8d}/{Nobs:8d} found, file is at " + psf_file, "-->", outfile)
         print("   sci in =", sci_filename)
         split_psf_to_fits(
@@ -544,14 +551,15 @@ def split_psf_all(cfg, workers, max_observations=np.inf):
     with ProcessPoolExecutor(max_workers=workers) as executor:
         futures = []
         for iobs in range(Nobs):
-            futures.append(executor.submit(
-                split_psf_single,
-                cfg_dict,
-                iobs,
-                filters_obs[iobs],
-                targetdir,
-                psfsplit_pars
-            ))
+            if filters_obs[iobs] == use_filter:
+                futures.append(executor.submit(
+                    split_psf_single,
+                    cfg_dict,
+                    iobs,
+                    filters_obs[iobs],
+                    targetdir,
+                    psfsplit_pars
+                ))
         
         # Wait for all futures to complete and handle any exceptions
         for future in as_completed(futures):
