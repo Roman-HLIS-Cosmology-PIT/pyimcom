@@ -68,7 +68,7 @@ def build_all_layers(cfg, workers=2):
     for _, _, files in os.walk(path):
         for file in files:
             if file.startswith(exp):
-                m = re.search(r"_(\d+)_(\d+)\.fits$", file[len(exp) :])
+                m = re.search(r"_(\d+)_(\d+)\.(fits|asdf)$", file[len(exp) :])
                 if m:
                     idsca_list.append((int(m.group(1)), int(m.group(2))))
 
