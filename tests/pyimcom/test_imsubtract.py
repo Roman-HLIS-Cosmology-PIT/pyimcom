@@ -1,7 +1,7 @@
 import numpy as np
 from astropy.io import fits
 from pyimcom.splitpsf.imsubtract import fftconvolve_multi, run_imsubtract_all
-from pyimcom.splitpsf.splitpsf import split_psf_to_fits, split_psf_single
+from pyimcom.splitpsf.splitpsf import split_psf_single, split_psf_to_fits
 from scipy.signal import fftconvolve
 
 PSF_FILE = "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/psf_test.fits"
@@ -75,8 +75,9 @@ def test_psfsplit(tmp_path):
 
             assert np.amax(np.abs(f[i + 36].data)) < 4e-5
 
+
 def test_psfsplit_single(tmp_path):
-    """PSF split test !! using split_psf_single !! from remote file.
+    """PSF split test using split_psf_single !! (from remote file).
 
     Parameters
     ----------
