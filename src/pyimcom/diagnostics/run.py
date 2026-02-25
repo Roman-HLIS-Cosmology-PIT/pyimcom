@@ -15,8 +15,10 @@ from .noise_diagnostics import NoiseReport
 from .report import ValidationReport
 from .stars import SimulatedStar
 
+def run_report(input_fits, output_stem="_report", inpath=None):
+    if inpath is not None:
+        input_fits = inpath + "/" + input_fits
 
-def run_report(input_fits, output_stem="_report"):
     rpt = ValidationReport(input_fits, output_stem, clear_all=True)
     sectionlist = [MosaicImage, LayerReport, SimulatedStar, NoiseReport]
     for cls in sectionlist:
@@ -28,7 +30,6 @@ def run_report(input_fits, output_stem="_report"):
 
     print("--> pdflatex log -->")
     print(str(rpt.compileproc.stdout))
-
 
 if __name__ == "__main__":
     rpt = ValidationReport(sys.argv[1], sys.argv[2], clear_all=True)
