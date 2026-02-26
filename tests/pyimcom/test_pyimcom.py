@@ -568,8 +568,15 @@ def setup(tmp_path):
     cfg2()
     Block(cfg=cfg2, this_sub=1)
 
+    # remove stuff we don't need
+    for iobs in range(len(obs)):
+		for sca in range(1, 19):
+            fname1 = tmp_path / f"in/sim_L2_F184_{iobs:d}_{sca:d}.asdf"
+            fname2 = cachedir / f"in_{iobs:08d}_{sca:02d}\.fits"
+            if os.exists(fname1) and not os.exists(fname2):
+				os.remove(fname1)
 
-@pytest.mark.skip(reason="See if this is what is causing py3.12,13 to run too long.")
+
 def test_drawlayers(tmp_path, setup):
     """
     See if we can successfully draw layers with the build_all_layers function.
@@ -613,7 +620,7 @@ def test_drawlayers(tmp_path, setup):
         f1 = str(tmp_path) + rf"/cache/in_{id:08d}_{sca:02d}.fits"
         f2 = str(tmp_path) + rf"/cache/otherin_{id:08d}_{sca:02d}.fits"
         with fits.open(f1) as d1, fits.open(f2) as d2:
-            print(d1[0].data, d2[0].data)
+            print(id, sca, d1[0].data, d2[0].data)
             assert np.allclose(d1[0].data, d2[0].data)
 
 
