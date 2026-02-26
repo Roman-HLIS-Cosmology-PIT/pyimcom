@@ -40,8 +40,9 @@ def build_one_layer(cfg, idsca):
     print("block ->", block_zero)
     block_zero.parse_config()  # This loads the observation table, which is needed next.
     print("-->", block_zero.cfg, block_zero.obsdata)
-    assert idsca[0] == "-1"
     inimage = coadd.InImage(block_zero, idsca)
+    print(inimage.idsca, inimage.inwcs, inimage.blk, inimage.blk.cfg, inimage.blk.obsdata)
+    assert idsca[0] == "-1"
 
     get_all_data(inimage)
 
