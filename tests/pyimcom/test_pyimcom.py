@@ -571,8 +571,8 @@ def setup(tmp_path):
     # remove stuff we don't need
     for iobs in range(len(obs)):
         for sca in range(1, 19):
-            fname1 = tmp_path / f"in/sim_L2_F184_{iobs:d}_{sca:d}.asdf"
-            fname2 = cachedir / f"in_{iobs:08d}_{sca:02d}\.fits"
+            fname1 = tmp_path / rf"in/sim_L2_F184_{iobs:d}_{sca:d}.asdf"
+            fname2 = cachedir / rf"in_{iobs:08d}_{sca:02d}.fits"
             if os.path.exists(fname1) and not os.path.exists(fname2):
                 os.remove(fname1)
 
@@ -598,11 +598,7 @@ def test_drawlayers(tmp_path, setup):
     with open(tmp_path / "cfg2.txt", "w") as f:
         f.write(myCfg_format.replace("cache/in", "cache/otherin").replace("$TMPDIR", str(tmp_path)))
 
-    # build layers
-    cfg = Config(str(tmp_path / "cfg2.txt"))
-    build_all_layers(cfg)
-
-    # figure out which layers we wanted
+    # figure out which layers we expect
     path = str(tmp_path) + "/cache"
     exp = "in"
     idsca_list = []
@@ -614,6 +610,12 @@ def test_drawlayers(tmp_path, setup):
                     idsca_list.append((int(m.group(1)), int(m.group(2))))
     print("looking for inputs -->", idsca_list)
 
+    # build layers
+    cfg = Config(str(tmp_path / "cfg2.txt"))
+    print(cfg)
+    assert cfg == "None"  # will fail
+    build_all_layers(cfg)
+
     # now do the comparisons
     for idsca in idsca_list:
         (id, sca) = idsca
@@ -622,8 +624,6 @@ def test_drawlayers(tmp_path, setup):
         with fits.open(f1) as d1, fits.open(f2) as d2:
             print(id, sca, d1[0].data, d2[0].data)
             assert np.allclose(d1[0].data, d2[0].data)
-
-    assert f1 == "None"  # will fail
 
 
 def test_PyIMCOM_run1(tmp_path, setup):
