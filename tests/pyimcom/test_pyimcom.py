@@ -573,7 +573,7 @@ def setup(tmp_path):
         for sca in range(1, 19):
             fname1 = tmp_path / f"in/sim_L2_F184_{iobs:d}_{sca:d}.asdf"
             fname2 = cachedir / f"in_{iobs:08d}_{sca:02d}\.fits"
-            if os.exists(fname1) and not os.exists(fname2):
+            if os.path.exists(fname1) and not os.path.exists(fname2):
                 os.remove(fname1)
 
 
@@ -622,6 +622,8 @@ def test_drawlayers(tmp_path, setup):
         with fits.open(f1) as d1, fits.open(f2) as d2:
             print(id, sca, d1[0].data, d2[0].data)
             assert np.allclose(d1[0].data, d2[0].data)
+
+    assert f1 == "None"  # will fail
 
 
 def test_PyIMCOM_run1(tmp_path, setup):
