@@ -10,6 +10,7 @@ build_all_layers
 
 """
 
+import multiprocessing as mp
 import os
 import re
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -37,12 +38,8 @@ def build_one_layer(cfg, idsca):
     """
 
     block_zero = coadd.Block(cfg, this_sub=0, run_coadd=False)
-    print("block ->", block_zero)
     block_zero.parse_config()  # This loads the observation table, which is needed next.
-    print("-->", block_zero.cfg, block_zero.obsdata)
     inimage = coadd.InImage(block_zero, idsca)
-    print(inimage.idsca, inimage.inwcs, inimage.blk, inimage.blk.cfg, inimage.blk.obsdata)
-    assert idsca[0] == "-1"
 
     get_all_data(inimage)
 
@@ -76,8 +73,12 @@ def build_all_layers(cfg, workers=2):
                 if m:
                     idsca_list.append((int(m.group(1)), int(m.group(2))))
 
-    print(idsca_list)
-    with ProcessPoolExecutor(max_workers=workers) as executor:
+    # This isn't safe with the fork method, so define a context.
+    # This code isn't necessary in Python 3.14 on POSIX systems, because
+    # "forkserver" is the default. But this way it will work on 3.12 & 3.13.
+    start_method = "forkserver" if os.name.lower() == "posix" else "spawn"
+    ctx = mp.get_context(start_method)
+    with ProcessPoolExecutor(max_workers=workers, mp_context=ctx) as executor:
         futures = []
         for idsca in idsca_list:
             futures.append(executor.submit(build_one_layer, cfg, idsca))
