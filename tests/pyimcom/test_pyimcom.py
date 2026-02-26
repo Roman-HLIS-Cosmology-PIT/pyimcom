@@ -613,7 +613,6 @@ def test_drawlayers(tmp_path, setup):
     # build layers
     cfg = Config(str(tmp_path / "cfg2.txt"))
     print(cfg)
-    assert cfg == "None"  # will fail
     build_all_layers(cfg)
 
     # now do the comparisons
