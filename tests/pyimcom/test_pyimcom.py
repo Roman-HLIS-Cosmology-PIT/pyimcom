@@ -570,11 +570,11 @@ def setup(tmp_path):
 
     # remove stuff we don't need
     for iobs in range(len(obs)):
-		for sca in range(1, 19):
+        for sca in range(1, 19):
             fname1 = tmp_path / f"in/sim_L2_F184_{iobs:d}_{sca:d}.asdf"
             fname2 = cachedir / f"in_{iobs:08d}_{sca:02d}\.fits"
             if os.exists(fname1) and not os.exists(fname2):
-				os.remove(fname1)
+                os.remove(fname1)
 
 
 def test_drawlayers(tmp_path, setup):
