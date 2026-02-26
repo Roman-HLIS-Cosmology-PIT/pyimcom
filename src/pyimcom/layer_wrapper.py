@@ -37,6 +37,8 @@ def build_one_layer(cfg, idsca):
     """
 
     block_zero = coadd.Block(cfg, this_sub=0, run_coadd=False)
+    print("block ->", block_zero)
+    assert idsca[0] == "-1"
     block_zero.parse_config()  # This loads the observation table, which is needed next.
     inimage = coadd.InImage(block_zero, idsca)
 
@@ -72,9 +74,7 @@ def build_all_layers(cfg, workers=2):
                 if m:
                     idsca_list.append((int(m.group(1)), int(m.group(2))))
 
-    print("********", cfg)
     print(idsca_list)
-    assert cfg == "None"
     with ProcessPoolExecutor(max_workers=workers) as executor:
         futures = []
         for idsca in idsca_list:
