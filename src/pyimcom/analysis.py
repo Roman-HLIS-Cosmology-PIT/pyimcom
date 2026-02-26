@@ -329,7 +329,8 @@ class OutImage:
         T_weightmap = self.get_T_weightmap(j_out=0)  # shape: (n_inimage, n1P, n1P)
         if not padding:
             pad = self.cfg.postage_pad  # shortcut
-            T_weightmap = T_weightmap[:, pad:-pad, pad:-pad]
+            if pad > 0:
+                T_weightmap = T_weightmap[:, pad:-pad, pad:-pad]
 
         mean_coverage = np.mean(np.sum(T_weightmap.astype(bool), axis=0))
         del T_weightmap
