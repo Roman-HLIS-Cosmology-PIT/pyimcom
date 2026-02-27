@@ -45,16 +45,10 @@ jobs:
         pip install -e .[dev]
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
     - name: Run unit tests with pytest
-      if: ${{ matrix.python-version != '3.14' }}
-      run: |
-        python -m pytest --cov=pyimcom --cov-report=xml
-    - name: Run unit tests with pytest
-      if: ${{ matrix.python-version == '3.14' }}
       run: |
         NUMBA_DISABLE_JIT=1 python -m pytest --cov=pyimcom --cov-report=xml
         # njit is disabled so the lines coverage in those functions is tracked 
     - name: Upload coverage report to codecov
-      if: ${{ matrix.python-version == '3.14' }}
       uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
