@@ -78,6 +78,7 @@ def build_all_layers(cfg, workers=2):
     # "forkserver" is the default. But this way it will work on 3.12 & 3.13.
     start_method = "forkserver" if os.name.lower() == "posix" else "spawn"
     ctx = mp.get_context(start_method)
+    nfail = 0
     with ProcessPoolExecutor(max_workers=workers, mp_context=ctx) as executor:
         futures = []
         for idsca in idsca_list:
@@ -88,4 +89,8 @@ def build_all_layers(cfg, workers=2):
             try:
                 future.result()
             except Exception as e:
+                nfail += 1
                 print(f"Worker failed with exception {e}", flush=True)
+
+    if nfail > 0:
+        raise Exception(f"{nfail:d} instances of build_one_layer failed.")

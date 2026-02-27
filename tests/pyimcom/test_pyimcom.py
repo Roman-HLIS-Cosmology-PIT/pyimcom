@@ -624,6 +624,8 @@ def test_drawlayers(tmp_path, setup):
             print(id, sca, d1[0].data, d2[0].data)
             assert np.allclose(d1[0].data, d2[0].data)
 
+    assert cfg is None  # <-- remove
+
 
 def test_PyIMCOM_run1(tmp_path, setup):
     """
