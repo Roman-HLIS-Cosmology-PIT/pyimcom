@@ -626,7 +626,7 @@ def test_drawlayers(tmp_path, setup):
 
     # test for build_one_layer
     id = 7
-	sca = 1
+    sca = 1
     os.remove(str(tmp_path) + rf"/cache/otherin_{id:08d}_{sca:02d}.fits")
     build_one_layer(cfg, (id, sca))
 
