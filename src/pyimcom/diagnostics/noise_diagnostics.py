@@ -674,7 +674,10 @@ class NoiseReport(ReportSection):
                         )
                     F.colorbar(im, location="right")
             outfile = self.datastem + "_" + filter + self.suffix + "_3panel.pdf"
-            F.set_tight_layout(True)
+            if hasattr(F, "set_layout_engine"):
+                F.set_layout_engine("tight")
+            else:
+                F.set_tight_layout(True)
             F.savefig(outfile)
             plt.close(F)
 
