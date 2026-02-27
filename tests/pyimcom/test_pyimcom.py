@@ -31,7 +31,7 @@ from pyimcom.diagnostics.mosaicimage import MosaicImage
 from pyimcom.diagnostics.noise_diagnostics import NoiseReport
 from pyimcom.diagnostics.report import ValidationReport
 from pyimcom.diagnostics.stars import SimulatedStar
-from pyimcom.layer_wrapper import build_all_layers
+from pyimcom.layer_wrapper import build_all_layers, build_one_layer
 from pyimcom.psfutil import OutPSF
 from pyimcom.truthcats import gen_truthcats_from_cfg
 from pyimcom.wcsutil import _stand_alone_test
@@ -616,6 +616,21 @@ def test_drawlayers(tmp_path, setup):
     build_all_layers(cfg)
 
     # now do the comparisons
+    for idsca in idsca_list:
+        (id, sca) = idsca
+        f1 = str(tmp_path) + rf"/cache/in_{id:08d}_{sca:02d}.fits"
+        f2 = str(tmp_path) + rf"/cache/otherin_{id:08d}_{sca:02d}.fits"
+        with fits.open(f1) as d1, fits.open(f2) as d2:
+            print(id, sca, d1[0].data, d2[0].data)
+            assert np.allclose(d1[0].data, d2[0].data)
+
+    # test for build_one_layer
+    id = 7
+	sca = 1
+    os.remove(str(tmp_path) + rf"/cache/otherin_{id:08d}_{sca:02d}.fits")
+    build_one_layer(cfg, (id, sca))
+
+    # now do the comparisons again
     for idsca in idsca_list:
         (id, sca) = idsca
         f1 = str(tmp_path) + rf"/cache/in_{id:08d}_{sca:02d}.fits"
