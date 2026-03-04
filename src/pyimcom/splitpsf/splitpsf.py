@@ -465,7 +465,7 @@ def split_psf_single(cfg_dict, iobs, filter, targetdir, psfsplit_pars, TEST_FILE
 
     if os.path.exists(psf_file):
         outfile = TEST_FILES[2] if TEST_FILES is not None else targetdir + f"/psf_{iobs:d}.fits"
-        print(f"{iobs:8d}/{Nobs:8d} found, file is at " + psf_file, "-->", outfile)
+        print("File is at " + psf_file, "-->", outfile)
         print("   sci in =", sci_filename)
         split_psf_to_fits(
             psf_file,
