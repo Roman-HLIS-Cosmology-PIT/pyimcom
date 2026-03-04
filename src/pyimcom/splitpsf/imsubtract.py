@@ -635,6 +635,9 @@ def run_imsubtract_all(cfg_file, workers=4, max_imgs=None, display=None):
     display: str or None, optional
         Display location for intermediate steps. Default is None.
     """
+    # Additional imports
+    import multiprocessing as mp
+
     # load the file using Config and get information
     cfgdata = Config(cfg_file)
 
@@ -659,7 +662,11 @@ def run_imsubtract_all(cfg_file, workers=4, max_imgs=None, display=None):
 
     # Run imsubtract on each exposure in parallel using ProcessPoolExecutor
     count = 0
-    with ProcessPoolExecutor(max_workers=workers) as executor:
+    start_method = "forkserver" if os.name.lower() == "posix" else "spawn"
+    ctx = mp.get_context(start_method)
+    nfail = 0
+
+    with ProcessPoolExecutor(max_workers=workers, mp_context=ctx) as executor:
         futures = []
         for exp in exps:
             m2 = re.search(r"(\w*)_0*(\d*)_(\d*).fits", exp)
@@ -687,8 +694,13 @@ def run_imsubtract_all(cfg_file, workers=4, max_imgs=None, display=None):
 
             try:
                 future.result()
+
             except Exception as e:
+                nfail += 1
                 print(f"Worker failed with exception {e}", flush=True)
+
+    if nfail > 0:
+        print(f"{nfail} instances of run_imsubtract_single failed.", flush=True)
 
 
 if __name__ == "__main__":
