@@ -453,6 +453,7 @@ def split_psf_single(cfg_dict, iobs, filter, targetdir, psfsplit_pars, TEST_FILE
 
     if TEST_FILES is not None:
         import urllib.request
+
         psf_file = TEST_FILES[0]
         sci_filename = TEST_FILES[1]
         if psf_file.startswith("http"):
@@ -462,7 +463,7 @@ def split_psf_single(cfg_dict, iobs, filter, targetdir, psfsplit_pars, TEST_FILE
         psf_file = cfg_dict["INPSF"][0] + "/" + InImage.psf_filename(cfg_dict["INPSF"][1], iobs)
         sci_filename = _get_sca_imagefile(cfg_dict["INDATA"][0], (iobs, -1), filter, cfg_dict["INPSF"][1])
 
-    if os.path.exists(psf_file): # This won't work with PSF File being a website-- need to download it first and then use it
+    if os.path.exists(psf_file):
         outfile = TEST_FILES[2] if TEST_FILES is not None else targetdir + f"/psf_{iobs:d}.fits"
         print(f"{iobs:8d}/{Nobs:8d} found, file is at " + psf_file, "-->", outfile)
         print("   sci in =", sci_filename)
@@ -488,6 +489,9 @@ def split_psf_all(cfg, workers, max_observations=np.inf):
         The maximum number of observations to process (for testing purposes).
         Default is infinity, meaning all observations will be processed
     """
+    # Additional imports
+    import multiprocessing as mp
+
     # Convert config to dictionary
     cfg_dict = cfg.to_dict()
 
@@ -551,7 +555,7 @@ def split_psf_all(cfg, workers, max_observations=np.inf):
     #  Set up ProcessPoolExecutor for safety with python 3.12, 3.13, 3.14
     start_method = "forkserver" if os.name.lower() == "posix" else "spawn"
     ctx = mp.get_context(start_method)
-    nfail=0
+    nfail = 0
 
     # Process Nobs observations in parallel using ProcessPoolExecutor
     with ProcessPoolExecutor(max_workers=workers, mp_context=ctx) as executor:
