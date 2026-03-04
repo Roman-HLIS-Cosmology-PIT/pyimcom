@@ -452,13 +452,17 @@ def split_psf_single(cfg_dict, iobs, filter, targetdir, psfsplit_pars, TEST_FILE
     """
 
     if TEST_FILES is not None:
+        import urllib.request
         psf_file = TEST_FILES[0]
         sci_filename = TEST_FILES[1]
+        if psf_file.startswith("http"):
+            urllib.request.urlretrieve(psf_file, "temp_psf.fits")
+            psf_file = "temp_psf.fits"
     else:
         psf_file = cfg_dict["INPSF"][0] + "/" + InImage.psf_filename(cfg_dict["INPSF"][1], iobs)
         sci_filename = _get_sca_imagefile(cfg_dict["INDATA"][0], (iobs, -1), filter, cfg_dict["INPSF"][1])
 
-    if os.path.exists(psf_file):
+    if os.path.exists(psf_file): # This won't work with PSF File being a website-- need to download it first and then use it
         outfile = TEST_FILES[2] if TEST_FILES is not None else targetdir + f"/psf_{iobs:d}.fits"
         print(f"{iobs:8d}/{Nobs:8d} found, file is at " + psf_file, "-->", outfile)
         print("   sci in =", sci_filename)
