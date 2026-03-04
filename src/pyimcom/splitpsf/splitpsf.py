@@ -548,8 +548,13 @@ def split_psf_all(cfg, workers, max_observations=np.inf):
     # the calculation.
 
     count = 0
+    #  Set up ProcessPoolExecutor for safety with python 3.12, 3.13, 3.14
+    start_method = "forkserver" if os.name.lower() == "posix" else "spawn"
+    ctx = mp.get_context(start_method)
+    nfail=0
+
     # Process Nobs observations in parallel using ProcessPoolExecutor
-    with ProcessPoolExecutor(max_workers=workers) as executor:
+    with ProcessPoolExecutor(max_workers=workers, mp_context=ctx) as executor:
         futures = []
         for iobs in range(Nobs):
             if filters_obs[iobs] == use_filter:
@@ -567,7 +572,11 @@ def split_psf_all(cfg, workers, max_observations=np.inf):
             try:
                 future.result()  # This will raise an exception if the function raised one
             except Exception as e:
-                print(f"An error occurred: {e}")
+                nfail += 1
+                print(f"Worker failed with exception: {e}", flush=True)
+
+    if nfail > 0:
+        raise Exception(f"{nfail:d} instances of split_psf_single failed.")
 
 
 # ### MAIN DRIVER ### #
