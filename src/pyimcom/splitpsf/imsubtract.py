@@ -237,6 +237,7 @@ def run_imsubtract_single(
     local_output=False,
     fft_workers=None,
     wcs_shortcut=True,
+    max_blocks=None,
 ):
     """
     Main routine to run imsubtract on a single image.
@@ -264,6 +265,8 @@ def run_imsubtract_single(
         Number of workers for the FFTs if requesting parallelism.
     wcs_shortcut : bool, optional
         If set, allows interpolation methods to speed up WCS computations.
+    max_blocks : int, optional
+        Maximum number of blocks to process. (For testing; default is None, which means no limit.)
 
     Notes
     -----
@@ -307,7 +310,7 @@ def run_imsubtract_single(
     # results from splitpsf
     # read in the kernel
     with fits.open(f"{info}.psf/psf_{obsid:d}.fits") as hdul2:
-        K = np.copy(hdul2[sca + hdul2[0].header["KERSKIP"]].data)
+        K = np.copy(hdul2[scaid + hdul2[0].header["KERSKIP"]].data)
         # get the number of pixels on the axis
         axis_num = K.shape[1]  # kernel pixels
         Ncoeff = K.shape[0]  # number of coefficients
@@ -391,8 +394,13 @@ def run_imsubtract_single(
         / (pix_size * 180 / np.pi) ** 2
     ).astype(np.float32)
 
+    # Define vars to prevent failure from skipped blocks; they will be overwritten if the block is not skipped
+    H = None
+    native_pix = None
+
     # add for loop over layers (nlayers)
-    for n in range(nlayer):
+    for n in range(nlayer) if max_blocks is None else range(min(nlayer, max_blocks)):
+        print(f"Layer {n+1}", flush=True)
         H_canvas = np.zeros((A, A), dtype=np.float32)
         # define other important quantities for convolution
         Nl = int(np.floor(np.sqrt(Ncoeff + 0.5)))
@@ -401,10 +409,12 @@ def run_imsubtract_single(
         u_canvas = (x_canvas - (sca_nside - 1) / 2) / (sca_nside / 2)
 
         # loop over the blocks in the list
+        block_count = 0
         for ix, iy in block_list:
             if (ix, iy) in skipblocks:
                 continue
             print("BLOCK: ", ix, iy)
+            print(f"Block count: {block_count}/{max_blocks if max_blocks is not None else len(block_list)}")
             sys.stdout.flush()
             t0 = time.time()
 
@@ -453,6 +463,11 @@ def run_imsubtract_single(
                         marker="o",
                     )
                     pltshow(plt, display, {"type": "window", "obsid": obsid, "sca": sca, "ix": ix, "iy": iy})
+
+            block_count += 1
+            if max_blocks is not None and block_count > max_blocks:
+                print(f"Reached max_blocks={max_blocks}, stopping early for testing.")
+                break
 
             print(f"+ figure: {time.time()-t0:6.2f}")
             sys.stdout.flush()
@@ -606,6 +621,7 @@ def run_imsubtract_single(
 
         # subtract from the input image (using less memory)
         I_img[n, :, :] -= KH[first_index:-first_index:oversamp, first_index:-first_index:oversamp]
+        print(f"Subtracted layer {n+1}/{nlayer}, t = {time.time()-t0:6.2f}", flush=True)
 
     # write output file for each exposure
     fname = f"{info}_{obsid:08d}_{scaid:02d}_subI.fits"
@@ -619,7 +635,7 @@ def run_imsubtract_single(
         fits.HDUList([fits.PrimaryHDU(data=I_img), f_in[1]]).writeto(fname, overwrite=True)
 
 
-def run_imsubtract_all(cfg_file, workers=4, max_imgs=None, display=None):
+def run_imsubtract_all(cfg_file, workers=4, max_imgs=None, display=None, local_output=False):
     """
     Main routine to run imsubtract on all images in the cache.
 
@@ -634,9 +650,12 @@ def run_imsubtract_all(cfg_file, workers=4, max_imgs=None, display=None):
         want the default of None; this is provided mainly for testing.
     display: str or None, optional
         Display location for intermediate steps. Default is None.
+    local_output: bool, optional
+        Whether to direct the file to local output instead of the cache directory.
     """
     # Additional imports
     import multiprocessing as mp
+    import traceback
 
     # load the file using Config and get information
     cfgdata = Config(cfg_file)
@@ -658,7 +677,7 @@ def run_imsubtract_all(cfg_file, workers=4, max_imgs=None, display=None):
             if file.startswith(stem) and file.endswith(".fits") and file[-6].isdigit():
                 exps.append(file)
 
-    print("List of exposures:", exps)
+    # print("List of exposures:", exps)
 
     # Run imsubtract on each exposure in parallel using ProcessPoolExecutor
     count = 0
@@ -683,24 +702,27 @@ def run_imsubtract_all(cfg_file, workers=4, max_imgs=None, display=None):
                         exp,
                         display=display,
                         fft_workers=None,
+                        local_output=local_output,
+                        max_blocks=max_imgs,
                     )
                 )
-
-        # Wait for all futures to complete
-        for future in as_completed(futures):
             count += 1
             if max_imgs is not None and count > max_imgs:
                 break
 
+        # Wait for all futures to complete
+        for future in as_completed(futures):
             try:
                 future.result()
+                print(f"Completed {count}/{len(futures)}", flush=True)
 
             except Exception as e:
                 nfail += 1
                 print(f"Worker failed with exception {e}", flush=True)
+                traceback.print_exc()
 
     if nfail > 0:
-        print(f"{nfail} instances of run_imsubtract_single failed.", flush=True)
+        print(f"{nfail}/{len(futures)} instances of run_imsubtract_single failed.", flush=True)
 
 
 if __name__ == "__main__":
