@@ -394,10 +394,6 @@ def run_imsubtract_single(
         / (pix_size * 180 / np.pi) ** 2
     ).astype(np.float32)
 
-    # Define vars to prevent failure from skipped blocks; they will be overwritten if the block is not skipped
-    H = None
-    native_pix = None
-
     # add for loop over layers (nlayers)
     for n in range(nlayer) if max_blocks is None else range(min(nlayer, max_blocks)):
         print(f"Layer {n+1}", flush=True)
@@ -407,6 +403,10 @@ def run_imsubtract_single(
         KH = np.zeros((A - axis_num + 1, A - axis_num + 1), dtype=np.float32)
         x_canvas = np.linspace(-I_pad - 0.5 + 0.5 / oversamp, sca_nside + I_pad - 0.5 + 0.5 / oversamp, A)
         u_canvas = (x_canvas - (sca_nside - 1) / 2) / (sca_nside / 2)
+
+        # These will be overwritten if the block is not skipped
+        H = None
+        native_pix = None
 
         # loop over the blocks in the list
         block_count = 0
@@ -463,11 +463,6 @@ def run_imsubtract_single(
                         marker="o",
                     )
                     pltshow(plt, display, {"type": "window", "obsid": obsid, "sca": sca, "ix": ix, "iy": iy})
-
-            block_count += 1
-            if max_blocks is not None and block_count > max_blocks:
-                print(f"Reached max_blocks={max_blocks}, stopping early for testing.")
-                break
 
             print(f"+ figure: {time.time()-t0:6.2f}")
             sys.stdout.flush()
@@ -599,6 +594,11 @@ def run_imsubtract_single(
                 oversamp * (bottom + I_pad) : oversamp * (top + 1 + I_pad),
                 oversamp * (left + I_pad) : oversamp * (right + 1 + I_pad),
             ] += H
+
+            block_count += 1
+            if max_blocks is not None and block_count > max_blocks:
+                print(f"Reached max_blocks={max_blocks}, stopping early for testing.")
+                break
 
         # some cleanup
         del H, native_pix
