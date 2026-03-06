@@ -413,6 +413,12 @@ def run_imsubtract_single(
         for ix, iy in block_list:
             if (ix, iy) in skipblocks:
                 continue
+
+            block_count += 1
+            if max_blocks is not None and block_count > max_blocks:
+                print(f"Reached max_blocks={max_blocks}, stopping early for testing.")
+                break
+
             print("BLOCK: ", ix, iy)
             print(f"Block count: {block_count}/{max_blocks if max_blocks is not None else len(block_list)}")
             sys.stdout.flush()
@@ -595,11 +601,6 @@ def run_imsubtract_single(
                 oversamp * (left + I_pad) : oversamp * (right + 1 + I_pad),
             ] += H
 
-            block_count += 1
-            if max_blocks is not None and block_count > max_blocks:
-                print(f"Reached max_blocks={max_blocks}, stopping early for testing.")
-                break
-
         # some cleanup
         del H, native_pix
 
@@ -688,6 +689,9 @@ def run_imsubtract_all(cfg_file, workers=4, max_imgs=None, display=None, local_o
     with ProcessPoolExecutor(max_workers=workers, mp_context=ctx) as executor:
         futures = []
         for exp in exps:
+            count += 1
+            if max_imgs is not None and count > max_imgs:
+                break
             m2 = re.search(r"(\w*)_0*(\d*)_(\d*).fits", exp)
             if m2:
                 obsid = int(m2.group(2))
@@ -706,9 +710,6 @@ def run_imsubtract_all(cfg_file, workers=4, max_imgs=None, display=None, local_o
                         max_blocks=max_imgs,
                     )
                 )
-            count += 1
-            if max_imgs is not None and count > max_imgs:
-                break
 
         # Wait for all futures to complete
         for future in as_completed(futures):
