@@ -19,9 +19,14 @@ def piff_to_legendre(psf_file, chipnum, x, y, stamp_size = 48, legendre_order = 
     """
     psf = piff.read(psf_file)
     image = psf.draw(chipnum = chipnum, x = x, y = y, stamp_size = stamp_size)
+    image_data = image.array
     
     coords = np.linspace(-1, 1, stamp_size)
     xx, yy = np.meshgrid(coords, coords) 
-    coeffs = legendre.legfit(np.vstack(xx.ravel(), yy.ravel()), image.ravel(), deg = [legendre_order, legendre_order])
-    coeffs = coeffs.reshape((legendre_order + 1, legendre_order + 1))
+    V = legendre.legvander2d(xx.ravel(), yy.ravel(), [legendre_order, legendre_order])
+
+    c, residuals, rank, s = np.linalg.lstsq(V, image_data.ravel(), rcond=None)
+    
+    coeffs = c.reshape((legendre_order + 1, legendre_order + 1))
+    
     return coeffs
