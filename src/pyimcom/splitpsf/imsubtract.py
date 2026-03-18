@@ -396,6 +396,7 @@ def run_imsubtract_single(
 
     # add for loop over layers (nlayers)
     for n in range(nlayer) if max_blocks is None else range(min(nlayer, max_blocks)):
+        print(f"Observation {obsid}, SCA {scaid}")
         print(f"Layer {n+1}", flush=True)
         H_canvas = np.zeros((A, A), dtype=np.float32)
         # define other important quantities for convolution
@@ -421,14 +422,12 @@ def run_imsubtract_single(
 
             print("BLOCK: ", ix, iy)
             print(f"Block count: {block_count}/{max_blocks if max_blocks is not None else len(block_list)}")
-            sys.stdout.flush()
             t0 = time.time()
 
             # open the block info
             with fits.open(block_path + f"_{ix:02d}_{iy:02d}.fits") as hdul3:
                 block_wcs = get_wcs_from_infile(hdul3)
                 print(f"+ block: {time.time()-t0:6.2f}")
-                sys.stdout.flush()
 
                 # determine the length of one axis of the block
                 block_length = hdul3[0].header["NAXIS1"]  # length in output pixels
@@ -441,7 +440,6 @@ def run_imsubtract_single(
                 # apply window function to block data in both directions
                 block = hdul3[0].data[0, n, :, :] * window[:, None] * window[None, :]
                 print(f"+ windowed: {time.time()-t0:6.2f}")
-                sys.stdout.flush()
 
             # check the window function
             if display != "/dev/null":
@@ -471,7 +469,6 @@ def run_imsubtract_single(
                     pltshow(plt, display, {"type": "window", "obsid": obsid, "sca": sca, "ix": ix, "iy": iy})
 
             print(f"+ figure: {time.time()-t0:6.2f}")
-            sys.stdout.flush()
             gc.collect()
 
             if (ix, iy) in lrbt_table:
@@ -506,7 +503,6 @@ def run_imsubtract_single(
             gc.collect()
 
             print(f"+ wcsmap: {time.time()-t0:6.2f}")
-            sys.stdout.flush()
 
             # create the bounding box mesh grid, with ovsamp
             # determine side lengths of the box
@@ -552,7 +548,6 @@ def run_imsubtract_single(
                 del ra_map, dec_map
 
             print(f"+ inv wcs map: {time.time()-t0:6.2f}")
-            sys.stdout.flush()
 
             # add padding to the block (with window applied)
             block_padded = np.pad(block, 5, mode="constant", constant_values=0)[None, :, :].astype(np.float64)
@@ -566,7 +561,6 @@ def run_imsubtract_single(
             H = H.reshape(x_bb.shape)
 
             print(f"+ interp: {time.time()-t0:6.2f}")
-            sys.stdout.flush()
 
             # multiply by Jacobian to H
             # get native pixel size (in units of the ideal pixel, [0.11 arcsec]^2 for Roman)
@@ -593,7 +587,6 @@ def run_imsubtract_single(
             H *= native_pix
 
             print(f"+ area: {time.time()-t0:6.2f}")
-            sys.stdout.flush()
 
             # add H to H_canvas
             H_canvas[
@@ -627,7 +620,7 @@ def run_imsubtract_single(
     # write output file for each exposure
     fname = f"{info}_{obsid:08d}_{scaid:02d}_subI.fits"
     if local_output:
-        fname = f"{obsid:08d}_{scaid:02d}_subI.fits"
+        fname = os.path.join(cfgdata.tempfile, f"{obsid:08d}_{scaid:02d}_subI.fits")
     print("saving >>", fname)
     sys.stdout.flush()
 
