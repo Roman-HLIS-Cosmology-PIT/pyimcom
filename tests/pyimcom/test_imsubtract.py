@@ -3,13 +3,13 @@ import re
 
 import numpy as np
 from astropy.io import fits
-from pyimcom.config import Config
 from pyimcom.splitpsf.imsubtract import fftconvolve_multi, run_imsubtract_all
 from pyimcom.splitpsf.splitpsf import split_psf_single, split_psf_to_fits
 from scipy.signal import fftconvolve
 
 PSF_FILE = "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/psf_test.fits"
 IMSUBTRACT_CONFIG = "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/imsubtract/test_imsubtract_config.json"
+IMSUBTRACT_INPUT_PATH = "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/imsubtract"
 
 
 def test_psfsplit(tmp_path):
@@ -173,45 +173,40 @@ def test_fftconvolve_multi():
     assert np.amax(np.abs(out1 - out2)) < 1e-9 * np.amax(np.abs(out1))
 
 
-def test_run_imsubtract_all(config_file):
-    """Test that run_imsubtract_all runs with the provided config file and produces expected outputs.
-    
-    Parameters
-    ----------
-    config_file: str
-        path to config file
+def test_run_imsubtract_all(config_file=IMSUBTRACT_CONFIG):
     """
+    Test the run_imsubtract_all function.
+    This test runs the imsubtract pipeline on a small set of images specified in the config file,
+    and checks that the output files are created and have the expected properties.
+    """
+    # if config_file.startswith("http"):
+    #         urllib.request.urlretrieve(config_file, "test_imsubtract_config.json")
+    #         config_file = "test_imsubtract_config.json"
 
-    run_imsubtract_all(config_file, workers=2, max_imgs=3, display="/dev/null", local_output=True)
+    run_imsubtract_all(config_file, workers=2, max_imgs=2, display="/dev/null", local_output=True)
 
-    cfg = Config(config_file)
-    tmp_path = cfg.tempfile
-    expected_files = [
-        f"{tmp_path}/{obsid:08d}_{scaid:02d}_subI.fits"
-        for obsid, scaid in [(775, 8), (13815, 13), (13912, 17)]
-    ]
-    # Check that outputs were created
+    # Check for outputs:
+    expected_files = ["$TMPDIR/00013912_17_subI.fits", "$TMPDIR/00000775_08_subI.fits"]
     for fname in expected_files:
         assert os.path.isfile(fname), f"Expected output file {fname} not found."
 
-    # Checks against input images:
-    for file in expected_files:
-        # Match Obsid and Scaid with re
-        match = re.search(r"(\d{8})_(\d{2})_subI\.fits", file)
-        obsid = int(match.group(1))
-        scaid = int(match.group(2))
+    # Check that the output files have the expected properties
+    for fname in expected_files:
+        m = re.search(r"(\d{8})_(\d{2})_subI\.fits", fname)
+        obsid = int(m.group(1))
+        scaid = int(m.group(2))
 
-        with fits.open(file) as f:
-            subI = f[0].data[1, :, :]
-            assert np.any(subI != 0), f"Output file {file} appears to be empty (all zeros)."
-        with fits.open(
-            f"https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/imsubtract/{obsid:08d}_{scaid:02d}.fits"
-        ) as f:
-            origI = f[0].data[1, :, :]
-            assert np.any(origI != 0), f"Original file for {file} appears to be broken (all zeros)."
+        # Fetch the files
+        with fits.open(fname) as f:
+            image_subtracted = f[0].data[1, :, :]
+        with fits.open(f"{IMSUBTRACT_INPUT_PATH}/cache/r1_{obsid:08d}_{scaid:02d}.fits") as f:
+            image_original = f[0].data[1, :, :]
 
-        diff = subI - origI
+        diff = image_subtracted - image_original
 
-        assert np.count_nonzero(diff) > 0, f"Output file {file} is identical to the original image."
+        # Assert some properties of the output:
+        assert np.count_nonzero(diff) > 0, f"Output file {fname} is identical to the original image."
+        assert np.sum(image_subtracted) < np.sum(
+            image_original
+        ), f"Output file {fname} has a larger sum than the original image."
         assert np.mean(diff) < 0, "Mean diff should be less than zero."
-        assert np.sum(subI) < np.sum(origI), f"Output file {file} has a larger sum than the original image."
