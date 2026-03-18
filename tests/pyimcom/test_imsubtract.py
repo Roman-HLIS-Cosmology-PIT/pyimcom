@@ -1,10 +1,15 @@
+import os
+import re
+
 import numpy as np
 from astropy.io import fits
+from pyimcom.config import Config
 from pyimcom.splitpsf.imsubtract import fftconvolve_multi, run_imsubtract_all
 from pyimcom.splitpsf.splitpsf import split_psf_single, split_psf_to_fits
 from scipy.signal import fftconvolve
 
 PSF_FILE = "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/psf_test.fits"
+IMSUBTRACT_CONFIG = "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/imsubtract/test_imsubtract_config.json"
 
 
 def test_psfsplit(tmp_path):
@@ -168,25 +173,45 @@ def test_fftconvolve_multi():
     assert np.amax(np.abs(out1 - out2)) < 1e-9 * np.amax(np.abs(out1))
 
 
-def test_run_imsubtract_all_with_config(setup):
-    """Test that run_imsubtract_all loads the config and looks for files in the right place.
-
-    The setup fixture creates the config file and directory structure but doesn't
-    populate the cache with the .fits files that run_imsubtract_all looks for.
-    This test verifies the function can load the config and process correctly
-    (finding zero files, as expected).
+def test_run_imsubtract_all(config_file):
+    """Test that run_imsubtract_all runs with the provided config file and produces expected outputs.
+    
+    Parameters
+    ----------
+    config_file: str
+        path to config file
     """
-    cfg = setup
-    import pathlib
 
-    cfg_file = str(pathlib.Path(cfg.inlayercache).parent.parent / "cfg.txt")
+    run_imsubtract_all(config_file, workers=2, max_imgs=3, display="/dev/null", local_output=True)
 
-    # Verify the config file exists
-    import os
+    cfg = Config(config_file)
+    tmp_path = cfg.tempfile
+    expected_files = [
+        f"{tmp_path}/{obsid:08d}_{scaid:02d}_subI.fits"
+        for obsid, scaid in [(775, 8), (13815, 13), (13912, 17)]
+    ]
+    # Check that outputs were created
+    for fname in expected_files:
+        assert os.path.isfile(fname), f"Expected output file {fname} not found."
 
-    assert os.path.exists(cfg_file), f"Config file not found at {cfg_file}"
+    # Checks against input images:
+    for file in expected_files:
+        # Match Obsid and Scaid with re
+        match = re.search(r"(\d{8})_(\d{2})_subI\.fits", file)
+        obsid = int(match.group(1))
+        scaid = int(match.group(2))
 
-    # Call run_imsubtract_all with max_imgs=None and max_workers=1
-    # It should successfully load the config, find zero images (cache is empty),
-    # and complete without error
-    run_imsubtract_all(cfg_file, workers=1, max_imgs=None, display="/dev/null")
+        with fits.open(file) as f:
+            subI = f[0].data[1, :, :]
+            assert np.any(subI != 0), f"Output file {file} appears to be empty (all zeros)."
+        with fits.open(
+            f"https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/imsubtract/{obsid:08d}_{scaid:02d}.fits"
+        ) as f:
+            origI = f[0].data[1, :, :]
+            assert np.any(origI != 0), f"Original file for {file} appears to be broken (all zeros)."
+
+        diff = subI - origI
+
+        assert np.count_nonzero(diff) > 0, f"Output file {file} is identical to the original image."
+        assert np.mean(diff) < 0, "Mean diff should be less than zero."
+        assert np.sum(subI) < np.sum(origI), f"Output file {file} has a larger sum than the original image."
