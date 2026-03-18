@@ -237,7 +237,7 @@ def run_imsubtract_single(
     local_output=False,
     fft_workers=None,
     wcs_shortcut=True,
-    max_blocks=None,
+    max_layers=None,
 ):
     """
     Main routine to run imsubtract on a single image.
@@ -265,8 +265,8 @@ def run_imsubtract_single(
         Number of workers for the FFTs if requesting parallelism.
     wcs_shortcut : bool, optional
         If set, allows interpolation methods to speed up WCS computations.
-    max_blocks : int, optional
-        Maximum number of blocks to process. (For testing; default is None, which means no limit.)
+    max_layers : int, optional
+        Maximum number of layers to process. (For testing; default is None, which means no limit.)
 
     Notes
     -----
@@ -395,7 +395,7 @@ def run_imsubtract_single(
     ).astype(np.float32)
 
     # add for loop over layers (nlayers)
-    for n in range(nlayer) if max_blocks is None else range(min(nlayer, max_blocks)):
+    for n in range(nlayer) if max_layers is None else range(min(nlayer, max_layers)):
         print(f"Observation {obsid}, SCA {scaid}")
         print(f"Layer {n+1}", flush=True)
         H_canvas = np.zeros((A, A), dtype=np.float32)
@@ -415,31 +415,35 @@ def run_imsubtract_single(
             if (ix, iy) in skipblocks:
                 continue
 
-            block_count += 1
-            if max_blocks is not None and block_count > max_blocks:
-                print(f"Reached max_blocks={max_blocks}, stopping early for testing.")
+            if max_layers is not None and block_count > max_layers:  # Max blocks = 5 when testing
+                print(f"Reached max_blocks={max_layers}, stopping early for testing.")
                 break
 
             print("BLOCK: ", ix, iy)
-            print(f"Block count: {block_count}/{max_blocks if max_blocks is not None else len(block_list)}")
+            print(f"Block count: {block_count}/{max_layers if max_layers is not None else len(block_list)}")
             t0 = time.time()
 
             # open the block info
-            with fits.open(block_path + f"_{ix:02d}_{iy:02d}.fits") as hdul3:
-                block_wcs = get_wcs_from_infile(hdul3)
-                print(f"+ block: {time.time()-t0:6.2f}")
+            try:
+                with fits.open(block_path + f"_{ix:02d}_{iy:02d}.fits") as hdul3:
+                    block_wcs = get_wcs_from_infile(hdul3)
+                    print(f"+ block: {time.time()-t0:6.2f}")
 
-                # determine the length of one axis of the block
-                block_length = hdul3[0].header["NAXIS1"]  # length in output pixels
-                overlap = n2 * postage_pad  # size of one overlap region due to postage stamp
-                a1 = 2 * (2 * overlap - 1) / (block_length - 1)  # percentage of region to have
-                # window function taper
-                # the '-1' is due to scipy's convention on alpha that the denominator is the distance from
-                # the first to the last point, so 1 less than the length
-                window = tukey(block_length, alpha=a1).astype(np.float32)
-                # apply window function to block data in both directions
-                block = hdul3[0].data[0, n, :, :] * window[:, None] * window[None, :]
-                print(f"+ windowed: {time.time()-t0:6.2f}")
+                    # determine the length of one axis of the block
+                    block_length = hdul3[0].header["NAXIS1"]  # length in output pixels
+                    overlap = n2 * postage_pad  # size of one overlap region due to postage stamp
+                    a1 = 2 * (2 * overlap - 1) / (block_length - 1)  # percentage of region to have
+                    # window function taper
+                    # the '-1' is due to scipy's convention on alpha that the denominator is the distance from
+                    # the first to the last point, so 1 less than the length
+                    window = tukey(block_length, alpha=a1).astype(np.float32)
+                    # apply window function to block data in both directions
+                    block = hdul3[0].data[0, n, :, :] * window[:, None] * window[None, :]
+                    print(f"+ windowed: {time.time()-t0:6.2f}")
+            except FileNotFoundError:
+                print(f"Block file for block ({ix}, {iy}) not found. Skipping this block.")
+                skipblocks.add((ix, iy))
+                continue
 
             # check the window function
             if display != "/dev/null":
@@ -594,6 +598,8 @@ def run_imsubtract_single(
                 oversamp * (left + I_pad) : oversamp * (right + 1 + I_pad),
             ] += H
 
+            block_count += 1
+
         # some cleanup
         del H, native_pix
 
@@ -682,7 +688,6 @@ def run_imsubtract_all(cfg_file, workers=4, max_imgs=None, display=None, local_o
     with ProcessPoolExecutor(max_workers=workers, mp_context=ctx) as executor:
         futures = []
         for exp in exps:
-            count += 1
             if max_imgs is not None and count > max_imgs:
                 break
             m2 = re.search(r"(\w*)_0*(\d*)_(\d*).fits", exp)
@@ -700,9 +705,10 @@ def run_imsubtract_all(cfg_file, workers=4, max_imgs=None, display=None, local_o
                         display=display,
                         fft_workers=None,
                         local_output=local_output,
-                        max_blocks=max_imgs,
+                        max_layers=max_imgs,
                     )
                 )
+                count += 1
 
         # Wait for all futures to complete
         for future in as_completed(futures):
