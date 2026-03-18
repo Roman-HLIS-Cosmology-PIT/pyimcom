@@ -3,7 +3,7 @@ import piff
 from numpy.polynomial import legendre
 from scipy.interpolate import RegularGridInterpolator
 
-def piff_to_legendre(psf_file, chipnum, x, y, stamp_size = 48, legendre_order = 5):
+def piff_to_legendre(psf_file, chipnum, stamp_size = 128, oversamp = 6, legendre_order = 5):
     """Convert a PSF file from piff to a Legendre polynomial expansion.
 
     Parameters
@@ -15,35 +15,41 @@ def piff_to_legendre(psf_file, chipnum, x, y, stamp_size = 48, legendre_order = 
 
     Returns
     -------
-    coeffs : np.ndarray
+    coeffs : np.ndarray of shape ((legendre order + 1)**2, stamp_size*oversamp, stamp_size*oversamp)
         The coefficients of the Legendre polynomial expansion.
     """
+    #First read the psf via piff from given file
     psf = piff.read(psf_file)
-    image = psf.draw(chipnum = chipnum, x = x, y = y, stamp_size = stamp_size)
-    image_data = image.array
+    #Generate an empty 4d array, where the first coordinate corresponds to 
+    #the u grid, the second coordinate corresponds to the v grid, 
+    #and the third and fourth coordinates each correspond to the psf stamp.
+    stamps = np.zeros((legendre_order + 1, legendre_order + 1, stamp_size*oversamp, stamp_size*oversamp))
+    
 
-    #Using Gauss-Legendre Method to sample PSF at roots of Legendre polynomials
+    #Now, find the points at which you want to draw the PSF
+    #which is given by the Gauss Legendre method. This should capture
+    #the spatial variance in the PSF through the Legendre polynomials. 
+
     quad_points, quad_weights = legendre.leggauss(legendre_order + 1)
-    #transform coordinates to stamp range [0, stamp_size]
-    quad_coords = (quad_points + 1) * stamp_size / 2
-    xx, yy = np.meshgrid(quad_coords, quad_coords)
-    coords_full = np.linspace(0, stamp_size, stamp_size)
-    #interpolate to get PSF values at the roots/quadrature points
-    interp = RegularGridInterpolator((coords_full, coords_full), image_data, bounds_error=False, fill_value=0)
-    psf_values = interp(np.column_stack([yy.ravel(), xx.ravel()])).reshape(xx.shape)
-    n_basis = (legendre_order + 1) ** 2
-    coeffs = np.zeros(n_basis)
+    #transform quad_points from [-1,1] to [0, 4088]
+    quad_coords = 2044.0 * quad_points + 2043.5
+    #Now, we draw the PSF at the given points. 
+    for i, x in enumerate(quad_coords):
+        for j, y in enumerate(quad_coords):
+            stamps[i, j, :, :] = psf.draw(chipnum = chipnum, x = x, y = y, stamp_size = stamp_size*oversamp).array
+            
+    coeffs = np.zeros(((legendre_order + 1)**2, stamp_size*oversamp, stamp_size*oversamp))
+    basis_functions = np.array([legendre.legval(quad_points, [0]*k + [1]) for k in range(legendre_order + 1)])
     idx = 0
-    #Should return in order of iterating through x first, then y, which is the same order as the basis functions are defined
-    for j in range(legendre_order + 1):
-        for i in range(legendre_order + 1):
-            # Evaluate Legendre polynomials at quadrature points
-            leg_y = legendre.legval(quad_points, [0]*i + [1])
-            leg_x = legendre.legval(quad_points, [0]*j + [1])
-            W = np.outer(quad_weights*leg_y, quad_weights*leg_x)
-            coeffs[idx] = ((2*i + 1)*(2*j + 1) / 4.0) * np.sum(W * psf_values)
+    for j in range(legendre_order + 1): #order in v
+        for i in range(legendre_order + 1): # order in u
+            w_u = quad_weights * basis_functions[i]
+            w_v = quad_weights * basis_functions[j]
+            W = np.outer(w_u, w_v)
+            norm = (2*i + 1) * (2*j + 1) / 4.0 
+
+            weighted_stamps = stamps * W[:, :, np.newaxis, np.newaxis]
+            coeffs[idx, :, :] = norm * np.sum(weighted_stamps, axis =(0, 1))
             idx += 1
 
     return coeffs
-
-
