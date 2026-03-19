@@ -299,7 +299,10 @@ def _starplot_diagnostic(datastem):
         )
 
         # finish up figure
-        F.set_tight_layout(True)
+        if hasattr(F, "set_layout_engine"):
+            F.set_layout_engine("tight")
+        else:
+            F.set_tight_layout(True)
         F.savefig(datastem + "_SimulatedStar_all.pdf")
         plt.close(F)
 
@@ -432,7 +435,10 @@ class SimulatedStar(ReportSection):
             angles="xy",
         )
         F.colorbar(im, orientation="vertical")
-        F.set_tight_layout(True)
+        if hasattr(F, "set_layout_engine"):
+            F.set_layout_engine("tight")
+        else:
+            F.set_tight_layout(True)
         F.savefig(self.datastem + "_SimulatedStar_etmap.pdf")
         plt.close(F)
         # ... and describe it
