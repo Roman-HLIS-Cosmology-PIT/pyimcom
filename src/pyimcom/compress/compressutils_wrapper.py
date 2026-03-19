@@ -1,4 +1,4 @@
-
+import multiprocessing as mp
 import os
 import re
 import sys
@@ -68,7 +68,11 @@ def compress_all_blocks(cfg, layer_pars_dic, workers):
     nblock = cfg.nblock
     nblock2 = cfg.nblock**2
 
-    with ProcessPoolExecutor(max_workers=workers) as executor:
+    start_method = "forkserver" if os.name.lower() == "posix" else "spawn"
+    ctx = mp.get_context(start_method)
+    nfail = 0
+
+    with ProcessPoolExecutor(max_workers=workers, mp_context=ctx) as executor:
         futures = []
         for i in range(nblock2):
             ibx = i % nblock
@@ -77,6 +81,13 @@ def compress_all_blocks(cfg, layer_pars_dic, workers):
 
         for future in as_completed(futures):
             # Check for existence of output file to confirm completion
-            fout = future.result()
-            if not os.path.exists(fout):
-                print(f"Error: {fout} was not created.")
+            try:
+                fout = future.result()
+                if not os.path.exists(fout):
+                    print(f"Error: {fout} was not created.")
+            except Exception as e:
+                nfail += 1
+                print(f"Worker failed with exception {e}", flush=True)
+
+    if nfail > 0:
+        raise Exception(f"{nfail:d} instances of compress_one_block failed.")
