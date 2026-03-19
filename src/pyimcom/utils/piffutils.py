@@ -36,7 +36,7 @@ def piff_to_legendre(psf_file, chipnum, stamp_size = 128, oversamp = 6, legendre
     #Now, we draw the PSF at the given points. 
     for i, x in enumerate(quad_coords):
         for j, y in enumerate(quad_coords):
-            stamps[i, j, :, :] = psf.draw(chipnum = chipnum, x = x, y = y, stamp_size = stamp_size*oversamp).array
+            stamps[i, j, :, :] = psf.draw(chipnum = chipnum, x = x, y = y, stamp_size = stamp_size*oversamp, sca = chipnum).array
             
     coeffs = np.zeros(((legendre_order + 1)**2, stamp_size*oversamp, stamp_size*oversamp))
     basis_functions = np.array([legendre.legval(quad_points, [0]*k + [1]) for k in range(legendre_order + 1)])
