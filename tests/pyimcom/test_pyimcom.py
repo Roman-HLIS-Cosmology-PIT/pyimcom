@@ -7,6 +7,7 @@ This does 2 blocks.
 import copy
 import os
 import pathlib
+import re
 
 import asdf
 import galsim
@@ -30,6 +31,7 @@ from pyimcom.diagnostics.mosaicimage import MosaicImage
 from pyimcom.diagnostics.noise_diagnostics import NoiseReport
 from pyimcom.diagnostics.report import ValidationReport
 from pyimcom.diagnostics.stars import SimulatedStar
+from pyimcom.layer_wrapper import build_all_layers, build_one_layer
 from pyimcom.psfutil import OutPSF
 from pyimcom.truthcats import gen_truthcats_from_cfg
 from pyimcom.wcsutil import _stand_alone_test
@@ -92,10 +94,11 @@ myCfg_format = """
         "nstar14,2e5,100,256",
         "whitenoise1",
         "1fnoise2",
-        "gsext14,n=0.5,hlr=0.1,shape=0.2:0.1,shear=0.05:-0.12"
+        "gsext14,n=0.5,hlr=0.1,shape=0.2:0.1,shear=0.05:-0.12",
+        "gstrstar14"
     ],
     "PADSIDES": "all",
-    "OUTMAPS": "USTN",
+    "OUTMAPS": "USTKN",
     "OUT": "$TMPDIR/out/testout_F",
     "INPAD": 0.8,
     "NPIXPSF": 42,
@@ -565,6 +568,77 @@ def setup(tmp_path):
     cfg2()
     Block(cfg=cfg2, this_sub=1)
 
+    # remove stuff we don't need
+    for iobs in range(len(obs)):
+        for sca in range(1, 19):
+            fname1 = tmp_path / rf"in/sim_L2_F184_{iobs:d}_{sca:d}.asdf"
+            fname2 = cachedir / rf"in_{iobs:08d}_{sca:02d}.fits"
+            if os.path.exists(fname1) and not os.path.exists(fname2):
+                os.remove(fname1)
+
+
+def test_drawlayers(tmp_path, setup):
+    """
+    See if we can successfully draw layers with the build_all_layers function.
+
+    Parameters
+    ----------
+    tmp_path : str
+        Directory in which to run the test.
+    setup : function
+        For pytest fixture.
+
+    Returns
+    -------
+    None
+
+    """
+
+    # first, get the configuration file.
+    with open(tmp_path / "cfg2.txt", "w") as f:
+        f.write(myCfg_format.replace("cache/in", "cache/otherin").replace("$TMPDIR", str(tmp_path)))
+
+    # figure out which layers we expect
+    path = str(tmp_path) + "/cache"
+    exp = "in"
+    idsca_list = []
+    for _, _, files in os.walk(path):
+        for file in files:
+            if file.startswith(exp):
+                m = re.search(r"_(\d{8})_(\d{2})\.fits$", file[len(exp) :])
+                if m:
+                    idsca_list.append((int(m.group(1)), int(m.group(2))))
+    print("looking for inputs -->", idsca_list)
+
+    # build layers
+    cfg = Config(str(tmp_path / "cfg2.txt"))
+    print(cfg)
+    build_all_layers(cfg)
+
+    # now do the comparisons
+    for idsca in idsca_list:
+        (id, sca) = idsca
+        f1 = str(tmp_path) + rf"/cache/in_{id:08d}_{sca:02d}.fits"
+        f2 = str(tmp_path) + rf"/cache/otherin_{id:08d}_{sca:02d}.fits"
+        with fits.open(f1) as d1, fits.open(f2) as d2:
+            print(id, sca, d1[0].data, d2[0].data)
+            assert np.allclose(d1[0].data, d2[0].data)
+
+    # test for build_one_layer
+    id = 7
+    sca = 1
+    os.remove(str(tmp_path) + rf"/cache/otherin_{id:08d}_{sca:02d}.fits")
+    build_one_layer(cfg, (id, sca))
+
+    # now do the comparisons again
+    for idsca in idsca_list:
+        (id, sca) = idsca
+        f1 = str(tmp_path) + rf"/cache/in_{id:08d}_{sca:02d}.fits"
+        f2 = str(tmp_path) + rf"/cache/otherin_{id:08d}_{sca:02d}.fits"
+        with fits.open(f1) as d1, fits.open(f2) as d2:
+            print(id, sca, d1[0].data, d2[0].data)
+            assert np.allclose(d1[0].data, d2[0].data)
+
 
 def test_PyIMCOM_run1(tmp_path, setup):
     """
@@ -677,6 +751,12 @@ def test_PyIMCOM_run1(tmp_path, setup):
         dmax = np.amax(fblock[0].data[0, 4, :, :])
         assert np.abs(dmax - 35879.0) < 500.0
 
+        # difference between gsstar and gstrstar
+        diff = np.amax(np.abs(fblock[0].data[0, 1, :, :] - fblock[0].data[0, 8, :, :]))
+        diff /= np.amax(np.abs(fblock[0].data[0, 1, :, :]))
+        print(diff)
+        assert diff < 0.66667
+
         # values from noise layers
         test5 = np.array([[0.7601451, 0.9042513], [0.64049757, 0.70962816]])
         test6 = np.array([[0.24921854, -0.23588116], [-0.39272013, -0.6111549]])
@@ -714,6 +794,24 @@ def test_PyIMCOM_run1(tmp_path, setup):
 
     assert np.shape(sci_image) == (100, 100)
     assert np.abs(sci_image.ravel()[843] - 0.18244877) < 1e-4
+
+    # Test coverage
+    coverage1 = my_block.get_mean_coverage()
+    coverage2 = my_block.get_mean_coverage(padding=True)
+    assert coverage1 >= 2.5
+    assert coverage2 >= 2.5
+    assert coverage1 <= 3.5
+    assert coverage2 <= 3.5
+    del coverage1, coverage2
+
+    # Test output map reader
+    outfidelity = my_block.get_output_map("FIDELITY")
+    print(np.shape(outfidelity), np.amin(outfidelity), np.median(outfidelity), np.amax(outfidelity))
+    assert np.amin(outfidelity) > 1.0e-7
+    assert np.median(outfidelity) > 1.3e-6
+    assert np.median(outfidelity) < 1.5e-6
+    assert np.amax(outfidelity) < 1.0e-5
+    assert np.shape(outfidelity) == (100, 100)
 
     ## Configuration test ##
 
@@ -754,6 +852,38 @@ def test_PyIMCOM_run1(tmp_path, setup):
     assert fields[3] == "LAYER01"
     assert fields[4] == "1fnoise2"
     assert np.abs(float(fields[5]) - 2.96809) < 1e-4
+
+    # Test updating the right side of this block
+    my_block._load_or_save_hdu_list()  # load all the data into memory
+    # just for the test, fool IMCOM into thinking we used auto so that it will run
+    my_cfg = Config("".join(my_block.hdu_list["CONFIG"].data["text"].tolist()))
+    my_cfg.pad_sides = "auto"
+    config_hdu = fits.TableHDU.from_columns(
+        [
+            fits.Column(
+                name="text",
+                array=my_cfg.to_file(None).splitlines(),
+                format="A512",
+                ascii=True,
+            )
+        ]
+    )
+    config_hdu.header["EXTNAME"] = "CONFIG"
+    my_block.hdu_list["CONFIG"] = config_hdu
+    # The replacement I turned off since it isn't supposed to run without padding.
+    #
+    # pth2 = pathlib.Path(tmp_path / f"out/testout_F_{ibx+1:02d}_{iby:02d}.fits")
+    # right_image = OutImage(pth2)
+    # right_image._load_or_save_hdu_list()
+    # d1 = np.copy(my_block.hdu_list["PRIMARY"].data[0, 0, :, -1])
+    # my_block._update_hdu_data(right_image, "right", add_mode=False)
+    # d2 = np.copy(my_block.hdu_list["PRIMARY"].data[0, 0, :, -1])
+    # er = np.amax(np.abs(d1 - d2)) / np.amax(np.abs(d1))
+    # print(er)
+    # assert er > 1.0e-6
+    # assert er < 0.5
+    my_block._load_or_save_hdu_list(load_mode=False)  # close the data
+    assert not hasattr(my_block, "hdu_list")
 
 
 def test_compress(tmp_path):

@@ -109,7 +109,7 @@ def test_overlap():
             test_image.header[k] = test_wcs[k]
         wcslist.append(WCS(test_image.header))
 
-    matrix = get_overlap_matrix(wcslist)
+    matrix = get_overlap_matrix(wcslist, verbose=True)
     target = np.array(
         [
             [1.0, 0.56543805, 0.20744693, 0.0],
@@ -119,6 +119,10 @@ def test_overlap():
         ]
     )
     assert np.amax(np.abs(matrix - target) < 0.01)
+
+    # compare subsampled matrix
+    matrix4 = get_overlap_matrix(wcslist, subsamp=4)
+    assert np.amax(np.abs(matrix - matrix4) < 0.01)
 
 
 def test_str2dirstem():
