@@ -5,7 +5,8 @@ import numpy as np
 from astropy.io import fits
 from pyimcom.splitpsf.imsubtract import fftconvolve_multi
 from pyimcom.splitpsf.imsubtract_wrapper import run_imsubtract_all
-from pyimcom.splitpsf.splitpsf import split_psf_single, split_psf_to_fits
+from pyimcom.splitpsf.splitpsf import split_psf_to_fits
+from pyimcom.splitpsf.splitpsf_wrapper import split_psf_single
 from scipy.signal import fftconvolve
 
 PSF_FILE = "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/psf_test.fits"
