@@ -1,6 +1,6 @@
 import os
 import re
-
+import urllib.request
 import numpy as np
 from astropy.io import fits
 from pyimcom.splitpsf.imsubtract import fftconvolve_multi
@@ -181,9 +181,9 @@ def test_run_imsubtract_all(config_file=IMSUBTRACT_CONFIG):
     This test runs the imsubtract pipeline on a small set of images specified in the config file,
     and checks that the output files are created and have the expected properties.
     """
-    # if config_file.startswith("http"):
-    #         urllib.request.urlretrieve(config_file, "test_imsubtract_config.json")
-    #         config_file = "test_imsubtract_config.json"
+    if config_file.startswith("http"):
+            urllib.request.urlretrieve(config_file, "test_imsubtract_config.json")
+            config_file = "test_imsubtract_config.json"
 
     run_imsubtract_all(config_file, workers=2, max_imgs=2, display="/dev/null", local_output=True)
 
@@ -212,3 +212,14 @@ def test_run_imsubtract_all(config_file=IMSUBTRACT_CONFIG):
             image_original
         ), f"Output file {fname} has a larger sum than the original image."
         assert np.mean(diff) < 0, "Mean diff should be less than zero."
+
+        # Compare diff cutout with the expected cutout
+        with fits.open(f"{IMSUBTRACT_INPUT_PATH}/{obsid:08d}_{scaid:02d}_diff_cutout.fits") as f:
+            expected_diff_cutout = f[0].data
+            ymin, ymax = f[0].header["YSTART"], f[0].header["YSTOP"]
+            xmin, xmax = f[0].header["XSTART"], f[0].header["XSTOP"]
+
+        diff_cutout = diff[ymin:ymax, xmin:xmax]
+        assert np.allclose(diff_cutout,
+                            expected_diff_cutout, 
+                            atol=1e-6),  f"Diff cutout for {fname} does not match expected values."
