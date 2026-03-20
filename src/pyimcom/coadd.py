@@ -2150,7 +2150,7 @@ class Block:
         config_hdu.header["BLOCKX"] = self.ibx
         config_hdu.header["BLOCKY"] = self.iby
         if is_final:
-            for package in ["numpy", "scipy", "astropy", "fitsio", "asdf", "pyimcom"]:
+            for package in ["numpy", "scipy", "astropy", "fitsio", "asdf", "pyimcom", "furry_parakeet"]:
                 keyword = "V" + package.upper()[:7]
                 pkgname = package
                 if package == "numpy":
