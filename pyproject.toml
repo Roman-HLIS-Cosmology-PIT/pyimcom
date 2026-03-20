@@ -43,7 +43,7 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
-write_to = "src/pyimcom/_version.py"
+version_file = "src/pyimcom/_version.py"
 
 [tool.pytest.ini_options]
 testpaths = [
