@@ -14,7 +14,6 @@ ReadFile
     Stand-alone function to read a compressed FITS file.
 
 """
-
 import re
 from urllib.parse import urlparse
 
