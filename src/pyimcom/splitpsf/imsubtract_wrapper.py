@@ -269,7 +269,9 @@ def run_imsubtract_single(
                         c="blueviolet",
                         marker="o",
                     )
-                    pltshow(plt, display, {"type": "window", "obsid": obsid, "sca": scaid, "ix": ix, "iy": iy})
+                    pltshow(
+                        plt, display, {"type": "window", "obsid": obsid, "sca": scaid, "ix": ix, "iy": iy}
+                    )
 
             print(f"+ figure: {time.time()-t0:6.2f}")
             gc.collect()
