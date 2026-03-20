@@ -176,7 +176,7 @@ def test_fftconvolve_multi():
     assert np.amax(np.abs(out1 - out2)) < 1e-9 * np.amax(np.abs(out1))
 
 
-def test_run_imsubtract_all(config_file=IMSUBTRACT_CONFIG):
+def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
     """
     Test the run_imsubtract_all function.
     This test runs the imsubtract pipeline on a small set of images specified in the config file,
@@ -186,10 +186,16 @@ def test_run_imsubtract_all(config_file=IMSUBTRACT_CONFIG):
         urllib.request.urlretrieve(config_file, "test_imsubtract_config.json")
         config_file = "test_imsubtract_config.json"
 
+    with open(config_file, "r") as f:
+        cfg_text = f.read()
+    cfg_text = cfg_text.replace("$TMPDIR", str(tmp_path))
+    with open(config_file, "w") as f:
+        f.write(cfg_text)
+
     run_imsubtract_all(config_file, workers=2, max_imgs=2, display="/dev/null", local_output=True)
 
     # Check for outputs:
-    expected_files = ["$TMPDIR/00013912_17_subI.fits", "$TMPDIR/00000775_08_subI.fits"]
+    expected_files = [f"{tmp_path}/00013912_17_subI.fits", f"{tmp_path}/00000775_08_subI.fits"]
     for fname in expected_files:
         assert os.path.isfile(fname), f"Expected output file {fname} not found."
 
