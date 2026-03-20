@@ -477,16 +477,6 @@ def run_imsubtract(
                         pltshow(
                             plt, display, {"type": "window", "obsid": obsid, "sca": sca, "ix": ix, "iy": iy}
                         )
-                # print(
-                #     window[block_length - 1],
-                #     window[block_length - 2 * overlap],
-                #     window[block_length - 1] + window[block_length - 2 * overlap],
-                # )
-                # print(
-                #     window[block_length - overlap],
-                #     window[block_length - overlap - 1],
-                #     window[block_length - overlap] + window[block_length - overlap - 1],
-                # )
 
                 print(f"+ figure: {time.time()-t0:6.2f}")
                 sys.stdout.flush()
