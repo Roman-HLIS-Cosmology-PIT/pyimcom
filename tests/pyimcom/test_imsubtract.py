@@ -1,6 +1,7 @@
 import os
 import re
 import urllib.request
+
 import numpy as np
 from astropy.io import fits
 from pyimcom.splitpsf.imsubtract import fftconvolve_multi
@@ -182,8 +183,8 @@ def test_run_imsubtract_all(config_file=IMSUBTRACT_CONFIG):
     and checks that the output files are created and have the expected properties.
     """
     if config_file.startswith("http"):
-            urllib.request.urlretrieve(config_file, "test_imsubtract_config.json")
-            config_file = "test_imsubtract_config.json"
+        urllib.request.urlretrieve(config_file, "test_imsubtract_config.json")
+        config_file = "test_imsubtract_config.json"
 
     run_imsubtract_all(config_file, workers=2, max_imgs=2, display="/dev/null", local_output=True)
 
@@ -220,6 +221,6 @@ def test_run_imsubtract_all(config_file=IMSUBTRACT_CONFIG):
             xmin, xmax = f[0].header["XSTART"], f[0].header["XSTOP"]
 
         diff_cutout = diff[ymin:ymax, xmin:xmax]
-        assert np.allclose(diff_cutout,
-                            expected_diff_cutout, 
-                            atol=1e-6),  f"Diff cutout for {fname} does not match expected values."
+        assert np.allclose(
+            diff_cutout, expected_diff_cutout, atol=1e-6
+        ), f"Diff cutout for {fname} does not match expected values."
