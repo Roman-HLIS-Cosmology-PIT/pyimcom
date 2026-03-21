@@ -50,14 +50,17 @@ def piff_to_legendre(psf_file, chipnum, stamp_size=128, oversamp=6, legendre_ord
             s = np.linspace(-0.5 + 0.5 / oversamp, 0.5 - 0.5 / oversamp, oversamp)
             for j in range(oversamp):
                 for i in range(oversamp):
-                    stamp[j::oversamp, i::oversamp] = psf.draw(
+                    te = psf.draw(
                         chipnum=chipnum,
                         x=x,
                         y=y,
                         center=True,
                         offset=(-s[i], -s[j]),
-                        stamp_size=stamp_size, sca=chipnum
+                        stamp_size=stamp_size,
+                        sca=chipnum
                     ).array
+                    print(stamp_size, oversamp, np.shape(te), np.shape(stamp), np.shape(stamp[j::oversamp, i::oversamp]))
+                    stamp[j::oversamp, i::oversamp] = te
             # For each pair of Legendre orders, update the corresponding coefficient image
             idx = 0
             for v_order in range(legendre_order + 1):
