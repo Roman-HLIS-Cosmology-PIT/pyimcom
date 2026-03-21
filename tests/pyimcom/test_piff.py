@@ -1,10 +1,16 @@
 from unittest.mock import MagicMock, patch
 
 import numpy as np
+import piff
 import pytest
+import urllib.request
 
 # Replace 'your_module' with the actual name of your script
 from pyimcom.utils.piffutils import piff_to_legendre
+
+EXAMPLE_FILE = (
+    "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/ffov_13906_11.piff"
+)
 
 
 @pytest.fixture
@@ -105,3 +111,19 @@ def test_psf_draw_arguments(mock_piff_read):
     # Ensure x and y were scaled appropriately (between 0 and 4088)
     assert 0 <= first_call_kwargs["x"] <= 4088
     assert 0 <= first_call_kwargs["y"] <= 4088
+
+
+def test_piff_decomposition(tmp_path):
+    """Test decomposition of a PIFF file into Legendre polynomials."""
+
+    # Download the test file to `floc`
+    tmp_dir = str(tmp_path)
+    floc = tmp_dir + "/test_F_02_11.fits"
+    urllib.request.urlretrieve(EXAMPLE_FILE, floc)
+
+    coeffs = piff_to_legendre(floc, 11, stamp_size=64, oversamp=6, legendre_order=2)
+    print(np.shape(coeffs))
+    # center of image
+    print(coeffs[0, 186:198, 186:198])
+
+    assert coeffs == 0  # will fail, this is just to capture output
