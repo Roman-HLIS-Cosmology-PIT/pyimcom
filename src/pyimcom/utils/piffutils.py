@@ -3,7 +3,7 @@ import piff
 from numpy.polynomial import legendre
 
 
-def piff_to_legendre(psf_file, chipnum, stamp_size=128, oversamp=6, legendre_order=5):
+def piff_to_legendre(psf_file, chipnum, stamp_size=128, oversamp=6, legendre_order=5, normbox=None):
     """Convert a PSF file from piff to a Legendre polynomial expansion.
 
     Parameters
@@ -18,13 +18,18 @@ def piff_to_legendre(psf_file, chipnum, stamp_size=128, oversamp=6, legendre_ord
         The oversampling factor for the PSF stamp. Default is 6.
     legendre_order : int, optional
         Polynomial order for Legendre polynomial expansion. Default is 5.
-
+    normbox : int, optional
+        If given, normalizes the PSF to integrate to 1 in the specified box size (which may be
+        different from the region size used in Piff; we envision it will be larger if the PSF has
+        far wings that are not re-fit by Piff, e.g., from a physical model or fit to scattered
+        light in stacked bright stars, etc.).
 
     Returns
     -------
     coeffs : np.ndarray of shape ((legendre order + 1)**2, stamp_size*oversamp, stamp_size*oversamp)
         The coefficients of the Legendre polynomial expansion.
     """
+
     # First read the psf via piff from given file
     psf = piff.read(psf_file)
 
@@ -47,25 +52,35 @@ def piff_to_legendre(psf_file, chipnum, stamp_size=128, oversamp=6, legendre_ord
     for iu, x in enumerate(quad_coords):
         for iv, y in enumerate(quad_coords):
             stamp = np.zeros((stamp_size * oversamp, stamp_size * oversamp), dtype=np.float32)
+
+            # get sub-PSFs in each region
             s = np.linspace(-0.5 + 0.5 / oversamp, 0.5 - 0.5 / oversamp, oversamp)
             for j in range(oversamp):
                 for i in range(oversamp):
-                    te = psf.draw(
+                    stamp[j::oversamp, i::oversamp] = psf.draw(
                         chipnum=chipnum,
                         x=x,
                         y=y,
                         center=True,
                         offset=(-s[i], -s[j]),
                         stamp_size=stamp_size,
-                        sca=chipnum
+                        sca=chipnum,
                     ).array
-                    print(stamp_size, oversamp, np.shape(te), np.shape(stamp), np.shape(stamp[j::oversamp, i::oversamp]))
-                    stamp[j::oversamp, i::oversamp] = te
+
+            # normalization
+            if normbox is not None:
+                stamp[:, :] /= np.sum(
+                    psf.draw(chipnum=chipnum, x=x, y=y, center=True, stamp_size=normbox, sca=chipnum).array
+                )
+
             # For each pair of Legendre orders, update the corresponding coefficient image
             idx = 0
             for v_order in range(legendre_order + 1):
                 for u_order in range(legendre_order + 1):
-                    norm = (2 * u_order + 1) * (2 * v_order + 1) / 4.0
+                    # Legendre polynomial normalization. Also includes oversamp**2 because
+                    # IMCOM expects the PSF to sum to 1 (so think of this as "fraction of response
+                    # in each subpixel").
+                    norm = (2 * u_order + 1) * (2 * v_order + 1) / 4.0 / oversamp**2
                     weight = (
                         norm
                         * quad_weights[iu]

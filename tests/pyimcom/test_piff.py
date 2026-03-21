@@ -1,11 +1,13 @@
+"""Test functions for the Piff interface."""
+
 import urllib.request
+import warnings
 from unittest.mock import MagicMock, patch
 
+import galsim
 import numpy as np
-import piff
 import pytest
-
-# Replace 'your_module' with the actual name of your script
+from astropy.io import fits
 from pyimcom.utils.piffutils import piff_to_legendre
 
 EXAMPLE_FILE = "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/ffov_13906_11.piff"
@@ -97,13 +99,13 @@ def test_psf_draw_arguments(mock_piff_read):
     mock_read.assert_called_once_with("test.piff")
 
     # Check total number of draw calls (should be (legendre_order + 1)^2)
-    expected_calls = (legendre_order + 1) ** 2
+    expected_calls = (legendre_order + 1) ** 2 * oversamp**2
     assert mock_psf.draw.call_count == expected_calls
 
     # Inspect the first call to ensure arguments are passed correctly
     first_call_kwargs = mock_psf.draw.call_args_list[0][1]
     assert first_call_kwargs["chipnum"] == chipnum
-    assert first_call_kwargs["stamp_size"] == stamp_size * oversamp
+    assert first_call_kwargs["stamp_size"] == stamp_size
     assert first_call_kwargs["sca"] == chipnum
 
     # Ensure x and y were scaled appropriately (between 0 and 4088)
@@ -119,9 +121,38 @@ def test_piff_decomposition(tmp_path):
     floc = tmp_dir + "/test_F_02_11.fits"
     urllib.request.urlretrieve(EXAMPLE_FILE, floc)
 
-    coeffs = piff_to_legendre(floc, 11, stamp_size=64, oversamp=6, legendre_order=2)
-    print(np.shape(coeffs))
-    # center of image
-    print(coeffs[0, 186:198, 186:198])
+    p = 3  # polynomial order
+    try:
+        coeffs = piff_to_legendre(floc, 11, stamp_size=64, oversamp=6, legendre_order=p, normbox=128)
+    except ValueError as ve:
+        # This way, we can catch the specific error if we aren't on the roman branch of Piff.
+        # (This is likely to become obsolete at some point.)
+        assert str(ve) == "ValueError: psf type RomanOptics is not a valid Piff PSF"
+        warnings.warn("Using an older version of Piff without RomanOptics support.")
+        return  # abort this test
 
-    assert coeffs == 0  # will fail, this is just to capture output
+    assert np.shape(coeffs) == ((p + 1) ** 2, 384, 384)
+
+    # center of image
+    k = 12
+    print(np.round(1.0e4 * coeffs[0, 192 - k : 192 + k, 192 - k : 192 + k], 0).astype(np.int16))
+    assert 0.0056 < np.amax(coeffs[0]) < 0.0063
+
+    # Gaussian fit
+    moms = galsim.hsm.FindAdaptiveMom(galsim.Image(coeffs[0]))
+    print(moms.moments_sigma)
+    print(moms.moments_centroid.x, moms.moments_centroid.y)
+    print(moms.observed_e1, moms.observed_e2)
+    assert 0.70 < moms.moments_sigma / 6.0 < 0.72
+    assert np.hypot(moms.moments_centroid.x - 192.5, moms.moments_centroid.y - 192.5) < 0.3
+    assert -0.020 < moms.observed_e1 < -0.015
+    assert -0.006 < moms.observed_e2 < -0.001
+
+    # sums
+    arr = np.sum(coeffs, axis=(1, 2))
+    print(arr)
+    assert 0.985 <= arr[0] <= 1.0
+    assert np.all(np.abs(arr[1:]) < 2.0e-4)
+
+    # writing is to look at the output if you do this locally
+    fits.PrimaryHDU(coeffs).writeto(tmp_dir + "/coeffs.fits", overwrite=True)
