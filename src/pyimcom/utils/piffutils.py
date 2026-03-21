@@ -46,9 +46,18 @@ def piff_to_legendre(psf_file, chipnum, stamp_size=128, oversamp=6, legendre_ord
     # Now, we draw the PSF at the given points.
     for iu, x in enumerate(quad_coords):
         for iv, y in enumerate(quad_coords):
-            stamp = psf.draw(
-                chipnum=chipnum, x=x, y=y, stamp_size=stamp_size * oversamp, sca=chipnum
-            ).array.astype(np.float32, copy=False)
+            stamp = np.zeros((stamp_size * oversamp, stamp_size * oversamp), dtype=np.float32)
+            s = np.linspace(-0.5 + 0.5 / oversamp, 0.5 - 0.5 / oversamp, oversamp)
+            for j in range(oversamp):
+                for i in range(oversamp):
+                    stamp[j::oversamp, i::oversamp] = psf.draw(
+                        chipnum=chipnum,
+                        x=x,
+                        y=y,
+                        center=True,
+                        offset=(-s[i], -s[j]),
+                        stamp_size=stamp_size, sca=chipnum
+                    ).array
             # For each pair of Legendre orders, update the corresponding coefficient image
             idx = 0
             for v_order in range(legendre_order + 1):
