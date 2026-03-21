@@ -1,16 +1,14 @@
+import urllib.request
 from unittest.mock import MagicMock, patch
 
 import numpy as np
 import piff
 import pytest
-import urllib.request
 
 # Replace 'your_module' with the actual name of your script
 from pyimcom.utils.piffutils import piff_to_legendre
 
-EXAMPLE_FILE = (
-    "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/ffov_13906_11.piff"
-)
+EXAMPLE_FILE = "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/ffov_13906_11.piff"
 
 
 @pytest.fixture
@@ -43,7 +41,7 @@ def test_output_shape(mock_piff_read):
     legendre_order = 3
 
     # Adjust our mock image to match the test's expected stamp size
-    mock_image._array = np.ones((stamp_size * oversamp, stamp_size * oversamp), dtype=np.float32)
+    mock_image._array = np.ones((stamp_size, stamp_size), dtype=np.float32)
 
     coeffs = piff_to_legendre(
         psf_file="dummy_path.piff",
@@ -70,7 +68,7 @@ def test_constant_psf_orthogonality(mock_piff_read):
     stamp_size = 10
     oversamp = 1
     legendre_order = 2
-    mock_image._array = np.ones((stamp_size * oversamp, stamp_size * oversamp), dtype=np.float32)
+    mock_image._array = np.ones((stamp_size, stamp_size), dtype=np.float32)
 
     coeffs = piff_to_legendre("dummy.piff", 1, stamp_size, oversamp, legendre_order)
 
@@ -91,7 +89,7 @@ def test_psf_draw_arguments(mock_piff_read):
     legendre_order = 1  # order 1 means 2 points per dimension (4 points total)
     chipnum = 14
 
-    mock_image._array = np.ones((stamp_size * oversamp, stamp_size * oversamp), dtype=np.float32)
+    mock_image._array = np.ones((stamp_size, stamp_size), dtype=np.float32)
 
     piff_to_legendre("test.piff", chipnum, stamp_size, oversamp, legendre_order)
 
