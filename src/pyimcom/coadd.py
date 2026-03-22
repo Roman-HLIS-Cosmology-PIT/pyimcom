@@ -1059,6 +1059,11 @@ class OutStamp:
         del lakernel
         # this produces: self.T, self.UC, self.Sigma, self.kappa
         # T: (n_out, n_outpix, n_inpix); others: (n_out, n2f, n2f)
+
+        # now visualize (if requested) and save
+        if visualize:
+            print()
+            self._visualize_coadd_matrices()
         if not save_abc:
             del self.sysmata, self.mhalfb, self.outovlc
 
@@ -1075,10 +1080,6 @@ class OutStamp:
                 f"{np.percentile(np.sqrt(self.Sigma), i):8.2E} |"
             )
         print(sumstats, flush=True)
-
-        if visualize:
-            print()
-            self._visualize_coadd_matrices()
 
         if self.blk.cfg.fade_kernel > 0:
             fade_kernel = self.blk.cfg.fade_kernel  # shortcut
@@ -1901,7 +1902,7 @@ class Block:
         for inimage in self.inimages:
             inimage.clear()
 
-    def _output_stamp_wrapper(self, i_st, j_st, n_coadded, sim_mode: bool = False):
+    def _output_stamp_wrapper(self, i_st, j_st, n_coadded, sim_mode: bool = False, visualize: bool = False):
         """
         Wrapper for output stamp coaddition.
 
@@ -1916,6 +1917,8 @@ class Block:
         sim_mode : bool, optional
             Whether to count references without actually making inpsfgrp.
             See the docstring of psfutil.SysMatA._compute_iisubmats.
+        visualize : bool, optional
+            Perform visualizations? (Usually just for testing.)
 
         Returns
         -------
@@ -1934,7 +1937,7 @@ class Block:
                 flush=True,
             )
             outst = self.outstamps[j_st][i_st]
-            outst()
+            outst(visualize=visualize)
 
             bottom = (j_st - 1) * self.cfg.n2
             top = j_st * self.cfg.n2 + self.cfg.fade_kernel * 2
@@ -1963,7 +1966,7 @@ class Block:
             inst.clear()
             self.instamps[j_st - 1][i_st - 1] = None
 
-    def coadd_output_stamps(self, sim_mode: bool = False) -> None:
+    def coadd_output_stamps(self, sim_mode: bool = False, visualize: bool = False) -> None:
         """
         Coadd output stamps using input stamps.
 
@@ -1972,6 +1975,8 @@ class Block:
         sim_mode : bool, optional
             Whether to count references without actually making inpsfgrp.
             See the docstring of psfutil.SysMatA._compute_iisubmats.
+        visualize : bool, optional
+            Perform visualizations? (Usually just for testing.)
 
         Returns
         -------
@@ -2013,7 +2018,7 @@ class Block:
         for j_st in range(self.j_st_min, self.j_st_max + 1, 2):
             for i_st in range(self.i_st_min, self.i_st_max + 1, 2):
                 for dj, di in product(range(2), range(2)):
-                    self._output_stamp_wrapper(i_st + di, j_st + dj, n_coadded, sim_mode)
+                    self._output_stamp_wrapper(i_st + di, j_st + dj, n_coadded, sim_mode, visualize)
                     n_coadded += 1
 
                     if n_coadded == self.nrun:

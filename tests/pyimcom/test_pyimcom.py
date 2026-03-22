@@ -1029,7 +1029,7 @@ def test_visualize(tmp_path, setup, monkeypatch):
     cfg2 = Config(tmp_path / "cfg.txt")
     cfg2.linear_algebra = "Empirical"
     cfg2.no_qlt_ctrl = False
-    cfg2.outstem += "_empir_alt"
+    cfg2.outstem += "_emp_alt"
     cfg2()
 
     # this sets up the block without running it
@@ -1038,13 +1038,13 @@ def test_visualize(tmp_path, setup, monkeypatch):
     # modified sequence from the __call__ function to run visualizations
     b.parse_config()
     b.process_input_images(visualize=True)
-    # b.build_input_stamps()
-    # b.coadd_output_stamps(sim_mode=True)
-    # b.coadd_output_stamps(sim_mode=False)
-    # b.build_output_file(is_final=True)
-    # b.clear_all()
+    b.build_input_stamps()
+    b.coadd_output_stamps(sim_mode=True)
+    b.coadd_output_stamps(sim_mode=False, visualize=True)
+    b.build_output_file(is_final=True)
+    b.clear_all()
 
     # provide the temporary path and number of plots generated
     outdata = str(tmp_path) + f"\n{_counter[0]:d}\n"
     print(outdata)
-    assert _counter[0] == 3
+    assert _counter[0] == 387
