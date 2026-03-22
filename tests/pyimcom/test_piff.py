@@ -127,7 +127,7 @@ def test_piff_decomposition(tmp_path):
     except ValueError as ve:
         # This way, we can catch the specific error if we aren't on the roman branch of Piff.
         # (This is likely to become obsolete at some point.)
-        assert str(ve) == "ValueError: psf type RomanOptics is not a valid Piff PSF"
+        assert str(ve) == "psf type RomanOptics is not a valid Piff PSF"
         warnings.warn("Using an older version of Piff without RomanOptics support.")
         return  # abort this test
 
