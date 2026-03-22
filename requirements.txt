@@ -18,3 +18,4 @@ requests
 s3fs
 aiohttp
 memory_profiler
+piff
