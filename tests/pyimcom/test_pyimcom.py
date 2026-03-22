@@ -32,6 +32,7 @@ from pyimcom.diagnostics.mosaicimage import MosaicImage
 from pyimcom.diagnostics.noise_diagnostics import NoiseReport
 from pyimcom.diagnostics.report import ValidationReport
 from pyimcom.diagnostics.stars import SimulatedStar
+from pyimcom.layer import Mask
 from pyimcom.layer_wrapper import build_all_layers, build_one_layer
 from pyimcom.psfutil import OutPSF
 from pyimcom.truthcats import gen_truthcats_from_cfg
@@ -416,6 +417,7 @@ def setup(tmp_path):
     # draw the images
     (tmp_path / "in").mkdir(parents=True, exist_ok=True)
     olog = ""
+    has_tried_fits = False  # we'll only do one FITS image
     for iobs in range(len(obs)):
         filt = data["filter"][iobs].decode("ascii")
         print(filt)
@@ -493,11 +495,12 @@ def setup(tmp_path):
                     # WCS test
                     assert _stand_alone_test(str(tmp_path / f"in/sim_L2_{filt:s}_{iobs:d}_{sca:d}.asdf"))
 
-                    # Also can write a FITS version to make sure we can ...
-                    # hope this is useful to look at if something goes wrong
-                    # fits.PrimaryHDU(im, header=this_wcs.to_header()).writeto(
-                    #     tmp_path / f"in/sim_L2_{filt:s}_{iobs:d}_{sca:d}_asfits.fits", overwrite=True
-                    # )
+                    # do a FITS image once to test some functionality
+                    if not has_tried_fits:
+                        has_tried_fits = True
+                        fitsfile = str(tmp_path / f"in/sim_L2_{filt:s}_{iobs:d}_{sca:d}_asfits.fits")
+                        fits.PrimaryHDU(im, header=this_wcs.to_header()).writeto(fitsfile, overwrite=True)
+                        assert _stand_alone_test(fitsfile)
 
                     # now make the masks
                     mask = np.zeros((nside, nside), dtype=np.uint8)
@@ -1039,7 +1042,7 @@ def test_visualize(tmp_path, setup, monkeypatch):
     b.parse_config()
     b.process_input_images(visualize=True)
     b.build_input_stamps()
-    b.coadd_output_stamps(sim_mode=True)
+    b.coadd_output_stamps(sim_mode=True, visualize=True)
     b.coadd_output_stamps(sim_mode=False, visualize=True)
     b.build_output_file(is_final=True)
     b.clear_all()
@@ -1047,4 +1050,43 @@ def test_visualize(tmp_path, setup, monkeypatch):
     # provide the temporary path and number of plots generated
     outdata = str(tmp_path) + f"\n{_counter[0]:d}\n"
     print(outdata)
-    assert _counter[0] == 387
+    ct = np.array([3, 384, 16], dtype=np.int32)  # target number of plots
+    print(_counter[0] - np.sum(ct))
+    assert _counter[0] == np.sum(ct)
+
+
+class _Empty:
+    """Dummy."""
+
+    def __init__(self):
+        pass
+
+
+class _DummyImage:
+    """Just to use for test_masks."""
+
+    def __init__(self):
+        self.idsca = (10, 12)
+        self.blk = _Empty()
+        self.blk.cfg = _Empty()
+        self.blk.cfg.extrainput = [None]
+        self.blk.cfg.cr_mask_rate = 0.002
+        self.indata = np.zeros((4088, 4088), dtype=np.float32)
+
+
+def test_masks(tmp_path, setup):
+    """Simple tests for mask functions."""
+
+    # This one tests masks for old formats (unlikely to use again, but we want to make sure
+    # the code still works).
+    cfg2 = Config(tmp_path / "cfg.txt")
+    cfg2.informat = "dc2_sim"  # this didn't have a per-observation mask
+    assert np.all(Mask.load_mask_from_maskfile(cfg2, -1, -1))
+
+    # Maks a cosmic ray mask (now superseded by romanisim, but we want to make sure the
+    # old method still works).
+
+    inimage = _DummyImage()
+    mask = Mask.load_cr_mask(inimage)
+    print(np.count_nonzero(mask))
+    assert 0.015 < np.mean((~mask).astype(np.float32)) < 0.020

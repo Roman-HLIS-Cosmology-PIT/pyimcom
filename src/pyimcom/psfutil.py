@@ -1893,7 +1893,12 @@ class SysMatA:
         return (*ji_st1, dist)
 
     def _compute_iisubmats(
-        self, ji_st1: (int, int), ji_st2: (int, int), sim_mode: bool = False, verbose: bool = False
+        self,
+        ji_st1: (int, int),
+        ji_st2: (int, int),
+        sim_mode: bool = False,
+        verbose: bool = False,
+        visualize: bool = False,
     ) -> None:
         """
         Make input-input PSFOvl and compute A submatrices.
@@ -1921,6 +1926,8 @@ class SysMatA:
             Whether to count references without actually computing submatrices.
         verbose : bool, optional
             Whether to print additional information.
+        visualize : bool, optional
+            Whether to make more plots.
 
         Returns
         -------
@@ -1932,7 +1939,7 @@ class SysMatA:
         ji_psf1 = SysMatA.ji_st2psf(ji_st1)
         ji_psf2 = SysMatA.ji_st2psf(ji_st2)
 
-        psfgrp1 = self.blk.instamps[ji_psf1[0]][ji_psf1[1]].get_inpsfgrp(sim_mode)
+        psfgrp1 = self.blk.instamps[ji_psf1[0]][ji_psf1[1]].get_inpsfgrp(sim_mode, visualize=visualize)
         if ji_psf1 != ji_psf2:
             psfgrp2 = self.blk.instamps[ji_psf2[0]][ji_psf2[1]].get_inpsfgrp(sim_mode)
         else:
@@ -1994,7 +2001,12 @@ class SysMatA:
                 print(f"--> finished computing {counter} input-input submatrices", "@", self.blk.timer(), "s")
 
     def get_iisubmat(
-        self, ji_st1: (int, int), ji_st2: (int, int), sim_mode: bool = False, ji_st_out: (int, int) = None
+        self,
+        ji_st1: (int, int),
+        ji_st2: (int, int),
+        sim_mode: bool = False,
+        ji_st_out: (int, int) = None,
+        visualize: bool = False,
     ) -> np.array:
         """
         Return the requested A submatrix.
@@ -2012,6 +2024,8 @@ class SysMatA:
             Whether to count references without actually computing submatrices.
         ji_st_out : (int, int)
             Index of the OutStamp. Needed for virtual memory.
+        visualize : bool, optional
+            Whether to make plots.
 
         Returns
         -------
@@ -2040,7 +2054,7 @@ class SysMatA:
                     fpath.unlink()
                     del fname, fpath
                 else:
-                    self._compute_iisubmats(ji_st1, ji_st2, sim_mode)
+                    self._compute_iisubmats(ji_st1, ji_st2, sim_mode, visualize=visualize)
             else:
                 self._compute_iisubmats(ji_st1, ji_st2, sim_mode)
         arr = self.iisubmats[(ji_st1, ji_st2)]

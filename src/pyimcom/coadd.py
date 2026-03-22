@@ -718,7 +718,7 @@ class InStamp:
         selection = np.array(np.where(dist_sq < radius**2)[0], dtype=np.uint32)
         return selection if (selection.shape[0] < self.pix_cumsum[-1]) else None
 
-    def get_inpsfgrp(self, sim_mode: bool = False) -> None:
+    def get_inpsfgrp(self, sim_mode: bool = False, visualize: bool = False) -> None:
         """
         Get the input PSFGrp attached to this InStamp.
 
@@ -730,6 +730,8 @@ class InStamp:
         sim_mode : bool, optional
             Whether to count references without actually making inpsfgrp.
             See the docstring of psfutil.SysMatA._compute_iisubmats.
+        visualize : bool, optional
+            Whether to visualize the PSF group.
 
         Returns
         -------
@@ -742,7 +744,7 @@ class InStamp:
             return
 
         if self.inpsfgrp is None:
-            self.inpsfgrp = PSFGrp(in_or_out=True, inst=self)
+            self.inpsfgrp = PSFGrp(in_or_out=True, inst=self, visualize=visualize)
 
         self.inpsfgrp_ref -= 1
         if self.inpsfgrp_ref > 0:
@@ -769,9 +771,11 @@ class OutStamp:
     blk : Block
         The Block instance to which this InStamp instance is attached.
     j_st : int
-            OutStamp index, vertical direction.
+        OutStamp index, vertical direction.
     i_st : int
-            OutStamp index, horizontal direction.
+        OutStamp index, horizontal direction.
+    visualize : bool, optional
+        Whether to run visualizations.
 
     Methods
     -------
@@ -809,7 +813,7 @@ class OutStamp:
         "Empirical": EmpirKernel,
     }
 
-    def __init__(self, blk: "Block", j_st: int, i_st: int) -> None:
+    def __init__(self, blk: "Block", j_st: int, i_st: int, visualize: bool = False) -> None:
         self.blk = blk
         self.j_st = j_st
         self.i_st = i_st
@@ -826,7 +830,7 @@ class OutStamp:
         # count references to PSF overlaps and system submatrices
         if not self.no_qlt_ctrl:
             for ji_st_in in self.ji_st_in_s:
-                blk.sysmata.get_iisubmat(ji_st_in, ji_st_in, sim_mode=True)
+                blk.sysmata.get_iisubmat(ji_st_in, ji_st_in, sim_mode=True, visualize=visualize)
                 blk.sysmatb.get_iosubmat(ji_st_in, (j_st, i_st), sim_mode=True)
 
             for ji_st_pair in combinations(self.ji_st_in_s, 2):
@@ -847,7 +851,7 @@ class OutStamp:
             self.left - fade_kernel : self.right + fade_kernel + 1,
         ]
 
-        self._process_input_stamps()
+        self._process_input_stamps(visualize=visualize)
 
     def _process_input_stamps(self, visualize: bool = False) -> None:
         """
@@ -1929,7 +1933,7 @@ class Block:
         assert 1 <= i_st <= self.cfg.n1P and 1 <= j_st <= self.cfg.n1P, "outstamp out of boundary"
 
         if sim_mode:  # count references to PSF overlaps and system submatrices
-            self.outstamps[j_st][i_st] = OutStamp(self, j_st, i_st)
+            self.outstamps[j_st][i_st] = OutStamp(self, j_st, i_st, visualize=visualize)
         else:
             print(
                 f"postage stamp {i_st:2d},{j_st:2d}  {100 * n_coadded / self.nrun:6.3f}% "
