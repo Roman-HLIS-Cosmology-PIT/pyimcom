@@ -185,6 +185,8 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
 
     tmp_dir = str(tmp_path)
     tmp_imsub = tmp_dir + "/temp_imsubtract"
+    # make temp_imsub directory
+    os.makedirs(tmp_imsub, exist_ok=True)
 
     if config_file.startswith("http"):
         urllib.request.urlretrieve(config_file, tmp_imsub + "/test_imsubtract_config.json")
