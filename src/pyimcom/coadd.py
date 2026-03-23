@@ -831,10 +831,10 @@ class OutStamp:
         if not self.no_qlt_ctrl:
             for ji_st_in in self.ji_st_in_s:
                 blk.sysmata.get_iisubmat(ji_st_in, ji_st_in, sim_mode=True, visualize=visualize)
-                blk.sysmatb.get_iosubmat(ji_st_in, (j_st, i_st), sim_mode=True)
+                blk.sysmatb.get_iosubmat(ji_st_in, (j_st, i_st), sim_mode=True, visualize=visualize)
 
             for ji_st_pair in combinations(self.ji_st_in_s, 2):
-                blk.sysmata.get_iisubmat(*ji_st_pair, sim_mode=True)
+                blk.sysmata.get_iisubmat(*ji_st_pair, sim_mode=True, visualize=visualize)
 
         # limit y and x positions of this output postage stamp, all integers
         # not including the transition pixels (of which the number
@@ -1049,7 +1049,7 @@ class OutStamp:
         for idx, ji_st_in in zip(range(9), self.ji_st_in_s, strict=False):
             self.mhalfb[
                 :, :, self.inpix_cumsum[idx] : self.inpix_cumsum[idx + 1]
-            ] = self.blk.sysmatb.get_iosubmat(ji_st_in, (self.j_st, self.i_st))
+            ] = self.blk.sysmatb.get_iosubmat(ji_st_in, (self.j_st, self.i_st), visualize=visualize)
 
         # and C
         self.outovlc = self.blk.outpsfovl.outovlc

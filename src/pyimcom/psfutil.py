@@ -1947,7 +1947,7 @@ class SysMatA:
 
         if not sim_mode:
             # make the input-input PSFOvl instance
-            iipsfovl = PSFOvl(psfgrp1, psfgrp2)
+            iipsfovl = PSFOvl(psfgrp1, psfgrp2, visualize=visualize)
 
         counter = 0
 
@@ -2116,7 +2116,9 @@ class SysMatB:
         # reference counts for the input-output PSFOvl's
         self.iopsfovls_ref = np.zeros((blk.cfg.n1P // 2 + 1, blk.cfg.n1P // 2 + 1), dtype=np.uint8)
 
-    def get_iosubmat(self, ji_st_in: (int, int), ji_st_out: (int, int), sim_mode: bool = False) -> np.array:
+    def get_iosubmat(
+        self, ji_st_in: (int, int), ji_st_out: (int, int), sim_mode: bool = False, visualize: bool = False
+    ) -> np.array:
         """
         Return a requested B submatrix.
 
@@ -2132,6 +2134,8 @@ class SysMatB:
             Index of the OutStamp.
         sim_mode : bool, optional
             Whether to count references without actually computing submatrices.
+        visualize : bool, optional
+            Whether to visualize the in-out overlap.
 
         Returns
         -------
@@ -2158,7 +2162,9 @@ class SysMatB:
         if inpsf_key not in self.iopsfovls:
             # get the input PSFGrp array and make the input-output PSFOvl instance
             inpsfgrp = self.blk.instamps[ji_st_inpsf[0]][ji_st_inpsf[1]].get_inpsfgrp(sim_mode)
-            self.iopsfovls[inpsf_key] = PSFOvl(inpsfgrp, self.blk.outpsfgrp) if not sim_mode else None
+            self.iopsfovls[inpsf_key] = (
+                PSFOvl(inpsfgrp, self.blk.outpsfgrp, visualize=visualize) if not sim_mode else None
+            )
 
             # remove the input PSFGrp array if it will never be referred to again
             if not sim_mode and self.blk.instamps[ji_st_inpsf[0]][ji_st_inpsf[1]].inpsfgrp_ref == 0:

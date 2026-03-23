@@ -1022,8 +1022,9 @@ def test_visualize(tmp_path, setup, monkeypatch):
     # new place to save figures, in sequence
     _counter = [0]
 
+    # max 1000 files
     def save_instead_of_show(count=_counter):
-        plt.savefig(tmp_path / f"plot_output_{count[0]:d}.png")
+        plt.savefig(tmp_path / f"plot_output_{count[0]%1000:d}.png")
         count[0] += 1
 
     monkeypatch.setattr(plt, "show", save_instead_of_show)
@@ -1050,7 +1051,7 @@ def test_visualize(tmp_path, setup, monkeypatch):
     # provide the temporary path and number of plots generated
     outdata = str(tmp_path) + f"\n{_counter[0]:d}\n"
     print(outdata)
-    ct = np.array([3, 384, 16], dtype=np.int32)  # target number of plots
+    ct = np.array([3, 384, 16, 9], dtype=np.int32)  # target number of plots
     print(_counter[0] - np.sum(ct))
     assert _counter[0] == np.sum(ct)
 
