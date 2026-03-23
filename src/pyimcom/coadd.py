@@ -718,7 +718,7 @@ class InStamp:
         selection = np.array(np.where(dist_sq < radius**2)[0], dtype=np.uint32)
         return selection if (selection.shape[0] < self.pix_cumsum[-1]) else None
 
-    def get_inpsfgrp(self, sim_mode: bool = False) -> None:
+    def get_inpsfgrp(self, sim_mode: bool = False, visualize: bool = False) -> None:
         """
         Get the input PSFGrp attached to this InStamp.
 
@@ -730,6 +730,8 @@ class InStamp:
         sim_mode : bool, optional
             Whether to count references without actually making inpsfgrp.
             See the docstring of psfutil.SysMatA._compute_iisubmats.
+        visualize : bool, optional
+            Whether to visualize the PSF group.
 
         Returns
         -------
@@ -742,7 +744,7 @@ class InStamp:
             return
 
         if self.inpsfgrp is None:
-            self.inpsfgrp = PSFGrp(in_or_out=True, inst=self)
+            self.inpsfgrp = PSFGrp(in_or_out=True, inst=self, visualize=visualize)
 
         self.inpsfgrp_ref -= 1
         if self.inpsfgrp_ref > 0:
@@ -769,9 +771,11 @@ class OutStamp:
     blk : Block
         The Block instance to which this InStamp instance is attached.
     j_st : int
-            OutStamp index, vertical direction.
+        OutStamp index, vertical direction.
     i_st : int
-            OutStamp index, horizontal direction.
+        OutStamp index, horizontal direction.
+    visualize : bool, optional
+        Whether to run visualizations.
 
     Methods
     -------
@@ -809,7 +813,7 @@ class OutStamp:
         "Empirical": EmpirKernel,
     }
 
-    def __init__(self, blk: "Block", j_st: int, i_st: int) -> None:
+    def __init__(self, blk: "Block", j_st: int, i_st: int, visualize: bool = False) -> None:
         self.blk = blk
         self.j_st = j_st
         self.i_st = i_st
@@ -826,11 +830,11 @@ class OutStamp:
         # count references to PSF overlaps and system submatrices
         if not self.no_qlt_ctrl:
             for ji_st_in in self.ji_st_in_s:
-                blk.sysmata.get_iisubmat(ji_st_in, ji_st_in, sim_mode=True)
-                blk.sysmatb.get_iosubmat(ji_st_in, (j_st, i_st), sim_mode=True)
+                blk.sysmata.get_iisubmat(ji_st_in, ji_st_in, sim_mode=True, visualize=visualize)
+                blk.sysmatb.get_iosubmat(ji_st_in, (j_st, i_st), sim_mode=True, visualize=visualize)
 
             for ji_st_pair in combinations(self.ji_st_in_s, 2):
-                blk.sysmata.get_iisubmat(*ji_st_pair, sim_mode=True)
+                blk.sysmata.get_iisubmat(*ji_st_pair, sim_mode=True, visualize=visualize)
 
         # limit y and x positions of this output postage stamp, all integers
         # not including the transition pixels (of which the number
@@ -847,7 +851,7 @@ class OutStamp:
             self.left - fade_kernel : self.right + fade_kernel + 1,
         ]
 
-        self._process_input_stamps()
+        self._process_input_stamps(visualize=visualize)
 
     def _process_input_stamps(self, visualize: bool = False) -> None:
         """
@@ -1045,7 +1049,7 @@ class OutStamp:
         for idx, ji_st_in in zip(range(9), self.ji_st_in_s, strict=False):
             self.mhalfb[
                 :, :, self.inpix_cumsum[idx] : self.inpix_cumsum[idx + 1]
-            ] = self.blk.sysmatb.get_iosubmat(ji_st_in, (self.j_st, self.i_st))
+            ] = self.blk.sysmatb.get_iosubmat(ji_st_in, (self.j_st, self.i_st), visualize=visualize)
 
         # and C
         self.outovlc = self.blk.outpsfovl.outovlc
@@ -1059,6 +1063,11 @@ class OutStamp:
         del lakernel
         # this produces: self.T, self.UC, self.Sigma, self.kappa
         # T: (n_out, n_outpix, n_inpix); others: (n_out, n2f, n2f)
+
+        # now visualize (if requested) and save
+        if visualize:
+            print()
+            self._visualize_coadd_matrices()
         if not save_abc:
             del self.sysmata, self.mhalfb, self.outovlc
 
@@ -1075,10 +1084,6 @@ class OutStamp:
                 f"{np.percentile(np.sqrt(self.Sigma), i):8.2E} |"
             )
         print(sumstats, flush=True)
-
-        if visualize:
-            print()
-            self._visualize_coadd_matrices()
 
         if self.blk.cfg.fade_kernel > 0:
             fade_kernel = self.blk.cfg.fade_kernel  # shortcut
@@ -1901,7 +1906,7 @@ class Block:
         for inimage in self.inimages:
             inimage.clear()
 
-    def _output_stamp_wrapper(self, i_st, j_st, n_coadded, sim_mode: bool = False):
+    def _output_stamp_wrapper(self, i_st, j_st, n_coadded, sim_mode: bool = False, visualize: bool = False):
         """
         Wrapper for output stamp coaddition.
 
@@ -1916,6 +1921,8 @@ class Block:
         sim_mode : bool, optional
             Whether to count references without actually making inpsfgrp.
             See the docstring of psfutil.SysMatA._compute_iisubmats.
+        visualize : bool, optional
+            Perform visualizations? (Usually just for testing.)
 
         Returns
         -------
@@ -1926,7 +1933,7 @@ class Block:
         assert 1 <= i_st <= self.cfg.n1P and 1 <= j_st <= self.cfg.n1P, "outstamp out of boundary"
 
         if sim_mode:  # count references to PSF overlaps and system submatrices
-            self.outstamps[j_st][i_st] = OutStamp(self, j_st, i_st)
+            self.outstamps[j_st][i_st] = OutStamp(self, j_st, i_st, visualize=visualize)
         else:
             print(
                 f"postage stamp {i_st:2d},{j_st:2d}  {100 * n_coadded / self.nrun:6.3f}% "
@@ -1934,7 +1941,7 @@ class Block:
                 flush=True,
             )
             outst = self.outstamps[j_st][i_st]
-            outst()
+            outst(visualize=visualize)
 
             bottom = (j_st - 1) * self.cfg.n2
             top = j_st * self.cfg.n2 + self.cfg.fade_kernel * 2
@@ -1963,7 +1970,7 @@ class Block:
             inst.clear()
             self.instamps[j_st - 1][i_st - 1] = None
 
-    def coadd_output_stamps(self, sim_mode: bool = False) -> None:
+    def coadd_output_stamps(self, sim_mode: bool = False, visualize: bool = False) -> None:
         """
         Coadd output stamps using input stamps.
 
@@ -1972,6 +1979,8 @@ class Block:
         sim_mode : bool, optional
             Whether to count references without actually making inpsfgrp.
             See the docstring of psfutil.SysMatA._compute_iisubmats.
+        visualize : bool, optional
+            Perform visualizations? (Usually just for testing.)
 
         Returns
         -------
@@ -2013,7 +2022,7 @@ class Block:
         for j_st in range(self.j_st_min, self.j_st_max + 1, 2):
             for i_st in range(self.i_st_min, self.i_st_max + 1, 2):
                 for dj, di in product(range(2), range(2)):
-                    self._output_stamp_wrapper(i_st + di, j_st + dj, n_coadded, sim_mode)
+                    self._output_stamp_wrapper(i_st + di, j_st + dj, n_coadded, sim_mode, visualize)
                     n_coadded += 1
 
                     if n_coadded == self.nrun:

@@ -997,7 +997,7 @@ class Mask:
 
             try:
                 idx = config.extrainput.index("labnoise")
-            except KeyError:
+            except (KeyError, ValueError):
                 pass
             else:
                 cr_mask = np.logical_and(cr_mask, np.abs(inimage.indata[idx]) < config.labnoisethreshold)
