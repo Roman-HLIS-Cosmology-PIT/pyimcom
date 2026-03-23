@@ -182,33 +182,45 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
     This test runs the imsubtract pipeline on a small set of images specified in the config file,
     and checks that the output files are created and have the expected properties.
     """
+
+    tmp_dir = str(tmp_path)
+    tmp_imsub = tmp_dir + "/temp_imsubtract"
+
     if config_file.startswith("http"):
-        urllib.request.urlretrieve(config_file, "test_imsubtract_config.json")
+        urllib.request.urlretrieve(config_file, "test_imsubtract_config.json", tmp_imsub)
         config_file = "test_imsubtract_config.json"
+
+    # read cache files into tmp_imsub
+    for filename in os.listdir(IMSUBTRACT_INPUT_PATH + "/cache"):
+        src = os.path.join(IMSUBTRACT_INPUT_PATH + "/cache", filename)
+        dst = os.path.join(tmp_imsub, filename)
+        urllib.request.urlretrieve(src, dst)
 
     with open(config_file, "r") as f:
         cfg_text = f.read()
-    cfg_text = cfg_text.replace("$TMPDIR", str(tmp_path))
+    cfg_text = cfg_text.replace("$TMPDIR", tmp_dir)
+    cfg_text = cfg_text.replace("$CACHE", tmp_imsub + "/r1")
     with open(config_file, "w") as f:
         f.write(cfg_text)
 
-    run_imsubtract_all(config_file, workers=2, max_imgs=2, display="/dev/null", local_output=True)
+    run_imsubtract_all(config_file, workers=2, max_imgs=2, display="/dev/null")
 
     # Check for outputs:
-    expected_files = [f"{tmp_path}/00013912_17_subI.fits", f"{tmp_path}/00000775_08_subI.fits"]
+    expected_files = [f"{tmp_imsub}/r1_00013912_17_subI.fits", f"{tmp_imsub}/r1_00000670_12_subI.fits"]
     for fname in expected_files:
         assert os.path.isfile(fname), f"Expected output file {fname} not found."
 
     # Check that the output files have the expected properties
     for fname in expected_files:
-        m = re.search(r"(\d{8})_(\d{2})_subI\.fits", fname)
+        m = re.search(r"r1_(\d{8})_(\d{2})_subI\.fits", fname)
         obsid = int(m.group(1))
         scaid = int(m.group(2))
+        print("Testing file:", fname, "with obsid:", obsid, "and scaid:", scaid)
 
         # Fetch the files
         with fits.open(fname) as f:
             image_subtracted = f[0].data[1, :, :]
-        with fits.open(f"{IMSUBTRACT_INPUT_PATH}/cache/r1_{obsid:08d}_{scaid:02d}.fits") as f:
+        with fits.open(f"{tmp_imsub}/r1_{obsid:08d}_{scaid:02d}.fits") as f:
             image_original = f[0].data[1, :, :]
 
         diff = image_subtracted - image_original
