@@ -45,7 +45,7 @@ def create_test_wcs(ra, dec, test_size=100, offset=False):
     return outwcs
 
 
-class TestConfig:
+class MinimalConfig:
     """
     Class defining a minimal config object for testing.
     """
@@ -75,7 +75,7 @@ def create_test_config(ds_rows=100, ds_model="constant", cost_model="quadratic")
     Returns a Config-like object with necessary attributes.
     """
 
-    config = TestConfig(ds_rows=ds_rows, ds_model=ds_model, cost_model=cost_model)
+    config = MinimalConfig(ds_rows=ds_rows, ds_model=ds_model, cost_model=cost_model)
 
     return config
 
