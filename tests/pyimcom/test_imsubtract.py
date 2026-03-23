@@ -187,8 +187,8 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
     tmp_imsub = tmp_dir + "/temp_imsubtract"
 
     if config_file.startswith("http"):
-        urllib.request.urlretrieve(config_file, "test_imsubtract_config.json", tmp_imsub)
-        config_file = "test_imsubtract_config.json"
+        urllib.request.urlretrieve(config_file, tmp_imsub + "/test_imsubtract_config.json")
+        config_file = tmp_imsub + "/test_imsubtract_config.json"
 
     # read cache files into tmp_imsub
     for filename in os.listdir(IMSUBTRACT_INPUT_PATH + "/cache"):
