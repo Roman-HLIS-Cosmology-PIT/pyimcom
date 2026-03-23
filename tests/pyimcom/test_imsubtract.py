@@ -193,10 +193,11 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
         config_file = tmp_imsub + "/test_imsubtract_config.json"
 
     # read cache files into tmp_imsub
-    for filename in os.listdir(IMSUBTRACT_INPUT_PATH + "/cache"):
-        src = os.path.join(IMSUBTRACT_INPUT_PATH + "/cache", filename)
-        dst = os.path.join(tmp_imsub, filename)
-        urllib.request.urlretrieve(src, dst)
+    cache_files = ["r1_00013912_17.fits.gz", "r1_00000670_12.fits.gz"]
+    for filename in cache_files:
+        cf_url = IMSUBTRACT_INPUT_PATH + "/cache/" + filename
+        cf_local = os.path.join(tmp_imsub, filename)
+        urllib.request.urlretrieve(cf_url, cf_local)
 
     with open(config_file, "r") as f:
         cfg_text = f.read()
@@ -222,7 +223,7 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
         # Fetch the files
         with fits.open(fname) as f:
             image_subtracted = f[0].data[1, :, :]
-        with fits.open(f"{tmp_imsub}/r1_{obsid:08d}_{scaid:02d}.fits") as f:
+        with fits.open(f"{tmp_imsub}/r1_{obsid:08d}_{scaid:02d}.fits.gz") as f:
             image_original = f[0].data[1, :, :]
 
         diff = image_subtracted - image_original
@@ -235,7 +236,10 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
         assert np.mean(diff) < 0, "Mean diff should be less than zero."
 
         # Compare diff cutout with the expected cutout
-        with fits.open(f"{IMSUBTRACT_INPUT_PATH}/{obsid:08d}_{scaid:02d}_diff_cutout.fits") as f:
+        cutout_url = f"{IMSUBTRACT_INPUT_PATH}/{obsid:08d}_{scaid:02d}_diff_cutout.fits"
+        cutout_local = os.path.join(tmp_imsub, f"{obsid:08d}_{scaid:02d}_diff_cutout.fits")
+        urllib.request.urlretrieve(cutout_url, cutout_local)
+        with fits.open(cutout_local) as f:
             expected_diff_cutout = f[0].data
             ymin, ymax = f[0].header["YSTART"], f[0].header["YSTOP"]
             xmin, xmax = f[0].header["XSTART"], f[0].header["XSTOP"]
