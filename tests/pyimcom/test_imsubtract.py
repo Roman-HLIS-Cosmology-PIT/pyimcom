@@ -1,5 +1,6 @@
 import os
 import re
+import subprocess
 import urllib.request
 
 import numpy as np
@@ -193,10 +194,25 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
         config_file = tmp_imsub + "/test_imsubtract_config.json"
 
     # read cache files into tmp_imsub
-    cache_files = ["r1_00013912_17.fits.gz", "r1_00000670_12.fits.gz"]
+    cache_files = [
+        "r1_00013912_17.fits.gz",
+        "r1_00000670_12.fits.gz",
+        "r1_00013912_17_wcs.asdf",
+        "r1_00000670_12_wcs.asdf",
+    ]
     for filename in cache_files:
         cf_url = IMSUBTRACT_INPUT_PATH + "/cache/" + filename
         cf_local = os.path.join(tmp_imsub, filename)
+        urllib.request.urlretrieve(cf_url, cf_local)
+        if cf_local[-3:] == ".gz":
+            subprocess.run(["gunzip", cf_local])  # files on wiki were gzipped
+
+    # psf files
+    tmp_psf = tmp_imsub + "/r1.psf"
+    os.makedirs(tmp_psf, exist_ok=True)
+    for filename in ["psf_13912.fits", "psf_670.fits"]:
+        cf_url = IMSUBTRACT_INPUT_PATH + "/cache/r1.psf/" + filename
+        cf_local = os.path.join(tmp_psf, filename)
         urllib.request.urlretrieve(cf_url, cf_local)
 
     with open(config_file, "r") as f:
