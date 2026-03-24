@@ -188,6 +188,7 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
     tmp_imsub = tmp_dir + "/temp_imsubtract"
     # make temp_imsub directory
     os.makedirs(tmp_imsub, exist_ok=True)
+    os.makedirs(tmp_imsub + "/blocks", exist_ok=True)
 
     if config_file.startswith("http"):
         urllib.request.urlretrieve(config_file, tmp_imsub + "/test_imsubtract_config.json")
@@ -199,6 +200,10 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
         "r1_00000670_12.fits.gz",
         "r1_00013912_17_wcs.asdf",
         "r1_00000670_12_wcs.asdf",
+        "blocks/im3x2-H1_32_00.fits",
+        "blocks/im3x2-H1_35_02.fits",
+        "blocks/im3x2-H1_36_02.fits",
+        "blocks/im3x2-H1_37_02.fits",
     ]
     for filename in cache_files:
         cf_url = IMSUBTRACT_INPUT_PATH + "/cache/" + filename
@@ -219,6 +224,10 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
         cfg_text = f.read()
     cfg_text = cfg_text.replace("$TMPDIR", tmp_dir)
     cfg_text = cfg_text.replace("$CACHE", tmp_imsub + "/r1")
+    cfg_text = cfg_text.replace(
+        "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/imsubtract/blocks/im3x2-H1",
+        tmp_imsub + "/blocks/im3x2-H1"
+    )
     with open(config_file, "w") as f:
         f.write(cfg_text)
 
