@@ -208,10 +208,10 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
         if cf_local[-3:] == ".gz":
             subprocess.run(["gunzip", cf_local])  # files on wiki were gzipped
     block_files = [
-        "blocks/im3x2-H1_32_00.fits",
-        "blocks/im3x2-H1_35_02.fits",
-        "blocks/im3x2-H1_36_02.fits",
-        "blocks/im3x2-H1_37_02.fits",
+        "im3x2-H1_32_00.fits",
+        "im3x2-H1_35_02.fits",
+        "im3x2-H1_36_02.fits",
+        "im3x2-H1_37_02.fits",
     ]
     for filename in block_files:
         cf_url = IMSUBTRACT_INPUT_PATH + "/blocks/" + filename
