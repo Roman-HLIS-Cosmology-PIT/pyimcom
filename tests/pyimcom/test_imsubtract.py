@@ -232,7 +232,7 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
     cfg_text = cfg_text.replace("$CACHE", tmp_imsub + "/r1")
     cfg_text = cfg_text.replace(
         "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/imsubtract/blocks/im3x2-H1",
-        tmp_imsub + "/blocks/im3x2-H1"
+        tmp_imsub + "/blocks/im3x2-H1",
     )
     with open(config_file, "w") as f:
         f.write(cfg_text)
