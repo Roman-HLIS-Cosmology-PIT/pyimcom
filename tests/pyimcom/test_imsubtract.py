@@ -200,10 +200,6 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
         "r1_00000670_12.fits.gz",
         "r1_00013912_17_wcs.asdf",
         "r1_00000670_12_wcs.asdf",
-        "blocks/im3x2-H1_32_00.fits",
-        "blocks/im3x2-H1_35_02.fits",
-        "blocks/im3x2-H1_36_02.fits",
-        "blocks/im3x2-H1_37_02.fits",
     ]
     for filename in cache_files:
         cf_url = IMSUBTRACT_INPUT_PATH + "/cache/" + filename
@@ -211,6 +207,16 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
         urllib.request.urlretrieve(cf_url, cf_local)
         if cf_local[-3:] == ".gz":
             subprocess.run(["gunzip", cf_local])  # files on wiki were gzipped
+    block_files = [
+        "blocks/im3x2-H1_32_00.fits",
+        "blocks/im3x2-H1_35_02.fits",
+        "blocks/im3x2-H1_36_02.fits",
+        "blocks/im3x2-H1_37_02.fits",
+    ]
+    for filename in block_files:
+        cf_url = IMSUBTRACT_INPUT_PATH + "/blocks/" + filename
+        cf_local = os.path.join(tmp_imsub, filename)
+        urllib.request.urlretrieve(cf_url, cf_local)
 
     # psf files
     tmp_psf = tmp_imsub + "/r1.psf"
@@ -230,6 +236,10 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
     )
     with open(config_file, "w") as f:
         f.write(cfg_text)
+
+    # Diagnostic output
+    print(cfg_text)
+    print(os.walk(tmp_imsub))
 
     run_imsubtract_all(config_file, workers=2, max_imgs=2, display="/dev/null")
 
