@@ -5,8 +5,9 @@ import urllib.request
 
 import numpy as np
 from astropy.io import fits
+from pyimcom.config import Config
 from pyimcom.splitpsf.imsubtract import fftconvolve_multi
-from pyimcom.splitpsf.imsubtract_wrapper import run_imsubtract_all
+from pyimcom.splitpsf.imsubtract_wrapper import run_imsubtract_all, run_imsubtract_single
 from pyimcom.splitpsf.splitpsf import split_psf_to_fits
 from pyimcom.splitpsf.splitpsf_wrapper import split_psf_single
 from scipy.signal import fftconvolve
@@ -215,7 +216,7 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
     ]
     for filename in block_files:
         cf_url = IMSUBTRACT_INPUT_PATH + "/blocks/" + filename
-        cf_local = os.path.join(tmp_imsub, filename)
+        cf_local = os.path.join(tmp_imsub + "/blocks", filename)
         urllib.request.urlretrieve(cf_url, cf_local)
 
     # psf files
@@ -241,6 +242,14 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
     print(cfg_text)
     print(os.walk(tmp_imsub))
 
+    # single run (this ensures that the codecov tracking works since it doesn't follow subprocesses)
+    run_imsubtract_single(
+        Config(config_file), 17, 13912, tmp_imsub, "r1_00013912_17.fits", display="/dev/null"
+    )
+    with fits.open(f"{tmp_imsub}/r1_00013912_17_subI.fits") as f:
+        single_run = np.copy(f[0].data)
+
+    # full multi run
     run_imsubtract_all(config_file, workers=2, max_imgs=2, display="/dev/null")
 
     # Check for outputs:
@@ -258,7 +267,7 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
         # Fetch the files
         with fits.open(fname) as f:
             image_subtracted = f[0].data[1, :, :]
-        with fits.open(f"{tmp_imsub}/r1_{obsid:08d}_{scaid:02d}.fits.gz") as f:
+        with fits.open(f"{tmp_imsub}/r1_{obsid:08d}_{scaid:02d}.fits") as f:
             image_original = f[0].data[1, :, :]
 
         diff = image_subtracted - image_original
@@ -271,8 +280,8 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
         assert np.mean(diff) < 0, "Mean diff should be less than zero."
 
         # Compare diff cutout with the expected cutout
-        cutout_url = f"{IMSUBTRACT_INPUT_PATH}/{obsid:08d}_{scaid:02d}_diff_cutout.fits"
-        cutout_local = os.path.join(tmp_imsub, f"{obsid:08d}_{scaid:02d}_diff_cutout.fits")
+        cutout_url = f"{IMSUBTRACT_INPUT_PATH}/{obsid:d}_{scaid:d}_diff_cutout.fits"
+        cutout_local = os.path.join(tmp_imsub, f"{obsid:d}_{scaid:d}_diff_cutout.fits")
         urllib.request.urlretrieve(cutout_url, cutout_local)
         with fits.open(cutout_local) as f:
             expected_diff_cutout = f[0].data
@@ -283,3 +292,7 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
         assert np.allclose(
             diff_cutout, expected_diff_cutout, atol=1e-6
         ), f"Diff cutout for {fname} does not match expected values."
+
+    # compare "single" to "all" case
+    with fits.open(f"{tmp_imsub}/r1_00013912_17_subI.fits") as f:
+        assert np.allclose(f[0].data, single_run, rtol=1.0e-6, atol=1.0e-6)
