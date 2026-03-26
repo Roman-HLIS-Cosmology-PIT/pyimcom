@@ -302,7 +302,7 @@ class CompressedOutput:
         j = 0
         while j < len(self.hdul):
             if self.hdul[j].name[:4] == "HSHX":
-                layer_target = int(self.hdul[j].name[-4:], 0x10)
+                layer_target = int(self.hdul[j].name[-4:], 0x10)  # this is a layer number
                 self.hdul[0].data[0, layer_target, :, :] = CompressedOutput.decompress_2d_image(
                     self.hdul[j].data,
                     self.hdul[j].header["SCHEME"],
@@ -423,7 +423,7 @@ def _parser(fname):
     return outname
 
 
-def ReadFile(fname):
+def ReadFile(fname, layers=None):
     """Wrapper to read a compressed file.
 
     This should read a file just like astropy.io.fits.open(fname, mode='readonly'),
@@ -433,6 +433,9 @@ def ReadFile(fname):
     ----------
     fname : str or str-like
         File name to read.
+    layers : list, optional
+        Which layers to de-compress (if given; otherwise de-compresses everything).
+        Use only for reading (don't write an instance initialized with `layers` to a file).
 
     Notes
     -----
