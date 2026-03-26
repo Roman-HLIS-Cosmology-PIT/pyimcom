@@ -83,9 +83,17 @@ class LayerReport(ReportSection):
 
                 del _load_row
 
-            # get percentiles
+            # get percentiles --- now uses sorting method since this works out of core
+            data.sort(kind="mergesort")
             for k in range(npc):
-                pcarray[ilayer, k] = np.percentile(data, pctiles[k])
+                pos = (npc - 1) * pctiles[k] / 100.
+                p1 = int(np.floor(pos))
+                if p1 < 0:
+                    p1 = 0
+                if p1 >= npc - 1:
+                    p1 = npc - 2
+                frac = np.clip(pos - p1, 0.0, 1.0)
+                pcarray[ilayer, k] = (1 - frac) * data[idx] + frac * data[idx + 1]
             del data
 
         # now build table, in segments of size up to ncolmax
