@@ -66,6 +66,7 @@ class ReportSection:
         self.datadir = rpt.datadir
         self.datastem = rpt.datastem
         self.datastem_from_dir = rpt.datastem_from_dir
+        self.tmp_dir = rpt.tmp_dir
 
         self.tex = "\n" + "%" * 72 + "\n"
         self.data = ""
@@ -125,6 +126,8 @@ class ValidationReport:
         Stem for output files.
     clear_all : bool, optional
         Removes existing files.
+    tmp_dir : str or str-like, optional
+        If specified, a temporary directory (usually on-node storage) for temporary files.
 
     Attributes
     ----------
@@ -160,9 +163,15 @@ class ValidationReport:
     compile
         Compile the LaTeX source into a PDF.
 
+    Notes
+    -----
+    Reports that use `tmp_dir` should check if it exists. Also, they should clean up
+    after themselves. This is different from `dstem` (which is for intended new output
+    files).
+
     """
 
-    def __init__(self, fname, dstem, clear_all=False):
+    def __init__(self, fname, dstem, clear_all=False, tmp_dir=None):
         """Constructor."""
 
         with ReadFile(fname) as f:
@@ -175,6 +184,7 @@ class ValidationReport:
             self.im_dtype = f["PRIMARY"].data.dtype
         self.cfg = Config(cf)
         self.dstem = dstem
+        self.tmp_dir = tmp_dir
 
         # if the data directory doesn't exist yet, make it
         self.datadir = dstem + "_data"
