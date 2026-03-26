@@ -60,7 +60,17 @@ class LayerReport(ReportSection):
 
         for ilayer in range(nlayers):
             # get data
-            data = np.zeros((ns * nblock, ns * nblock), dtype=np.float32)
+            if self.tmp_dir is None:
+                data = np.zeros((ns * nblock * ns * nblock), dtype=np.float32)
+            else:
+                data = np.memmap(
+                    str(self.tmp_dir / "layer.npy"),
+                    dtype="float32",
+                    mode="w+",
+                    shape=((ns * nblock * ns * nblock,)),
+                )
+                data[:, :] = 0.0
+
             for iby in range(nblock):
 
                 def _load_row(arg):
@@ -71,12 +81,12 @@ class LayerReport(ReportSection):
                     infile = self.infile(ibx, iby)  # noqa: B023
                     if not exists(infile):
                         return None
+                    chunk = iby * nblock + ibx  # noqa: B023
                     with ReadFile(infile) as f:
-                        _data[ns * iby : ns * (iby + 1), ns * ibx : ns * (ibx + 1)] = f[  # noqa: B023
-                            0
-                        ].data[
-                            0, ilayer, d:-d, d:-d  # noqa: B023
-                        ]
+                        x_ = f[0].data[0, ilayer, :, :]  # noqa: B023
+                        if d > 0:
+                            x_ = x_[d:-d, d:-d]
+                        _data[chunk * ns * ns : (chunk + 1) * ns * ns] = x_.ravel()
 
                 with concurrent.futures.ThreadPoolExecutor(max_workers=4) as e:
                     e.map(_load_row, [(ix, data) for ix in range(nblock)])

@@ -843,6 +843,10 @@ def test_PyIMCOM_run1(tmp_path, setup):
     assert texdata["MosaicImage"][:18] == "N =  2, BIN =   1\n"
     assert texdata["SimulatedStar"].split()[0] == "RMS_ELLIP_ADAPT"
     assert texdata["SimulatedStar"].split()[1][:7] == "0.00010"
+    print(texdata["LayerReport"])
+    info1 = texdata["LayerReport"].split()
+    print(float(info1[84]))  # Layer 5, 99th pctile
+    assert 0.89 < float(info1[84]) < 0.91
 
     fields = texdata["NoiseReport"].split()
     print(fields)
@@ -852,6 +856,25 @@ def test_PyIMCOM_run1(tmp_path, setup):
     assert fields[3] == "LAYER01"
     assert fields[4] == "1fnoise2"
     assert np.abs(float(fields[5]) - 2.96809) < 1e-4
+
+    # another report test, with temporary files
+    os.mkdir(tmp_path / "rpt2")
+    rpt2 = ValidationReport(
+        str(tmp_path) + "/out/testout_F_00_00.fits",
+        str(tmp_path) + "/rpt2/report-F",
+        clear_all=True,
+        tmp_dir=str(tmp_path) + "/tmp",
+    )
+    for cls in sectionlist:
+        s = cls(rpt2)
+        s.build()  # specify nblockmax to do just the lower corner
+        rpt.addsections([s])
+        del s
+    rpt.compile()  # test that the LaTeX compiles!
+    assert os.path.exists(str(tmp_path) + "/rpt2/report-F_main.pdf")
+    texdata2 = pull_from_file(str(tmp_path) + "/rpt2/report-F_main.tex")
+    info2 = texdata2["LayerReport"].split()
+    assert 0.89 < float(info2[84]) < 0.91
 
     # Test updating the right side of this block
     my_block._load_or_save_hdu_list()  # load all the data into memory
