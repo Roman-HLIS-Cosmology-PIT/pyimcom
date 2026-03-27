@@ -58,18 +58,19 @@ class LayerReport(ReportSection):
         npc = len(pctiles)
         pcarray = np.zeros((nlayers, npc), dtype=np.float32)
 
+        nsize = (ns * nblock) ** 2
         for ilayer in range(nlayers):
             # get data
             if self.tmp_dir is None:
-                data = np.zeros((ns * nblock * ns * nblock), dtype=np.float32)
+                data = np.zeros((nsize,), dtype=np.float32)
             else:
                 data = np.memmap(
-                    str(self.tmp_dir / "layer.npy"),
+                    str(self.tmp_dir) + "/layer.npy",
                     dtype="float32",
                     mode="w+",
-                    shape=((ns * nblock * ns * nblock,)),
+                    shape=((nsize,)),
                 )
-                data[:, :] = 0.0
+                data[:] = 0.0
 
             for iby in range(nblock):
 
@@ -96,14 +97,14 @@ class LayerReport(ReportSection):
             # get percentiles --- now uses sorting method since this works out of core
             data.sort(kind="mergesort")
             for k in range(npc):
-                pos = (npc - 1) * pctiles[k] / 100.
+                pos = (nsize - 1) * pctiles[k] / 100.0
                 p1 = int(np.floor(pos))
                 if p1 < 0:
                     p1 = 0
-                if p1 >= npc - 1:
-                    p1 = npc - 2
+                if p1 >= nsize - 1:
+                    p1 = nsize - 2
                 frac = np.clip(pos - p1, 0.0, 1.0)
-                pcarray[ilayer, k] = (1 - frac) * data[idx] + frac * data[idx + 1]
+                pcarray[ilayer, k] = (1 - frac) * data[p1] + frac * data[p1 + 1]
             del data
 
         # now build table, in segments of size up to ncolmax

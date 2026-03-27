@@ -859,6 +859,7 @@ def test_PyIMCOM_run1(tmp_path, setup):
 
     # another report test, with temporary files
     os.mkdir(tmp_path / "rpt2")
+    os.mkdir(tmp_path / "tmp")
     rpt2 = ValidationReport(
         str(tmp_path) + "/out/testout_F_00_00.fits",
         str(tmp_path) + "/rpt2/report-F",
@@ -868,9 +869,9 @@ def test_PyIMCOM_run1(tmp_path, setup):
     for cls in sectionlist:
         s = cls(rpt2)
         s.build()  # specify nblockmax to do just the lower corner
-        rpt.addsections([s])
+        rpt2.addsections([s])
         del s
-    rpt.compile()  # test that the LaTeX compiles!
+    rpt2.compile()  # test that the LaTeX compiles!
     assert os.path.exists(str(tmp_path) + "/rpt2/report-F_main.pdf")
     texdata2 = pull_from_file(str(tmp_path) + "/rpt2/report-F_main.tex")
     info2 = texdata2["LayerReport"].split()
