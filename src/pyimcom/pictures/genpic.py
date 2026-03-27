@@ -197,7 +197,7 @@ def make_picture_1band(
             if not os.path.exists(fname):
                 fname = fname[:-5] + ".cpr.fits.gz"  # try seeing if it is compressed
             if os.path.exists(fname):
-                with ReadFile(fname, layer=layer) as f:
+                with ReadFile(fname, layers=[layer]) as f:
                     print(pad, np.shape(f[0].data), fname)
                     sys.stdout.flush()
                     sh = np.shape(f[0].data)  # this is needed for trimming correctly if pad=0
