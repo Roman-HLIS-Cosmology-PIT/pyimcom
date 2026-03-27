@@ -149,7 +149,7 @@ def make_picture_1band(
     Parameters
     ----------
     fn : str
-        File stem (without the _DD_DD.fits).
+        File stem (without the _DD_DD.fits or _DD_DD.cpr.fits.gz).
     outfile : str
         Output file name.
     layer : int, optional
@@ -194,8 +194,10 @@ def make_picture_1band(
     for ix in range(xmax - xmin):
         for iy in range(ymax - ymin):
             fname = fn + f"_{ix + xmin:02d}_{iy + ymin:02d}.fits"
+            if not os.path.exists(fname):
+                fname = fname[:-5] + ".cpr.fits.gz"  # try seeing if it is compressed
             if os.path.exists(fname):
-                with ReadFile(fname) as f:
+                with ReadFile(fname, layer=layer) as f:
                     print(pad, np.shape(f[0].data), fname)
                     sys.stdout.flush()
                     sh = np.shape(f[0].data)  # this is needed for trimming correctly if pad=0
