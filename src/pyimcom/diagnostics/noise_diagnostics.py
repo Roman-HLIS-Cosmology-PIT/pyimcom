@@ -38,7 +38,7 @@ from astropy.io import fits
 from scipy import ndimage
 from skimage.filters import window
 
-from ..compress.compressutils import 
+from ..compress.compressutils import ReadFile
 from ..config import Settings
 from .context_figure import ReportFigContext
 from .report import ReportSection
