@@ -38,7 +38,7 @@ from astropy.io import fits
 from scipy import ndimage
 from skimage.filters import window
 
-from ..compress.compressutils import ReadFile
+from ..compress.compressutils import 
 from ..config import Settings
 from .context_figure import ReportFigContext
 from .report import ReportSection
@@ -216,7 +216,7 @@ class NoiseReport(ReportSection):
                 if is_first:
                     is_first = False
 
-                    with ReadFile(infile) as f:
+                    with ReadFile(infile, layers=[]) as f:
                         # n = np.shape(f[0].data)[-1]  # size of output images
                         config = ""
                         for g in f["CONFIG"].data["text"].tolist():
@@ -272,7 +272,7 @@ class NoiseReport(ReportSection):
 
                 # mean coverage
                 pad = int(configStruct["PAD"])
-                with ReadFile(infile) as f:
+                with ReadFile(infile, layers=[]) as f:
                     n = np.shape(f["INWEIGHT"].data)[-1]
                     mean_coverage = np.mean(
                         np.sum(np.where(f["INWEIGHT"].data[0, :, :, :] > 0, 1, 0), axis=0)[
@@ -289,7 +289,7 @@ class NoiseReport(ReportSection):
                 else:
                     raise Exception("Error: bin flag must be 0 (no binning) or 1 (8x8 binning)")
 
-                with ReadFile(infile) as f:
+                with ReadFile(infile, layers=sorted([noiselayers[q] for q in NLK])) as f:
                     infile_data = np.copy(
                         f[0].data[0, :, bdpad : L + bdpad, bdpad : L + bdpad].astype(np.float32)
                     )
@@ -585,7 +585,7 @@ class NoiseReport(ReportSection):
 
             # extract information from the header of the first file
             if iblock == 0:
-                with ReadFile(infile) as f:
+                with fits.open(infile) as f:
                     n = np.shape(f["PRIMARY"])[0]
                     ll = (f["P1D_TABLE"].data).shape[0]
                     total_2D = np.zeros(np.shape(np.transpose(f["PRIMARY"].data, (1, 2, 0))))
@@ -595,7 +595,7 @@ class NoiseReport(ReportSection):
             if not exists(infile):
                 continue
 
-            with ReadFile(infile) as f:
+            with fits.open(infile) as f:
                 indata_2D = np.copy(np.transpose(f["PRIMARY"].data, (1, 2, 0))).astype(np.float32)
                 indata_1D = np.copy(f["P1D_TABLE"].data)
 
