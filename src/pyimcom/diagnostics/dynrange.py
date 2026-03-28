@@ -132,7 +132,7 @@ def gen_dynrange_data(inpath, outstem, rpix_try=50, nblockmax=100):
                 print("# rs=", rs)
 
             # now we know this file exists
-            with ReadFile(infile) as f:
+            with ReadFile(infile, layers=[framenumber]) as f:
                 n = np.shape(f[0].data)[-1]
                 mywcs = wcs.WCS(f[0].header)
                 starmap = f[0].data[0, framenumber, :, :]
