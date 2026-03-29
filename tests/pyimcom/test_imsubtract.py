@@ -6,7 +6,7 @@ import urllib.request
 import numpy as np
 from astropy.io import fits
 from pyimcom.config import Config
-from pyimcom.splitpsf.imsubtract import fftconvolve_multi
+from pyimcom.splitpsf.imsubtract import fftconvolve_multi, run_imsubtract
 from pyimcom.splitpsf.imsubtract_wrapper import run_imsubtract_all, run_imsubtract_single
 from pyimcom.splitpsf.splitpsf import split_psf_to_fits
 from pyimcom.splitpsf.splitpsf_wrapper import split_psf_single
@@ -300,6 +300,14 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
     # compare "single" to "all" case
     with fits.open(f"{tmp_imsub}/r1_00013912_17_subI.fits") as f:
         assert np.allclose(f[0].data, single_run, rtol=1.0e-6, atol=1.0e-6)
+        del single_run
+        multi_run = np.copy(f[0].data)
+
+    # original wrapper
+    os.remove(str(tmp_imsub) + "/r1_00013912_17_subI.fits")
+    run_imsubtract(config_file, display="/dev/null", scanum=17, mmap=tmp_mmap)
+    with fits.open(f"{tmp_imsub}/r1_00013912_17_subI.fits") as f:
+        assert np.allclose(f[0].data, multi_run, rtol=1.0e-6, atol=1.0e-6)
 
     # remove files from this test to save space
     for fl in [
