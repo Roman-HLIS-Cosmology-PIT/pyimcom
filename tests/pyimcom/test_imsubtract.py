@@ -187,9 +187,11 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
 
     tmp_dir = str(tmp_path)
     tmp_imsub = tmp_dir + "/temp_imsubtract"
+    tmp_mmap = tmp_dir + "/temp_mmap"
     # make temp_imsub directory
     os.makedirs(tmp_imsub, exist_ok=True)
     os.makedirs(tmp_imsub + "/blocks", exist_ok=True)
+    os.makedirs(tmp_mmap, exist_ok=True)
 
     if config_file.startswith("http"):
         urllib.request.urlretrieve(config_file, tmp_imsub + "/test_imsubtract_config.json")
@@ -244,13 +246,15 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
 
     # single run (this ensures that the codecov tracking works since it doesn't follow subprocesses)
     run_imsubtract_single(
-        Config(config_file), 17, 13912, tmp_imsub, "r1_00013912_17.fits", display="/dev/null"
+        Config(config_file), 17, 13912, tmp_imsub, "r1_00013912_17.fits", display="/dev/null", mmap=tmp_mmap
     )
     with fits.open(f"{tmp_imsub}/r1_00013912_17_subI.fits") as f:
         single_run = np.copy(f[0].data)
 
     # full multi run
-    run_imsubtract_all(config_file, workers=2, max_imgs=2, display="/dev/null")
+    # I set the number of workers to 1 (which is kind of silly) to stay within the footprint of
+    # the free GitHub runner during tests.
+    run_imsubtract_all(config_file, workers=1, max_imgs=2, display="/dev/null", mmap=tmp_mmap)
 
     # Check for outputs:
     expected_files = [f"{tmp_imsub}/r1_00013912_17_subI.fits", f"{tmp_imsub}/r1_00000670_12_subI.fits"]
@@ -296,3 +300,12 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
     # compare "single" to "all" case
     with fits.open(f"{tmp_imsub}/r1_00013912_17_subI.fits") as f:
         assert np.allclose(f[0].data, single_run, rtol=1.0e-6, atol=1.0e-6)
+
+    # remove files from this test to save space
+    for fl in [
+        "r1_00000670_12.fits",
+        "r1_00013912_17.fits",
+        "r1_00000670_12_subI.fits",
+        "r1_00013912_17_subI.fits",
+    ]:
+        os.remove(str(tmp_imsub) + "/" + fl)
