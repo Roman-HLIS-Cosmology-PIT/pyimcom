@@ -118,7 +118,8 @@ def fftconvolve_multi(in1, in2, out, mode="full", nb=4, workers=None, verbose=Fa
         dy = ytop - ybottom
         in2_[:, :] = 0.0
         in2_[: dy + s1y - 1, :s2x] = in2[ybottom : ytop + s1y - 1, :]
-        in2_ft = rfft2(in2_, workers=workers) * in1_ft
+        in2_ft = rfft2(in2_, workers=workers)
+        in2_ft *= in1_ft
         if verbose:
             print("y =", ybottom, ytop, "of Ly =", Ly)
         out[ybottom:ytop, :] += irfft2(in2_ft, s=(leny, lenx), workers=workers)[
@@ -227,7 +228,14 @@ def get_wcs_from_infile(infile):
 
 
 def run_imsubtract(
-    config_file, display=None, scanum=None, local_output=False, max_img=None, workers=None, wcs_shortcut=True
+    config_file,
+    display=None,
+    scanum=None,
+    local_output=False,
+    max_img=None,
+    workers=None,
+    wcs_shortcut=True,
+    tmp_dir=None,
 ):
     """
     Main routine to run imsubtract.
@@ -253,6 +261,8 @@ def run_imsubtract(
         Number of workers for the FFTs if requesting parallelism.
     wcs_shortcut : bool, optional
         If set, allows interpolation methods to speed up WCS computations.
+    tmp_dir : str or str-like, optional
+        If provided, use memory mapping in the indicated directory.
 
     Notes
     -----
@@ -266,6 +276,7 @@ def run_imsubtract(
 
     # load the file using Config and get information
     cfgdata = Config(config_file)
+    assert cfgdata == 1.0
 
     info = cfgdata.inlayercache
     block_path = cfgdata.outstem
@@ -414,8 +425,14 @@ def run_imsubtract(
         ).astype(np.float32)
 
         # add for loop over layers (nlayers)
+        H_canvas = np.memmap(
+            path + "/" + exp[:-5] + "_hcanvas.npy",
+            dtype=np.float32,
+            mode="w+",
+            shape=(A, A),
+        )
         for n in range(nlayer):
-            H_canvas = np.zeros((A, A), dtype=np.float32)
+            H_canvas[:, :] = 0.0
             # define other important quantities for convolution
             Nl = int(np.floor(np.sqrt(Ncoeff + 0.5)))
             KH = np.zeros((A - axis_num + 1, A - axis_num + 1), dtype=np.float32)
@@ -585,22 +602,16 @@ def run_imsubtract(
                     # note that was in steradians, this one is in ideal pixels
 
                     # this should be faster
-                    native_pix = np.repeat(
-                        np.repeat(
-                            area_np[I_pad + bottom : I_pad + top + 1, I_pad + left : I_pad + right + 1],
-                            oversamp,
-                            axis=1,
-                        ),
-                        oversamp,
-                        axis=0,
-                    )
+                    for j2 in range(oversamp):
+                        for i2 in range(oversamp):
+                            H[j2::oversamp, i2::oversamp] *= area_np[
+                                I_pad + bottom : I_pad + top + 1, I_pad + left : I_pad + right + 1
+                            ]
                 else:
-                    native_pix = (
+                    H *= (
                         get_pix_area(sca_wcs, region=[left, right + 1, bottom, top + 1], ovsamp=oversamp)
                         / (pix_size * 180 / np.pi) ** 2
                     )
-
-                H *= native_pix
 
                 print(f"+ area: {time.time()-t0:6.2f}")
                 sys.stdout.flush()
@@ -612,7 +623,7 @@ def run_imsubtract(
                 ] += H
 
             # some cleanup
-            del H, native_pix
+            del H
 
             # apply convolution to canvas
             for lu in range(Nl):
@@ -626,12 +637,16 @@ def run_imsubtract(
                         Hlu * eval_legendre(lv, u_canvas).astype(np.float32)[:, None],
                         KH,
                         mode="valid",
-                        nb=6,
+                        nb=8,
                         workers=workers,
                     )
 
             # subtract from the input image (using less memory)
             I_img[n, :, :] -= KH[first_index:-first_index:oversamp, first_index:-first_index:oversamp]
+
+        # we don't need H_canvas anymore
+        del H_canvas
+        # os.remove(path + "/" + exp[:-5] + "_hcanvas.npy")
 
         # save outside of the layer for loop
         # write output file for each exposure
@@ -644,6 +659,8 @@ def run_imsubtract(
         # this version copies HDU #1 (which contains the WCS)
         with fits.open(path + "/" + exp) as f_in:
             fits.HDUList([fits.PrimaryHDU(data=I_img), f_in[1]]).writeto(fname, overwrite=True)
+        del I_img
+        os.remove(path + "/" + exp[:-5] + "_data.npy")
 
         # exit if we've specified a maximum number of SCAs
         count += 1

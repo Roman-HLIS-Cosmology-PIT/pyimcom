@@ -193,20 +193,33 @@ def run_imsubtract_single(
         / (pix_size * 180 / np.pi) ** 2
     ).astype(np.float32)
 
+    # New memory maps
+    H_canvas = np.memmap(
+        path + "/" + expname[:-5] + "_hcanvas.npy",
+        dtype=np.float32,
+        mode="w+",
+        shape=(A, A),
+    )
+    KH = np.memmap(
+        path + "/" + expname[:-5] + "_kh.npy",
+        dtype=np.float32,
+        mode="w+",
+        shape=(A - axis_num + 1, A - axis_num + 1),
+    )
+
     # add for loop over layers (nlayers)
     for n in range(nlayer) if max_layers is None else range(min(nlayer, max_layers)):
         print(f"Observation {obsid}, SCA {scaid}")
         print(f"Layer {n+1}", flush=True)
-        H_canvas = np.zeros((A, A), dtype=np.float32)
+        H_canvas[:, :] = 0.0
         # define other important quantities for convolution
         Nl = int(np.floor(np.sqrt(Ncoeff + 0.5)))
-        KH = np.zeros((A - axis_num + 1, A - axis_num + 1), dtype=np.float32)
+        KH[:, :] = 0.0
         x_canvas = np.linspace(-I_pad - 0.5 + 0.5 / oversamp, sca_nside + I_pad - 0.5 + 0.5 / oversamp, A)
         u_canvas = (x_canvas - (sca_nside - 1) / 2) / (sca_nside / 2)
 
         # These will be overwritten if the block is not skipped
         H = None
-        native_pix = None
 
         # loop over the blocks in the list
         block_count = 0
@@ -374,22 +387,16 @@ def run_imsubtract_single(
                 # note that was in steradians, this one is in ideal pixels
 
                 # this should be faster
-                native_pix = np.repeat(
-                    np.repeat(
-                        area_np[I_pad + bottom : I_pad + top + 1, I_pad + left : I_pad + right + 1],
-                        oversamp,
-                        axis=1,
-                    ),
-                    oversamp,
-                    axis=0,
-                )
+                for j2 in range(oversamp):
+                    for i2 in range(oversamp):
+                        H[j2::oversamp, i2::oversamp] *= area_np[
+                            I_pad + bottom : I_pad + top + 1, I_pad + left : I_pad + right + 1
+                        ]
             else:
-                native_pix = (
+                H *= (
                     get_pix_area(sca_wcs, region=[left, right + 1, bottom, top + 1], ovsamp=oversamp)
                     / (pix_size * 180 / np.pi) ** 2
                 )
-
-            H *= native_pix
 
             print(f"+ area: {time.time()-t0:6.2f}")
 
@@ -402,7 +409,7 @@ def run_imsubtract_single(
             block_count += 1
 
         # some cleanup
-        del H, native_pix
+        del H
 
         # apply convolution to canvas
         for lu in range(Nl):
@@ -424,6 +431,12 @@ def run_imsubtract_single(
         I_img[n, :, :] -= KH[first_index:-first_index:oversamp, first_index:-first_index:oversamp]
         print(f"Subtracted layer {n+1}/{nlayer}, t = {time.time()-t0:6.2f}", flush=True)
 
+    # not needed anymore
+    del KH
+    os.remove(path + "/" + expname[:-5] + "_kh.npy")
+    del H_canvas
+    os.remove(path + "/" + expname[:-5] + "_hcanvas.npy")
+
     # write output file for each exposure
     fname = f"{info}_{obsid:08d}_{scaid:02d}_subI.fits"
     if local_output:
@@ -434,6 +447,7 @@ def run_imsubtract_single(
     # this version copies HDU #1 (which contains the WCS)
     with fits.open(path + "/" + expname) as f_in:
         fits.HDUList([fits.PrimaryHDU(data=I_img), f_in[1]]).writeto(fname, overwrite=True)
+    os.remove(path + "/" + expname[:-5] + "_data.npy")
 
 
 def run_imsubtract_all(cfg_file, workers=4, max_imgs=None, display=None, local_output=False):

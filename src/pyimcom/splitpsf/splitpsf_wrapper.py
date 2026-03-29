@@ -37,8 +37,9 @@ def split_psf_single(cfg_dict, iobs, filter, targetdir, psfsplit_pars, TEST_FILE
         psf_file = TEST_FILES[0]
         sci_filename = TEST_FILES[1]
         if psf_file.startswith("http"):
-            urllib.request.urlretrieve(psf_file, "temp_psf.fits")
-            psf_file = "temp_psf.fits"
+            psf_file2 = TEST_FILES[2][:-5] + "_temp_psf.fits"
+            urllib.request.urlretrieve(psf_file, psf_file2)
+            psf_file = psf_file2
     else:
         psf_file = cfg_dict["INPSF"][0] + "/" + InImage.psf_filename(cfg_dict["INPSF"][1], iobs)
         sci_filename = _get_sca_imagefile(cfg_dict["INDATA"][0], (iobs, -1), filter, cfg_dict["INPSF"][1])
