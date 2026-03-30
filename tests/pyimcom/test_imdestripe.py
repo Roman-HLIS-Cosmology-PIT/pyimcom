@@ -344,7 +344,7 @@ def test_object_mask():
         neighbor_mask = binary_dilation(high_value_mask, structure=np.ones((5, 5), dtype=bool))
     image_out = np.where(neighbor_mask, 0, image)
         return image_out, neighbor_mask
-        """
+    """
 
     # create a test image with a bright object in the center
     test_image = np.zeros((100, 100), dtype=np.float32)
@@ -357,7 +357,6 @@ def test_object_mask():
     assert np.sum(image) == 0, "All pixels should be masked to zero"
     assert np.sum(neighbor_mask) == 576, "With dilation, 576 pixels should be masked"
     assert np.all(image[neighbor_mask] == 0), "Masked pixels should be set to zero"
-
 
     masked_image, same_mask = imdestripe.apply_object_mask(test_image, mask=neighbor_mask, inplace=True)
     assert same_mask == neighbor_mask, "Returned mask should be the same when mask is provided"
@@ -405,8 +404,6 @@ def test_parameters():
         np.testing.assert_array_almost_equal(
             row_values, expected_value, err_msg=f"Row {i} should have constant value {expected_value}"
         )
-
-
 
 
 def test_cost_function():
@@ -475,3 +472,46 @@ def test_cost_models():
     assert abs_cost_model.f(x) == np.abs(x)
     assert abs_cost_model.f_prime(x) == np.sign(x)
 
+
+def test_save_snapshot(tmp_path):
+    """Test function for saving a snapshot of the current parameters to a file."""
+
+    snapshot_dic = {
+        "p": 1,
+        "grad": 2,
+        "epsilon": 3,
+        "psi": 4,
+        "direction": 5,
+        "grad_prev": 6,
+        "direction_prev": 7,
+        "cg_model": 8,
+        "tol": 9,
+        "thresh": 10,
+        "norm_0": 11,
+        "cost_model": 12,
+        "i": 13,
+        "restart_file": tmp_path / "test_restart_file.pkl",
+        "of": None,
+    }
+
+    imdestripe.save_snapshot(
+        snapshot_dic["p"],
+        snapshot_dic["grad"],
+        snapshot_dic["epsilon"],
+        snapshot_dic["psi"],
+        snapshot_dic["direction"],
+        snapshot_dic["grad_prev"],
+        snapshot_dic["direction_prev"],
+        snapshot_dic["cg_model"],
+        snapshot_dic["tol"],
+        snapshot_dic["thresh"],
+        snapshot_dic["norm_0"],
+        snapshot_dic["cost_model"],
+        snapshot_dic["i"],
+        snapshot_dic["restart_file"],
+        snapshot_dic["of"],
+    )
+
+    # check for pkl file
+    f = snapshot_dic["restart_file"]
+    assert f.exists(), f"Snapshot file {f} should exist after saving snapshot"
