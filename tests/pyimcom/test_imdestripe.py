@@ -333,18 +333,35 @@ def test_get_ids():
 
 
 def test_object_mask():
-    """Test function for creating an object mask."""
+    """Test function for creating an object mask.
+    The function for the mask is:
+
+    if mask is not None and isinstance(mask, np.ndarray):
+        neighbor_mask = mask
+    else:
+        median_val = np.median(image)
+        high_value_mask = image >= threshold_m * median_val + threshold_c
+        neighbor_mask = binary_dilation(high_value_mask, structure=np.ones((5, 5), dtype=bool))
+    image_out = np.where(neighbor_mask, 0, image)
+        return image_out, neighbor_mask
+        """
 
     # create a test image with a bright object in the center
     test_image = np.zeros((100, 100), dtype=np.float32)
     test_image[40:60, 40:60] = 100.0  # bright square in the center
 
     # create an object mask
-    mask = imdestripe.apply_object_mask(test_image, threshold_c=10.0)
+    image, neighbor_mask = imdestripe.apply_object_mask(test_image, threshold_c=10.0)
 
-    # check if the mask correctly identifies the object
-    assert np.sum(mask) >= 400  # At least the bright region is masked
-    assert np.sum(mask) <= 700  # Plus some dilation
+    # check if the mask correctly identifies the bright object
+    assert np.sum(image) == 0, "All pixels should be masked to zero"
+    assert np.sum(neighbor_mask) == 576, "With dilation, 576 pixels should be masked"
+    assert np.all(image[neighbor_mask] == 0), "Masked pixels should be set to zero"
+
+
+    masked_image, same_mask = imdestripe.apply_object_mask(test_image, mask=neighbor_mask, inplace=True)
+    assert same_mask == neighbor_mask, "Returned mask should be the same when mask is provided"
+    assert np.all(masked_image[same_mask] == 0), "Masked pixels should be set to zero when inplace=True"
 
 
 def test_transpose_par():
