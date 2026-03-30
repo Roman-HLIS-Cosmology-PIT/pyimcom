@@ -420,3 +420,32 @@ def test_write_to_file(tmp_path):
     # Delete the test file after the test
     if test_file.exists():
         os.remove(test_file)
+
+
+def test_cost_models():
+    """Test function for cost model assigments and computations."""
+
+    x = 2
+
+    quad_cfg = create_test_config(cost_model="quadratic")
+    quad_cost_model = imdestripe.cost_models(quad_cfg)
+    assert quad_cost_model.model == "quadratic"
+    assert quad_cost_model.thresh is None
+    assert quad_cost_model.f(x) == x**2
+    assert quad_cost_model.f_prime(x) == 2 * x
+
+    hub_cfg = create_test_config(cost_model="huber_loss")
+    hub_cost_model = imdestripe.cost_models(hub_cfg)
+    assert hub_cost_model.model == "huber_loss"
+    assert hub_cost_model.thresh == 1.0
+    assert hub_cost_model.f(x) == hub_cost_model.thresh**2 + 2 * hub_cost_model.thresh * (
+        np.abs(x) - hub_cost_model.thresh
+    )
+    assert hub_cost_model.f_prime(x) == 2.0 * hub_cost_model.thresh * np.sign(x)
+
+    abs_cfg = create_test_config(cost_model="absolute")
+    abs_cost_model = imdestripe.cost_models(abs_cfg)
+    assert abs_cost_model.model == "absolute"
+    assert abs_cost_model.thresh is None
+    assert abs_cost_model.f(x) == np.abs(x)
+    assert abs_cost_model.f_prime(x) == np.sign(x)
