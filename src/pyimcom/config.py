@@ -235,6 +235,8 @@ class Config:
         Terminal interface to build a configuration from scratch.
     to_file
         Save the configuration to a JSON file.
+    to_dict
+        Convert to a dictionary.
 
     """
 
@@ -1120,6 +1122,22 @@ class Config:
             cfg_dict.clear()
             del cfg_dict
             return res
+
+    def to_dict(self):
+        """
+        Save the configuration as a dictionary.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        dict
+            Dictionary version of the configuration.
+
+        """
+        return json.loads(self.to_file(None))
 
 
 # Parameters for format_axis.

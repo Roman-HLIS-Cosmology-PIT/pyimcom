@@ -85,7 +85,7 @@ def fftconvolve_multi(in1, in2, out, mode="full", nb=4, workers=None, verbose=Fa
 
     # if we're not using valid, or not in 2D, use standard fftconvolve
     if mode != "valid" or len(np.shape(in1)) != 2:
-        out += fftconvolve(in1, in2, mode=mode, workers=workers)
+        out += fftconvolve(in1, in2, mode=mode)
         return
 
     # Now we know we're 2D and in valid mode. Get shapes
@@ -96,13 +96,13 @@ def fftconvolve_multi(in1, in2, out, mode="full", nb=4, workers=None, verbose=Fa
 
     # If in1 is big enough that it will break the indexing
     if s1y >= Ly // nb:
-        out += fftconvolve(in1, in2, mode=mode, workers=workers)
+        out += fftconvolve(in1, in2, mode=mode)
         return
 
     # loop over horizontal bands
     height = (Ly + nb - 1) // nb
     if height <= s1y:
-        out += fftconvolve(in1, in2, mode=mode, workers=workers)  # also return if the strip is too narrow
+        out += fftconvolve(in1, in2, mode=mode)  # also return if the strip is too narrow
         return
     lenx = next_fast_len(s1x + s2x)
     leny = next_fast_len(s1y + height)
@@ -502,9 +502,19 @@ def run_imsubtract_single(
                 [left, right, bottom, top] = lrbt_table[(ix, iy)]
             else:
                 # find the 'Bounding Box' in SCA coordinates
-                # create mesh grid for output block
+                # create grid for output block
+                # (at this stage, only need the boundaries, should speed up the WCS mapping)
                 block_arr = np.arange(block_length)
-                x_out, y_out = np.meshgrid(block_arr, block_arr)
+                x_out = np.concatenate(
+                    (
+                        np.zeros(block_length - 2),
+                        block_arr,
+                        np.full(block_length - 2, block_length - 1),
+                        block_arr[::-1],
+                    )
+                )
+                y_out = np.roll(x_out, block_length - 1)
+
                 # convert to ra and dec using block wcs
                 ra_sca, dec_sca = block_wcs.pixel_to_world_values(x_out, y_out, 0)
                 del x_out, y_out
@@ -666,6 +676,7 @@ def run_imsubtract(
     max_img=None,
     workers=None,
     wcs_shortcut=True,
+    max_layers=None,
     mmap=None,
 ):
     """
@@ -692,6 +703,8 @@ def run_imsubtract(
         Number of workers for the FFTs if requesting parallelism.
     wcs_shortcut : bool, optional
         If set, allows interpolation methods to speed up WCS computations.
+    max_layers : int, optional
+        Maximum number of layers to process. (For testing; default is None, which means no limit.)
     mmap : str or str-like, optional
         Directory to put temporary mmap files.
 
@@ -746,6 +759,8 @@ def run_imsubtract(
             local_output=local_output,
             fft_workers=workers,
             wcs_shortcut=wcs_shortcut,
+            max_layers=max_layers,
+            mmap=mmap,
         )
 
         # exit if we've specified a maximum number of SCAs

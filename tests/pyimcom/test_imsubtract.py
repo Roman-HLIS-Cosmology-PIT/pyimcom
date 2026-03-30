@@ -177,6 +177,12 @@ def test_fftconvolve_multi():
     print(np.amax(np.abs(out1 - out2)))
     assert np.amax(np.abs(out1 - out2)) < 1e-9 * np.amax(np.abs(out1))
 
+    # test defaulting to fftconvolve
+    x1 = fftconvolve(arr1, arr2, mode="same")
+    x2 = np.zeros_like(x1)
+    fftconvolve_multi(arr1, arr2, x2, mode="same")
+    assert np.allclose(x1, x2)
+
 
 def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
     """
@@ -188,10 +194,12 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
     tmp_dir = str(tmp_path)
     tmp_imsub = tmp_dir + "/temp_imsubtract"
     tmp_mmap = tmp_dir + "/temp_mmap"
+    tmp_figs = tmp_dir + "/temp_figs"
     # make temp_imsub directory
     os.makedirs(tmp_imsub, exist_ok=True)
     os.makedirs(tmp_imsub + "/blocks", exist_ok=True)
     os.makedirs(tmp_mmap, exist_ok=True)
+    os.makedirs(tmp_figs, exist_ok=True)
 
     if config_file.startswith("http"):
         urllib.request.urlretrieve(config_file, tmp_imsub + "/test_imsubtract_config.json")
@@ -246,10 +254,17 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
 
     # single run (this ensures that the codecov tracking works since it doesn't follow subprocesses)
     run_imsubtract_single(
-        Config(config_file), 17, 13912, tmp_imsub, "r1_00013912_17.fits", display="/dev/null", mmap=tmp_mmap
+        Config(config_file),
+        17,
+        13912,
+        tmp_imsub,
+        "r1_00013912_17.fits",
+        display="/dev/null",
+        max_layers=1,
+        mmap=tmp_mmap,
     )
     with fits.open(f"{tmp_imsub}/r1_00013912_17_subI.fits") as f:
-        single_run = np.copy(f[0].data)
+        single_run = np.copy(f[0].data[0, :, :])
 
     # full multi run
     # I set the number of workers to 1 (which is kind of silly) to stay within the footprint of
@@ -299,15 +314,17 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
 
     # compare "single" to "all" case
     with fits.open(f"{tmp_imsub}/r1_00013912_17_subI.fits") as f:
-        assert np.allclose(f[0].data, single_run, rtol=1.0e-6, atol=1.0e-6)
+        assert np.allclose(f[0].data[0, :, :], single_run, rtol=1.0e-6, atol=1.0e-6)
         del single_run
-        multi_run = np.copy(f[0].data)
+        multi_run = np.copy(f[0].data[0, :, :])
 
     # original wrapper
     os.remove(str(tmp_imsub) + "/r1_00013912_17_subI.fits")
-    run_imsubtract(config_file, display="/dev/null", scanum=17, mmap=tmp_mmap)
+    run_imsubtract(config_file, display=f"{tmp_figs}/win", scanum=17, max_layers=1)
     with fits.open(f"{tmp_imsub}/r1_00013912_17_subI.fits") as f:
-        assert np.allclose(f[0].data, multi_run, rtol=1.0e-6, atol=1.0e-6)
+        assert np.allclose(f[0].data[0, :, :], multi_run, rtol=1.0e-6, atol=1.0e-6)
+    fname = f"{tmp_figs}/win_13912_17_35_02.png"
+    assert os.path.isfile(fname), f"Expected output file {fname} not found."
 
     # remove files from this test to save space
     for fl in [
