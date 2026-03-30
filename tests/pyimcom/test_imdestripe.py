@@ -2,6 +2,8 @@
 Many of these functions / tests are adapted from test_pyimcom for internal consistency.
 """
 
+import os
+
 import numpy as np
 import pytest
 from astropy import wcs
@@ -392,3 +394,29 @@ def test_cost_function():
     cost = np.sum(imdestripe.quadratic(diff_img))
 
     assert np.isclose(cost, expected_cost), f"Cost should be {expected_cost}, got {cost}"
+
+
+# test imdestripe.write_to_file
+def test_write_to_file(tmp_path):
+    """Test function for writing lines of text to a file
+    or to the console if no filename is provided.
+    """
+
+    # Test writing to a file
+    test_file = tmp_path / "test_imdestripe_output.txt"
+    text = "This is an output file"
+    imdestripe.write_to_file(text, filename=str(test_file))
+
+    with open(test_file, "r") as f:
+        content = f.read()
+        assert content == text, f"File content should match lines, got {content}"
+
+    # Test writing to console (should not raise an error)
+    try:
+        imdestripe.write_to_file(text, filename=None)
+    except Exception as e:
+        pytest.fail(f"Writing to console should not raise an error, but got: {e}")
+
+    # Delete the test file after the test
+    if test_file.exists():
+        os.remove(test_file)
