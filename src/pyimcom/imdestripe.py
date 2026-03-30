@@ -80,6 +80,7 @@ import uuid
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import asdf
+import h5py
 import numpy as np
 from astropy import wcs
 from astropy.io import fits
@@ -832,7 +833,7 @@ def get_scas(filter_, obsfile, cfg, indata_type="fits", of=None):
     return all_scas, all_wcs
 
 
-def interpolate_image_bilinear(image_B, image_A, interpolated_image, mask=None):
+def interpolate_image_bilinear(image_B, image_A, interpolated_image, mask=None, coords_cache=None):
     """
     Interpolate values from a "reference" SCA image onto a "target" SCA coordinate grid
     Uses pyimcom_croutines.bilinear_interpolation(
@@ -850,10 +851,20 @@ def interpolate_image_bilinear(image_B, image_A, interpolated_image, mask=None):
         Updated in place to be the interpolation of img. B onto A's grid
     mask : 2D np array, optional
         if provided, this mask is interpolated instead of image_B.image
+    coords_cache : dict, optional
+        Pre-computed coordinate mappings keyed by (image_A_scaid, image_B_scaid) tuple
     """
 
-    x_target, y_target, is_in_ref = compareutils.map_sca2sca(image_A.w, image_B.w, pad=0)
-    coords = np.column_stack((y_target.ravel(), x_target.ravel()))
+    if coords_cache is not None:
+        cache_key = (image_A.scaid, image_B.scaid)
+        if cache_key in coords_cache:
+            coords = coords_cache[cache_key]
+        else:
+            x_target, y_target, is_in_ref = compareutils.map_sca2sca(image_A.w, image_B.w, pad=0)
+            coords = np.column_stack((y_target.ravel(), x_target.ravel()))
+    else:
+        x_target, y_target, is_in_ref = compareutils.map_sca2sca(image_A.w, image_B.w, pad=0)
+        coords = np.column_stack((y_target.ravel(), x_target.ravel()))
 
     # Verify data just before C call
     rows = int(image_B.shape[0])
@@ -876,7 +887,7 @@ def interpolate_image_bilinear(image_B, image_A, interpolated_image, mask=None):
     sys.stderr.flush()
 
 
-def transpose_interpolate(image_A, wcs_A, image_B, original_image):
+def transpose_interpolate(image_A, wcs_A, image_B, original_image, coords_cache=None):
     """
     Interpolate backwards from image_A to image_B space.
     Uses bilinear_transpose(
@@ -894,10 +905,20 @@ def transpose_interpolate(image_A, wcs_A, image_B, original_image):
      original_image : 2D np array
         the gradient image re-interpolated into image B space
         Updated in place
+     coords_cache : dict, optional
+        Pre-computed coordinate mappings keyed by (wcs_A_scaid, image_B.scaid) tuple
 
     """
-    x_target, y_target, is_in_ref = compareutils.map_sca2sca(wcs_A, image_B.w, pad=0)
-    coords = np.column_stack((y_target.ravel(), x_target.ravel()))
+    if coords_cache is not None:
+        cache_key = (wcs_A.wcs.crval, image_B.scaid)  # Use WCS center as identifier
+        if cache_key in coords_cache:
+            coords = coords_cache[cache_key]
+        else:
+            x_target, y_target, is_in_ref = compareutils.map_sca2sca(wcs_A, image_B.w, pad=0)
+            coords = np.column_stack((y_target.ravel(), x_target.ravel()))
+    else:
+        x_target, y_target, is_in_ref = compareutils.map_sca2sca(wcs_A, image_B.w, pad=0)
+        coords = np.column_stack((y_target.ravel(), x_target.ravel()))
 
     rows = int(image_B.shape[0])
     cols = int(image_B.shape[1])
@@ -1071,8 +1092,96 @@ def get_neighbors(scalist, ov_mat, overlap_thresh=0.1):
     return neighbors
 
 
+def precompute_interpolation_mappings(all_scas, all_wcs, neighbors, outpath, of=None):
+    """
+    Pre-compute all WCS interpolation coordinate mappings for SCA pairs.
+    Saves to HDF5 file for fast loading in subsequent runs.
+
+    Parameters
+    --------
+    all_scas : List of Str
+        list of all SCA labels
+    all_wcs : List of WCS objects
+        WCS object for each SCA
+    neighbors : Dict
+        dictionary of neighbor relationships from get_neighbors()
+    outpath : Str
+        directory to save mapping file to
+    of : Str
+        output file for logging
+
+    Returns
+    --------
+    coords_cache : Dict
+        Dictionary of pre-computed coordinates, keyed by (sca_a_scaid, sca_b_scaid) tuples
+    """
+    write_to_file("### Pre-computing interpolation mappings", of)
+    t0_map = time.time()
+
+    cache_file = os.path.join(outpath, "interp_mappings.h5")
+
+    # Check if cache already exists
+    if os.path.isfile(cache_file):
+        write_to_file(f"Loading pre-computed mappings from {cache_file}", of)
+        coords_cache = {}
+        with h5py.File(cache_file, "r") as hf:
+            for key in hf:
+                coords_cache[eval(key)] = np.array(hf[key])  # eval to convert str key back to tuple
+        write_to_file(f"Loaded {len(coords_cache)} pre-computed mappings", of)
+        return coords_cache
+
+    # Compute all mappings
+    write_to_file("Computing all neighbor pair interpolation mappings...", of)
+    coords_cache = {}
+
+    for k, sca_a in enumerate(all_scas):
+        obsid_A, scaid_A = get_ids(sca_a)
+        wcs_a = all_wcs[k]
+
+        for j in neighbors[k]:
+            sca_b = all_scas[j]
+            obsid_B, scaid_B = get_ids(sca_b)
+            wcs_b = all_wcs[j]
+
+            # Forward interpolation: B -> A
+            try:
+                x_target, y_target, is_in_ref = compareutils.map_sca2sca(wcs_a, wcs_b, pad=0)
+                coords_forward = np.column_stack((y_target.ravel(), x_target.ravel())).astype(np.float32)
+                cache_key_forward = (scaid_A, scaid_B)
+                coords_cache[cache_key_forward] = coords_forward
+            except Exception as e:
+                write_to_file(f"Warning: Failed to compute forward mapping {sca_a} -> {sca_b}: {e}", of)
+
+    write_to_file(
+        f"Computed {len(coords_cache)} forward mappings in {(time.time() - t0_map) / 60:.2f} minutes", of
+    )
+
+    # Save to HDF5
+    write_to_file(f"Saving mappings to {cache_file}", of)
+    with h5py.File(cache_file, "w") as hf:
+        for key, coords in coords_cache.items():
+            # Convert tuple key to string for HDF5 compatibility
+            key_str = str(key)
+            hf.create_dataset(key_str, data=coords, compression="gzip", compression_opts=4)
+
+    write_to_file(
+        f"Mapping file saved. Pre-computation complete in {(time.time() - t0_map) / 60:.2f} minutes", of
+    )
+    return coords_cache
+
+
 def residual_function(
-    psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg, extrareturn=False, of=None
+    psi,
+    f_prime,
+    scalist,
+    wcslist,
+    neighbors,
+    thresh,
+    workers,
+    cfg,
+    extrareturn=False,
+    of=None,
+    coords_cache=None,
 ):
     """
     Calculate the residual image, = grad(epsilon)
@@ -1101,6 +1210,8 @@ def residual_function(
             in addition to full residuals. returns resids, resids1, resids2
     of : Str
         filename to write output info to, or if None, output is directed to stdout
+    coords_cache : Dict, optional
+        Pre-computed coordinate mappings to accelerate interpolation
 
     Returns
     --------
@@ -1130,6 +1241,7 @@ def residual_function(
                 thresh,
                 cfg,
                 of=of,
+                coords_cache=coords_cache,
             )
             for k, sca_a in enumerate(scalist)
         ]
@@ -1155,7 +1267,9 @@ def residual_function(
     return resids
 
 
-def residual_function_single(k, sca_a, wcs_a, psi_a, f_prime, scalist, neighbors, thresh, cfg, of=None):
+def residual_function_single(
+    k, sca_a, wcs_a, psi_a, f_prime, scalist, neighbors, thresh, cfg, of=None, coords_cache=None
+):
     """
     Calculate the residual for a single SCA image
 
@@ -1181,6 +1295,8 @@ def residual_function_single(k, sca_a, wcs_a, psi_a, f_prime, scalist, neighbors
         the configuration for this run
     of : Str
         filename to write output info to, or if None, output is directed to stdout
+    coords_cache : Dict, optional
+        Pre-computed coordinate mappings to accelerate interpolation
 
     Returns
     --------
@@ -1220,7 +1336,7 @@ def residual_function_single(k, sca_a, wcs_a, psi_a, f_prime, scalist, neighbors
         I_B = Sca_img(obsid_B, scaid_B, cfg)
         gradient_original = np.zeros(I_B.shape)
 
-        transpose_interpolate(gradient_interpolated, wcs_a, I_B, gradient_original)
+        transpose_interpolate(gradient_interpolated, wcs_a, I_B, gradient_original, coords_cache=coords_cache)
         gradient_original *= I_B.g_eff
 
         term_2 = transpose_par(gradient_original)
@@ -1686,6 +1802,7 @@ def conjugate_gradient(
     time_limit=None,
     cfg=None,
     of=None,
+    coords_cache=None,
 ):
     """
     Algorithm to use conjugate gradient descent to optimize the parameters for destriping.
@@ -1717,6 +1834,8 @@ def conjugate_gradient(
         containing all config parameters
     of : Str
         output file to write log messages to
+    coords_cache : Dict, optional
+        Pre-computed coordinate mappings to accelerate interpolation
 
     Returns
     --------
@@ -1792,7 +1911,18 @@ def conjugate_gradient(
 
         # Compute the gradient
         if grad is None:
-            grad = residual_function(psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg)
+            grad = residual_function(
+                psi,
+                f_prime,
+                scalist,
+                wcslist,
+                neighbors,
+                thresh,
+                workers,
+                cfg,
+                of=of,
+                coords_cache=coords_cache,
+            )
             write_to_file(
                 f"Minutes spent in initial residual function: {(time.time() - t_start_CG_iter) / 60}", of
             )
@@ -2019,6 +2149,10 @@ def main(cfg_file=None, overlaponly=False, of=None):
 
     sys.stdout.flush()
     neighbors = get_neighbors(all_scas, ov_mat)
+
+    # Pre-compute and cache interpolation mappings
+    coords_cache = precompute_interpolation_mappings(all_scas, all_wcs, neighbors, outpath, of=of)
+
     # Initialize parameters
     p0 = Parameters(cfg=CFG, scalist=all_scas)
     cm = Cost_models(cfg=CFG)
@@ -2037,6 +2171,7 @@ def main(cfg_file=None, overlaponly=False, of=None):
             time_limit=7200,
             cfg=CFG,
             of=of,
+            coords_cache=coords_cache,
         )
         hdu = fits.PrimaryHDU(p.params)
         hdu.writeto(outpath + "final_params.fits", overwrite=True)
