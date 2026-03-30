@@ -376,12 +376,20 @@ def test_parameters():
     param_image = p.forward_par(0)
     assert param_image.shape == (100, 100)
 
+    p.flatten()
+    p.current_shape = "1D"
+    p.params_2_images()
+    assert p.images.shape == (1, 100)
+    assert p.current_shape == "2D"
+
     for i in range(10):
         expected_value = test_vals[i]
         row_values = param_image[i, :]
         np.testing.assert_array_almost_equal(
             row_values, expected_value, err_msg=f"Row {i} should have constant value {expected_value}"
         )
+
+
 
 
 def test_cost_function():
@@ -449,3 +457,4 @@ def test_cost_models():
     assert abs_cost_model.thresh is None
     assert abs_cost_model.f(x) == np.abs(x)
     assert abs_cost_model.f_prime(x) == np.sign(x)
+
