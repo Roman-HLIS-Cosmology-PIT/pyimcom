@@ -430,7 +430,6 @@ def split_psf_to_fits(psf_file, wcs_format, pars, outfile):
 
 
 # ### MAIN DRIVER ### #
-
 if __name__ == "__main__":
     """Call with python3 -m pyimcom.splitpsf [config_file]"""
 

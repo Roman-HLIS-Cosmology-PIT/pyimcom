@@ -28,6 +28,7 @@ jobs:
       run: |
         sudo apt-get update -y
         sudo apt-get install -y \
+          dvipng \
           texlive-base \
           texlive-latex-base \
           texlive-latex-recommended \
