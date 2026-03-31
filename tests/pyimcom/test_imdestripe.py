@@ -3,14 +3,17 @@ Many of these functions / tests are adapted from test_pyimcom for internal consi
 """
 
 import os
+import pickle
+import tempfile
+from unittest import mock
 
 import numpy as np
 import pytest
 from astropy import wcs
 from pyimcom import imdestripe
 
-# Tools for tests: create WCS, create config, create simple SCA-like object
 
+# Tools for tests: create WCS, create config, create simple SCA-like object
 
 def create_test_wcs(ra, dec, test_size=100, offset=False):
     """
@@ -263,16 +266,6 @@ class TestTransposeInterpolate:
         )
 
 
-def f(x):
-    """Quadratic cost function for testing."""
-    return x**2  # Quadratic cost function
-
-
-def f_prime(x):
-    """Derivative of quadratic cost function for testing."""
-    return 2 * x  # Derivative of quadratic cost function
-
-
 @pytest.mark.skip(reason="Requires real SCA files on disk - integration test")
 def test_residual_gradient():
     """Test function for residual gradient computation."""
@@ -292,14 +285,14 @@ def test_residual_gradient():
 
     # Analytical gradient
     grad = imdestripe.residual_function(
-        psi, f_prime, scalist, wcslist, neighbors, thresh=None, workers=2, cfg=cfg
+        psi, imdestripe.quad_prime, scalist, wcslist, neighbors, thresh=None, workers=2, cfg=cfg
     )
 
     # Numerical gradient : finite difference
     delta = 1e-5
     p = imdestripe.Parameters(cfg, scalist)
 
-    epsilon_0, _ = imdestripe.cost_function(p, f, None, 1, scalist, neighbors, cfg)
+    epsilon_0, _ = imdestripe.cost_function(p, imdestripe.quadratic, None, 1, scalist, neighbors, cfg)
 
     grad_numerical = np.zeros_like(grad)
     for i in range(grad.shape[0]):
@@ -308,12 +301,273 @@ def test_residual_gradient():
             p_perturbed.params = p.params.copy()
             p_perturbed.params[i, j] += delta
 
-            epsilon_plus, _ = imdestripe.cost_function(p_perturbed, f, None, 1, scalist, neighbors, cfg)
+            epsilon_plus, _ = imdestripe.cost_function(p_perturbed, imdestripe.quadratic, None, 1, scalist, neighbors, cfg)
 
             grad_numerical[i, j] = (epsilon_plus - epsilon_0) / delta
 
     # Compare analytical and numerical gradients
     assert np.allclose(grad, grad_numerical, atol=1e-4), "Analytical and numerical gradients do not match!"
+
+
+
+
+class TestCostFunctions:
+    """Comprehensive tests for all cost functions and their derivatives."""
+
+    def test_cost_models(self):
+        """Test function for cost model assigments and computations."""
+
+        x = 2
+
+        quad_cfg = create_test_config(cost_model="quadratic")
+        quad_cost_model = imdestripe.Cost_models(quad_cfg)
+        assert quad_cost_model.model == "quadratic"
+        assert quad_cost_model.thresh is None
+        assert (quad_cost_model.f(x) == x**2)
+        assert quad_cost_model.f_prime(x) == 2 * x
+
+        hub_cfg = create_test_config(cost_model="huber_loss")
+        hub_cost_model = imdestripe.Cost_models(hub_cfg)
+        assert hub_cost_model.model == "huber_loss"
+        assert hub_cost_model.thresh == 1.0
+        assert hub_cost_model.f(x) == hub_cost_model.thresh**2 + 2 * hub_cost_model.thresh * (
+            np.abs(x) - hub_cost_model.thresh
+        )
+        assert hub_cost_model.f_prime(x) == 2.0 * hub_cost_model.thresh * np.sign(x)
+
+        abs_cfg = create_test_config(cost_model="absolute")
+        abs_cost_model = imdestripe.Cost_models(abs_cfg)
+        assert abs_cost_model.model == "absolute"
+        assert abs_cost_model.thresh is None
+        assert abs_cost_model.f(x) == np.abs(x)
+        assert abs_cost_model.f_prime(x) == np.sign(x)
+
+    def test_quadratic(self):
+        """Test quadratic with numpy arrays."""
+        x = np.array([0, -1, 2])
+        result = imdestripe.quadratic(x)
+        expected = np.array([0, 1, 4 ])
+        np.testing.assert_array_equal(result, expected)
+
+    def test_absolute(self):
+        """Test absolute with numpy arrays."""
+        x = np.array([ -1, 0, 1])
+        result = imdestripe.absolute(x)
+        expected = np.array([1, 0, 1])
+        np.testing.assert_array_equal(result, expected)
+
+    def test_huber_loss_within_threshold(self):
+        """Test Huber loss within threshold region (should be quadratic)."""
+        d = 1.0
+        x = 0.5  # Within threshold
+        result = imdestripe.huber_loss(x, d)
+        expected = x**2  # Should be quadratic in this region
+        assert np.isclose(result, expected)
+
+    def test_huber_loss_outside_threshold(self):
+        """Test Huber loss outside threshold region (should be linear)."""
+        d = 1.0
+        x = 2.0  # Outside threshold
+        result = imdestripe.huber_loss(x, d)
+        expected = d**2 + 2 * d * (np.abs(x) - d)
+        assert np.isclose(result, expected)
+
+
+    def test_quad_prime(self):
+        """Test quad_prime with arrays."""
+        x = np.array([0, 1, 2])
+        result = imdestripe.quad_prime(x)
+        expected = 2 * x
+        np.testing.assert_array_equal(result, expected)
+
+    def test_abs_prime(self):
+        """Test derivative of absolute (positive region)."""
+        assert imdestripe.abs_prime(5) == 1
+        assert imdestripe.abs_prime(-5) == -1
+
+    def test_huber_prime_within_threshold(self):
+        """Test Huber derivative within threshold."""
+        # Inside threshold
+        d = 1.0
+        x = 0.5
+        result = imdestripe.huber_prime(x, d)
+        expected = 2 * x  # Should be quad_prime in this region
+        assert np.isclose(result, expected)
+
+        # Outside threshold
+        d = 1.0
+        x = 2.0
+        result = imdestripe.huber_prime(x, d)
+        expected = 2 * d * np.sign(x)
+        assert np.isclose(result, expected)
+
+    def test_cost_models_invalid_model(self):
+        """Test invalid cost model raises KeyError."""
+        bad_cfg = create_test_config(cost_model="not_a_real_model")
+        with pytest.raises(KeyError):
+            imdestripe.Cost_models(bad_cfg)
+
+
+class TestSaveFits:
+    """Tests for save_fits utility function."""
+
+    def test_save_fits_writes_file_with_header(self, tmp_path):
+        """save_fits writes data and preserves basic WCS header fields."""
+        image = np.arange(100, dtype=np.float32).reshape(10, 10)
+        w = create_test_wcs(150.0, 2.0, test_size=10)
+        header = w.to_header()
+
+        imdestripe.save_fits(image, "save_fits_basic", dir=str(tmp_path), header=header)
+
+        out = tmp_path / "save_fits_basic.fits"
+        assert out.exists()
+        with imdestripe.fits.open(out) as hdul:
+            np.testing.assert_array_equal(hdul[0].data, image)
+            assert "CTYPE1" in hdul[0].header
+
+    def test_save_fits_timeout_returns(self, tmp_path):
+        """save_fits returns gracefully on lock timeout."""
+        image = np.zeros((3, 3), dtype=np.float32)
+
+        with mock.patch.object(imdestripe.FileLock, "acquire", side_effect=imdestripe.Timeout):
+            imdestripe.save_fits(image, "save_fits_timeout", dir=str(tmp_path), retries=1)
+
+        out = tmp_path / "save_fits_timeout.fits"
+        assert not out.exists()
+
+
+class TestGetScas:
+    """Tests for get_scas discovery and WCS loading."""
+
+    def test_get_scas_fits_discovers_and_loads_wcs(self, tmp_path):
+        """get_scas finds matching FITS and returns aligned wcs list."""
+        cfg = create_test_config()
+        obsdir = tmp_path / "obs"
+        obsdir.mkdir()
+
+        h1 = create_test_wcs(150.0, 2.0, test_size=10).to_header()
+        h2 = create_test_wcs(150.1, 2.1, test_size=10).to_header()
+
+        imdestripe.fits.PrimaryHDU(np.zeros((10, 10), dtype=np.float32), header=h1).writeto(
+            obsdir / "H158_670_01.fits"
+        )
+        imdestripe.fits.PrimaryHDU(np.ones((10, 10), dtype=np.float32), header=h2).writeto(
+            obsdir / "H158_670_02.fits"
+        )
+
+        scalist, wcslist = imdestripe.get_scas("H158", str(obsdir) + "/", cfg, indata_type="fits")
+
+        assert len(scalist) == 2
+        assert len(wcslist) == 2
+        assert "H158_670_01" in scalist
+        assert "H158_670_02" in scalist
+
+    def test_get_scas_ignores_nonmatching_files(self, tmp_path):
+        """get_scas ignores files that do not match required naming regex."""
+        cfg = create_test_config()
+        obsdir = tmp_path / "obs2"
+        obsdir.mkdir()
+
+        header = create_test_wcs(150.0, 2.0, test_size=8).to_header()
+        imdestripe.fits.PrimaryHDU(np.zeros((8, 8), dtype=np.float32), header=header).writeto(
+            obsdir / "H158_670_03.fits"
+        )
+
+        # Non-matching files
+        (obsdir / "random.txt").write_text("ignore me")
+        (obsdir / "H158_foo_bar.fits").write_text("ignore me too")
+
+        scalist, wcslist = imdestripe.get_scas("H158", str(obsdir) + "/", cfg, indata_type="fits")
+
+        assert scalist == ["H158_670_03"]
+        assert len(wcslist) == 1
+
+
+
+class TestGetNeighborsFunction:
+    """Tests for get_neighbors function."""
+
+    def test_simple_neighbors(self):
+        """Test get_neighbors with simple overlap matrix."""
+        scalist = ["sca_0", "sca_1", "sca_2"]
+        ov_mat = np.array([[0.0, 0.5, 0.0], [0.5, 0.0, 0.3], [0.0, 0.3, 0.0]])
+
+        neighbors = imdestripe.get_neighbors(scalist, ov_mat, overlap_thresh=0.2)
+
+        assert neighbors[0] == [1]
+        assert neighbors[1] == [0, 2]
+        assert neighbors[2] == [1]
+
+    def test_neighbors_no_overlap(self):
+        """Test get_neighbors with no overlap."""
+        scalist = ["sca_0", "sca_1", "sca_2"]
+        ov_mat = np.zeros((3, 3))
+
+        neighbors = imdestripe.get_neighbors(scalist, ov_mat)
+
+        for i in range(3):
+            assert neighbors[i] == []
+
+    def test_neighbors_full_overlap(self):
+        """Test get_neighbors with full overlap (except diagonal)."""
+        scalist = ["sca_0", "sca_1", "sca_2"]
+        ov_mat = np.ones((3, 3))
+        np.fill_diagonal(ov_mat, 0)
+
+        neighbors = imdestripe.get_neighbors(scalist, ov_mat, overlap_thresh=0.5)
+
+        for i in range(3):
+            assert len(neighbors[i]) == 2
+            assert i not in neighbors[i]
+
+
+class TestParametersClass:
+    """Comprehensive tests for Parameters class."""
+
+    def test_parameters_initialization(self):
+        """Test Parameters initialization."""
+        cfg = create_test_config()
+        scalist = ["H158_001_01.fits"]
+
+        p = imdestripe.Parameters(cfg, scalist)
+
+        # Check initialization
+        assert p.params.shape == (1, 100)
+        assert p.model == "constant"
+        assert p.n_rows == 100
+        assert p.params_per_row == 1
+        assert p.current_shape == "2D"
+
+        test_vals = np.arange(100) * 0.1
+        p.params[0, :] = test_vals  # set some test values
+
+        # Test forward_par method
+        param_image = p.forward_par(0)
+        assert param_image.shape == (100, 100)
+
+        for i in range(10):
+            expected_value = test_vals[i]
+            row_values = param_image[i, :]
+            np.testing.assert_array_almost_equal(
+                row_values, expected_value, err_msg=f"Row {i} should have constant value {expected_value}"
+            )
+
+        # Test flatten and params_2_images
+        p.params = np.flatten(p.params)
+        p.current_shape = "1D"
+        p.params_2_images()
+        assert p.params.shape == (1, 100)
+        assert p.current_shape == "2D"
+
+
+    def test_parameters_invalid_model(self):
+        """Test Parameters raises error for invalid model."""
+        cfg = create_test_config(ds_rows=50, ds_model="invalid_model")
+        scalist = ["sca_0"]
+
+        with pytest.raises(ValueError):
+            imdestripe.Parameters(cfg, scalist)
+
 
 
 ###############################
@@ -372,40 +626,6 @@ def test_transpose_par():
     assert np.allclose(transposed_img, expected)
 
 
-def test_parameters():
-    """Test initialization of Parameters class."""
-
-    cfg = create_test_config()
-    scalist = ["H158_001_01.fits"]
-
-    p = imdestripe.Parameters(cfg, scalist)
-
-    # Check initialization
-    assert p.params.shape == (1, 100)
-    assert p.model == "constant"
-    assert p.n_rows == 100
-    assert p.params_per_row == 1
-
-    test_vals = np.arange(100) * 0.1
-    p.params[0, :] = test_vals  # set some test values
-
-    param_image = p.forward_par(0)
-    assert param_image.shape == (100, 100)
-
-    p.flatten()
-    p.current_shape = "1D"
-    p.params_2_images()
-    assert p.images.shape == (1, 100)
-    assert p.current_shape == "2D"
-
-    for i in range(10):
-        expected_value = test_vals[i]
-        row_values = param_image[i, :]
-        np.testing.assert_array_almost_equal(
-            row_values, expected_value, err_msg=f"Row {i} should have constant value {expected_value}"
-        )
-
-
 def test_cost_function():
     """Very simple test function for cost function computation."""
 
@@ -444,74 +664,39 @@ def test_write_to_file(tmp_path):
         os.remove(test_file)
 
 
-def test_cost_models():
-    """Test function for cost model assigments and computations."""
-
-    x = 2
-
-    quad_cfg = create_test_config(cost_model="quadratic")
-    quad_cost_model = imdestripe.cost_models(quad_cfg)
-    assert quad_cost_model.model == "quadratic"
-    assert quad_cost_model.thresh is None
-    assert quad_cost_model.f(x) == x**2
-    assert quad_cost_model.f_prime(x) == 2 * x
-
-    hub_cfg = create_test_config(cost_model="huber_loss")
-    hub_cost_model = imdestripe.cost_models(hub_cfg)
-    assert hub_cost_model.model == "huber_loss"
-    assert hub_cost_model.thresh == 1.0
-    assert hub_cost_model.f(x) == hub_cost_model.thresh**2 + 2 * hub_cost_model.thresh * (
-        np.abs(x) - hub_cost_model.thresh
-    )
-    assert hub_cost_model.f_prime(x) == 2.0 * hub_cost_model.thresh * np.sign(x)
-
-    abs_cfg = create_test_config(cost_model="absolute")
-    abs_cost_model = imdestripe.cost_models(abs_cfg)
-    assert abs_cost_model.model == "absolute"
-    assert abs_cost_model.thresh is None
-    assert abs_cost_model.f(x) == np.abs(x)
-    assert abs_cost_model.f_prime(x) == np.sign(x)
-
-
-def test_save_snapshot(tmp_path):
-    """Test function for saving a snapshot of the current parameters to a file."""
-
-    snapshot_dic = {
-        "p": 1,
-        "grad": 2,
-        "epsilon": 3,
-        "psi": 4,
-        "direction": 5,
-        "grad_prev": 6,
-        "direction_prev": 7,
-        "cg_model": 8,
-        "tol": 9,
-        "thresh": 10,
-        "norm_0": 11,
-        "cost_model": 12,
-        "i": 13,
-        "restart_file": tmp_path / "test_restart_file.pkl",
-        "of": None,
-    }
+def test_save_snapshot(self, tmp_path):
+    """Test that save_snapshot creates a file."""
+    
+    filepath = tmp_path + "/test_restart_file.pkl"
 
     imdestripe.save_snapshot(
-        snapshot_dic["p"],
-        snapshot_dic["grad"],
-        snapshot_dic["epsilon"],
-        snapshot_dic["psi"],
-        snapshot_dic["direction"],
-        snapshot_dic["grad_prev"],
-        snapshot_dic["direction_prev"],
-        snapshot_dic["cg_model"],
-        snapshot_dic["tol"],
-        snapshot_dic["thresh"],
-        snapshot_dic["norm_0"],
-        snapshot_dic["cost_model"],
-        snapshot_dic["i"],
-        snapshot_dic["restart_file"],
-        snapshot_dic["of"],
+        p=np.array([1, 2, 3]),
+        grad=np.array([0.1, 0.2]),
+        epsilon=100.0,
+        psi=np.zeros((2, 100, 100)),
+        direction=np.array([0.5, 0.5]),
+        grad_prev=np.array([0.15, 0.25]),
+        direction_prev=np.array([0.6, 0.4]),
+        cg_model="FR",
+        tol=1e-4,
+        thresh=1.0,
+        norm_0=50.0,
+        cost_model="quadratic",
+        i=5,
+        restart_file=filepath,
+        of=None
     )
 
-    # check for pkl file
-    f = snapshot_dic["restart_file"]
-    assert f.exists(), f"Snapshot file {f} should exist after saving snapshot"
+    assert os.path.exists(filepath)
+
+    filepath = tmp_path + "/test_restart_file.pkl"
+
+    with open(filepath, "rb") as f:
+        loaded = pickle.load(f)
+
+    np.testing.assert_array_almost_equal(loaded["p"], [1, 2, 3])
+    np.testing.assert_array_almost_equal(loaded["grad"], [0.1, 0.2])
+    assert loaded["epsilon"] == 100.0
+    assert loaded["iteration"] == 5
+    assert loaded["cg_model"] == "FR"
+    assert loaded["cost_model"] == "quadratic"
