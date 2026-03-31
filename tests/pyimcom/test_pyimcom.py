@@ -832,7 +832,7 @@ def test_PyIMCOM_run1(tmp_path, setup):
     my_block_pad = OutImage(pathlib.Path(tmp_path / f"out/testout_F_iterpad_00_00.fits"))
     i1 = np.copy(my_block_pad.data[1, -6:, -6:])
     my_block_pad2 = OutImage(pathlib.Path(tmp_path / f"out/testout_F_iterpad_01_00.fits"))
-    print("<<", my_block_pad2.data[1, -6:, :6]
+    print("<<", my_block_pad2.data[1, -6:, :6])
     my_block_pad._update_hdu_data(my_block_pad2, "right", add_mode=False)
     i2 = my_block_pad.data[1, -6:, -6:]
     print(i1)
