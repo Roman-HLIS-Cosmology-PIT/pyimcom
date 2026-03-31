@@ -572,6 +572,17 @@ def setup(tmp_path):
     cfg2()
     Block(cfg=cfg2, this_sub=1)
 
+    # now with padding
+    cfg2 = copy.deepcopy(cfg)
+    cfg2.linear_algebra = "Iterative"
+    cfg2.iter_rtol = 1.5e-3
+    cfg2.iter_max = 2  # not a good choice, just fast for testing
+    cfg2.outstem += "_iterpad"
+	cfg2.postage_pad = 1
+    cfg2()
+    for iblk in range(4):
+        Block(cfg=cfg2, this_sub=iblk)
+
     # remove stuff we don't need
     for iobs in range(len(obs)):
         for sca in range(1, 19):
@@ -816,6 +827,17 @@ def test_PyIMCOM_run1(tmp_path, setup):
     assert np.median(outfidelity) < 1.5e-6
     assert np.amax(outfidelity) < 1.0e-5
     assert np.shape(outfidelity) == (100, 100)
+
+    # Test pad capability
+    my_block_pad = OutImage(pathlib.Path(tmp_path / f"out/testout_F_iterpad_00_00.fits"))
+    i1 = np.copy(my_block_pad.data[1, -6:, -6:])
+    my_block_pad2 = OutImage(pathlib.Path(tmp_path / f"out/testout_F_iterpad_01_00.fits"))
+    print("<<", my_block_pad2.data[1, -6:, :6]
+    my_block_pad._update_hdu_data(my_block_pad2, "right", add_mode=False)
+    i2 = my_block_pad.data[1, -6:, -6:]
+    print(i1)
+    print(i2)
+    assert i1 == 0  # will fail
 
     ## Configuration test ##
 
