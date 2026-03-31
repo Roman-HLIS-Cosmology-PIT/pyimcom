@@ -578,7 +578,7 @@ def setup(tmp_path):
     cfg2.iter_rtol = 1.5e-3
     cfg2.iter_max = 2  # not a good choice, just fast for testing
     cfg2.outstem += "_iterpad"
-	cfg2.postage_pad = 1
+    cfg2.postage_pad = 1
     cfg2()
     for iblk in range(4):
         Block(cfg=cfg2, this_sub=iblk)
