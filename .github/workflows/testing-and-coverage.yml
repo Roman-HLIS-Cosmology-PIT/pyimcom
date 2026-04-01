@@ -50,7 +50,7 @@ jobs:
         NUMBA_DISABLE_JIT=1 python -m pytest --cov=pyimcom --cov-report=xml
         # njit is disabled so the lines coverage in those functions is tracked 
     - name: Upload coverage report to codecov
-      uses: codecov/codecov-action@v5
+      uses: codecov/codecov-action@v6
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         slug: Roman-HLIS-Cosmology-PIT/pyimcom
