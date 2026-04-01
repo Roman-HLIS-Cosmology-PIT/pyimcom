@@ -330,10 +330,10 @@ class TestCostFunctions:
         hub_cost_model = imdestripe.Cost_models(hub_cfg)
         assert hub_cost_model.model == "huber_loss"
         assert hub_cost_model.thresh == 1.0
-        assert hub_cost_model.f(x, hub_cost_model.thresh) == hub_cost_model.thresh**2 + 2 * hub_cost_model.thresh * (
-            np.abs(x) - hub_cost_model.thresh
-        )
-        assert hub_cost_model.f_prime(x) == 2.0 * hub_cost_model.thresh * np.sign(x)
+        assert hub_cost_model.f(
+            x, hub_cost_model.thresh
+        ) == hub_cost_model.thresh**2 + 2 * hub_cost_model.thresh * (np.abs(x) - hub_cost_model.thresh)
+        assert hub_cost_model.f_prime(x, hub_cost_model.thresh) == 2.0 * hub_cost_model.thresh * np.sign(x)
 
         abs_cfg = create_test_config(cost_model="absolute")
         abs_cost_model = imdestripe.Cost_models(abs_cfg)
@@ -428,7 +428,7 @@ class TestSaveFits:
         """save_fits returns gracefully on lock timeout."""
         image = np.zeros((3, 3), dtype=np.float32)
 
-        with mock.patch.object(imdestripe.FileLock, "acquire", side_effect=imdestripe.Timeout):
+        with mock.patch.object(imdestripe.FileLock, "acquire", side_effect=imdestripe.Timeout("mock.lock")):
             imdestripe.save_fits(image, "save_fits_timeout", dir=str(tmp_path), retries=1)
 
         out = tmp_path / "save_fits_timeout.fits"
