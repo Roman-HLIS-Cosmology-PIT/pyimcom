@@ -578,6 +578,7 @@ def setup(tmp_path):
     cfg2.no_qlt_ctrl = True
     cfg2.outstem += "_empirpad"
     cfg2.postage_pad = 1
+    cfg2.pad_sides = "auto"
     cfg2()
     for iblk in range(4):
         Block(cfg=cfg2, this_sub=iblk)
