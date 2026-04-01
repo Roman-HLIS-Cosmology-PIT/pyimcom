@@ -574,10 +574,9 @@ def setup(tmp_path):
 
     # now with padding
     cfg2 = copy.deepcopy(cfg)
-    cfg2.linear_algebra = "Iterative"
-    cfg2.iter_rtol = 1.5e-3
-    cfg2.iter_max = 2  # not a good choice, just fast for testing
-    cfg2.outstem += "_iterpad"
+    cfg2.linear_algebra = "Empirical"
+    cfg2.no_qlt_ctrl = True
+    cfg2.outstem += "_empirpad"
     cfg2.postage_pad = 1
     cfg2()
     for iblk in range(4):
@@ -829,9 +828,9 @@ def test_PyIMCOM_run1(tmp_path, setup):
     assert np.shape(outfidelity) == (100, 100)
 
     # Test pad capability
-    my_block_pad = OutImage(pathlib.Path(tmp_path / f"out/testout_F_iterpad_00_00.fits"))
+    my_block_pad = OutImage(pathlib.Path(tmp_path / "out/testout_F_empirpad_00_00.fits"))
     i1 = np.copy(my_block_pad.data[1, -6:, -6:])
-    my_block_pad2 = OutImage(pathlib.Path(tmp_path / f"out/testout_F_iterpad_01_00.fits"))
+    my_block_pad2 = OutImage(pathlib.Path(tmp_path / "out/testout_F_empirpad_01_00.fits"))
     print("<<", my_block_pad2.data[1, -6:, :6])
     my_block_pad._update_hdu_data(my_block_pad2, "right", add_mode=False)
     i2 = my_block_pad.data[1, -6:, -6:]
