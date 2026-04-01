@@ -330,7 +330,7 @@ class TestCostFunctions:
         hub_cost_model = imdestripe.Cost_models(hub_cfg)
         assert hub_cost_model.model == "huber_loss"
         assert hub_cost_model.thresh == 1.0
-        assert hub_cost_model.f(x) == hub_cost_model.thresh**2 + 2 * hub_cost_model.thresh * (
+        assert hub_cost_model.f(x, hub_cost_model.thresh) == hub_cost_model.thresh**2 + 2 * hub_cost_model.thresh * (
             np.abs(x) - hub_cost_model.thresh
         )
         assert hub_cost_model.f_prime(x) == 2.0 * hub_cost_model.thresh * np.sign(x)
@@ -551,7 +551,7 @@ class TestParametersClass:
             )
 
         # Test flatten and params_2_images
-        p.params = np.flatten(p.params)
+        p.params = p.params.flatten()
         p.current_shape = "1D"
         p.params_2_images()
         assert p.params.shape == (1, 100)
@@ -609,7 +609,7 @@ def test_object_mask():
     assert np.all(image[neighbor_mask] == 0), "Masked pixels should be set to zero"
 
     masked_image, same_mask = imdestripe.apply_object_mask(test_image, mask=neighbor_mask, inplace=True)
-    assert same_mask == neighbor_mask, "Returned mask should be the same when mask is provided"
+    assert np.all(same_mask == neighbor_mask), "Returned mask should be the same when mask is provided"
     assert np.all(masked_image[same_mask] == 0), "Masked pixels should be set to zero when inplace=True"
 
 
