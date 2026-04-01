@@ -273,7 +273,8 @@ def test_residual_gradient():
     sca_B = make_simple_sca(type="random", offset=True)
     cfg = create_test_config()
 
-    scalist = ["sca_a", "sca_b"]
+    # Keep naming consistent with get_ids() parser: _<obsid>_<scaid>
+    scalist = ["H158_670_01", "H158_670_02"]
     wcslist = [sca_A.w, sca_B.w]
     neighbors = {0: [1], 1: [0]}
 
@@ -646,7 +647,7 @@ def test_write_to_file(tmp_path):
 
     with open(test_file, "r") as f:
         content = f.read()
-        assert content == text, f"File content should match lines, got {content}"
+        assert content == text + "\n", f"File content should match lines, got {content}"
 
     # Test writing to console (should not raise an error)
     try:
@@ -795,7 +796,7 @@ def _make_fake_sca_obj(shape=(4, 4), fill=1.0):
 
 class TestGetEffectiveGain:
     """Coverage tests for get_effective_gain()."""
-    
+
     def test_get_effective_gain_calls_memmap_with_expected_paths(self):
         """Test that get_effective_gain attempts to load the correct files
         and returns arrays of the expected shape."""
