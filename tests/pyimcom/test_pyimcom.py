@@ -23,7 +23,7 @@ from astropy.modeling import models
 from astropy.table import Table
 from furry_parakeet.pyimcom_croutines import gridD5512C
 from gwcs import coordinate_frames as cf
-from pyimcom.analysis import OutImage
+from pyimcom.analysis import Mosaic, OutImage
 from pyimcom.coadd import Block
 from pyimcom.compress.compressutils import CompressedOutput, ReadFile
 from pyimcom.config import Config
@@ -583,6 +583,17 @@ def setup(tmp_path):
     cfg2()
     for iblk in range(4):
         Block(cfg=cfg2, this_sub=iblk)
+    with ReadFile(pathlib.Path(tmp_path / "out/testout_F_empirpad_00_00.fits")) as f:
+        i1 = np.copy(f[0].data[0, 5, -6:, -6:])
+    with ReadFile(pathlib.Path(tmp_path / "out/testout_F_empirpad_01_00.fits")) as f:
+        i2 = np.copy(f[0].data[0, 5, -6:, :6])
+    Mosaic(cfg2).share_padding_stamps()
+    with ReadFile(pathlib.Path(tmp_path / "out/testout_F_empirpad_00_00.fits")) as f:
+        i3 = np.copy(f[0].data[0, 5, -6:, -6:])
+    print(i1)
+    print(i2)
+    print(i3)
+    assert i1 == -1  # will fail
 
     # remove stuff we don't need
     for iobs in range(len(obs)):
@@ -841,6 +852,7 @@ def test_PyIMCOM_run1(tmp_path, setup):
     print(i1)
     print(i2)
     assert np.allclose(i1, i2)
+    assert i1 == -1  # will fail
 
     ## Configuration test ##
 
