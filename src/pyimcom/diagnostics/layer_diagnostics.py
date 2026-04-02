@@ -83,7 +83,7 @@ class LayerReport(ReportSection):
                     if not exists(infile):
                         return None
                     chunk = iby * nblock + ibx  # noqa: B023
-                    with ReadFile(infile) as f:
+                    with ReadFile(infile, layers=[ilayer]) as f:  # noqa: B023
                         x_ = f[0].data[0, ilayer, :, :]  # noqa: B023
                         if d > 0:
                             x_ = x_[d:-d, d:-d]
