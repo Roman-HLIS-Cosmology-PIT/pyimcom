@@ -832,15 +832,15 @@ def test_PyIMCOM_run1(tmp_path, setup):
     # Test pad capability
     my_block_pad = OutImage(pathlib.Path(tmp_path / "out/testout_F_empirpad_00_00.fits"))
     my_block_pad._load_or_save_hdu_list()
-    i1 = np.copy(my_block_pad.hdu_list[0].data[0, 1, -6:, -6:])
+    i1 = np.copy(my_block_pad.hdu_list[0].data[0, 5, -6:, -6:])
     my_block_pad2 = OutImage(pathlib.Path(tmp_path / "out/testout_F_empirpad_01_00.fits"))
     my_block_pad2._load_or_save_hdu_list()
-    print("<<", my_block_pad2.hdu_list[0].data[0, 1, -6:, :6])
+    print("<<", my_block_pad2.hdu_list[0].data[0, 5, -6:, :6])
     my_block_pad._update_hdu_data(my_block_pad2, "right", add_mode=False)
-    i2 = my_block_pad.hdu_list[0].data[0, 1, -6:, -6:]
+    i2 = my_block_pad.hdu_list[0].data[0, 5, -6:, -6:]
     print(i1)
     print(i2)
-    assert i1 == 0  # will fail
+    assert np.allclose(i1, i2)
 
     ## Configuration test ##
 
