@@ -594,7 +594,7 @@ def setup(tmp_path):
     print(i2)
     print(i3)
     assert np.std(i2) > 0.003
-    assert np.all(i1 < 1.0e-7))
+    assert np.all(i1 < 1.0e-7)
     assert np.allclose(i2, i3)
 
     # remove stuff we don't need
