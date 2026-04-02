@@ -176,7 +176,10 @@ def make_picture_1band(
     bw = cmap is None
 
     # get the configuration
-    cfg = get_config(fn + "_00_00.fits")
+    try:
+        cfg = get_config(fn + "_00_00.fits")
+    except FileNotFoundError:
+        cfg = get_config(fn + "_00_00.cpr.fits.gz")
     nint = cfg.n1 * cfg.n2
     pad = cfg.n2 * cfg.postage_pad
 
