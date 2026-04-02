@@ -584,16 +584,18 @@ def setup(tmp_path):
     for iblk in range(4):
         Block(cfg=cfg2, this_sub=iblk)
     with ReadFile(pathlib.Path(tmp_path / "out/testout_F_empirpad_00_00.fits")) as f:
-        i1 = np.copy(f[0].data[0, 5, -6:, -6:])
+        i1 = np.copy(f[0].data[0, 5, 3:9, -6:])
     with ReadFile(pathlib.Path(tmp_path / "out/testout_F_empirpad_01_00.fits")) as f:
-        i2 = np.copy(f[0].data[0, 5, -6:, :6])
+        i2 = np.copy(f[0].data[0, 5, 3:9, :6])
     Mosaic(cfg2).share_padding_stamps()
     with ReadFile(pathlib.Path(tmp_path / "out/testout_F_empirpad_00_00.fits")) as f:
-        i3 = np.copy(f[0].data[0, 5, -6:, -6:])
+        i3 = np.copy(f[0].data[0, 5, 3:9, -6:])
     print(i1)
     print(i2)
     print(i3)
-    assert i1 == -1  # will fail
+    assert np.std(i2) > 0.003
+    assert np.all(i1 < 1.0e-7))
+    assert np.allclose(i2, i3)
 
     # remove stuff we don't need
     for iobs in range(len(obs)):
