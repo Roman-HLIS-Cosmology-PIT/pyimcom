@@ -577,7 +577,8 @@ def setup(tmp_path):
     cfg2.linear_algebra = "Empirical"
     cfg2.no_qlt_ctrl = True
     cfg2.outstem += "_empirpad"
-    cfg2.postage_pad = 1
+    cfg2.n1 = 6
+    cfg2.postage_pad = 2
     cfg2.pad_sides = "auto"
     cfg2()
     for iblk in range(4):
