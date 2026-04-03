@@ -51,7 +51,8 @@ def run_report(input_fits, output_stem="_report", inpath=None):
 
 
 if __name__ == "__main__":
-    rpt = ValidationReport(sys.argv[1], sys.argv[2], clear_all=True)
+    tmp_dir = sys.argv[3] if len(sys.argv) > 3 else None
+    rpt = ValidationReport(sys.argv[1], sys.argv[2], clear_all=True, tmp_dir=tmp_dir)
     sectionlist = [MosaicImage, LayerReport, SimulatedStar, NoiseReport]
     for cls in sectionlist:
         s = cls(rpt)

@@ -58,9 +58,20 @@ class LayerReport(ReportSection):
         npc = len(pctiles)
         pcarray = np.zeros((nlayers, npc), dtype=np.float32)
 
+        nsize = (ns * nblock) ** 2
         for ilayer in range(nlayers):
             # get data
-            data = np.zeros((ns * nblock, ns * nblock), dtype=np.float32)
+            if self.tmp_dir is None:
+                data = np.zeros((nsize,), dtype=np.float32)
+            else:
+                data = np.memmap(
+                    str(self.tmp_dir) + "/layer.npy",
+                    dtype="float32",
+                    mode="w+",
+                    shape=((nsize,)),
+                )
+                data[:] = 0.0
+
             for iby in range(nblock):
 
                 def _load_row(arg):
@@ -71,21 +82,29 @@ class LayerReport(ReportSection):
                     infile = self.infile(ibx, iby)  # noqa: B023
                     if not exists(infile):
                         return None
-                    with ReadFile(infile) as f:
-                        _data[ns * iby : ns * (iby + 1), ns * ibx : ns * (ibx + 1)] = f[  # noqa: B023
-                            0
-                        ].data[
-                            0, ilayer, d:-d, d:-d  # noqa: B023
-                        ]
+                    chunk = iby * nblock + ibx  # noqa: B023
+                    with ReadFile(infile, layers=[ilayer]) as f:  # noqa: B023
+                        x_ = f[0].data[0, ilayer, :, :]  # noqa: B023
+                        if d > 0:
+                            x_ = x_[d:-d, d:-d]
+                        _data[chunk * ns * ns : (chunk + 1) * ns * ns] = x_.ravel()
 
                 with concurrent.futures.ThreadPoolExecutor(max_workers=4) as e:
                     e.map(_load_row, [(ix, data) for ix in range(nblock)])
 
                 del _load_row
 
-            # get percentiles
+            # get percentiles --- now uses sorting method since this works out of core
+            data.sort(kind="mergesort")
             for k in range(npc):
-                pcarray[ilayer, k] = np.percentile(data, pctiles[k])
+                pos = (nsize - 1) * pctiles[k] / 100.0
+                p1 = int(np.floor(pos))
+                if p1 < 0:
+                    p1 = 0
+                if p1 >= nsize - 1:
+                    p1 = nsize - 2
+                frac = np.clip(pos - p1, 0.0, 1.0)
+                pcarray[ilayer, k] = (1 - frac) * data[p1] + frac * data[p1 + 1]
             del data
 
         # now build table, in segments of size up to ncolmax

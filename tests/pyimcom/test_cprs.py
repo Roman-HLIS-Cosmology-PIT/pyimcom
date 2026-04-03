@@ -78,7 +78,14 @@ def runcprs(tmp_path, allfiles=False):
     with fits.open(floc) as fi, ReadFile(fout) as fo:
         diff = fi[0].data[0, :, :, :] - fo[0].data[0, :, :, :]
     maxdiff = np.amax(np.abs(diff), axis=(1, 2))
-    assert np.all(maxdiff <= np.array([1.0e-6, 1.0e-6, 1.0e-6, 1.0e-6, 1.2e-7, 0.011, 1.2e-7, 0.004, 0.001]))
+    maxdiff_ref = np.array([1.0e-6, 1.0e-6, 1.0e-6, 1.0e-6, 1.2e-7, 0.011, 1.2e-7, 0.004, 0.001])
+    assert np.all(maxdiff <= maxdiff_ref)
+
+    # test decompressing individual layers
+    for j in range(9):
+        with fits.open(floc) as fi, ReadFile(fout, layers=[j]) as fo:
+            diff = fi[0].data[0, j, :, :] - fo[0].data[0, j, :, :]
+            assert np.amax(np.abs(diff)) <= maxdiff_ref[j]
 
 
 def test_singlecprs(tmp_path):
