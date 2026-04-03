@@ -602,8 +602,8 @@ def setup(tmp_path):
         i3a = np.copy(f[0].data[0, 5, 3:9, -6:])
         i3b = np.copy(f[0].data[0, 5, -6:, 3:9])
     with ReadFile(pathlib.Path(tmp_path / "out/testout_F_empirpad_01_01.fits")) as f:
-        i3c = np.copy(f[0].data[0, 5, -9:-3, 6:])
-        i3d = np.copy(f[0].data[0, 5, 6:, -9:-3])
+        i3c = np.copy(f[0].data[0, 5, -9:-3, :6])
+        i3d = np.copy(f[0].data[0, 5, :6, -9:-3])
     assert np.std(i2a) > 0.001
     assert np.all(i1a < 1.0e-7)
     assert np.allclose(i2a, i3a)
