@@ -583,21 +583,39 @@ def setup(tmp_path):
     cfg2()
     for iblk in range(4):
         Block(cfg=cfg2, this_sub=iblk)
+    dpix = 2 * cfg2.postage_pad * cfg.n2
     with ReadFile(pathlib.Path(tmp_path / "out/testout_F_empirpad_00_00.fits")) as f:
-        i1 = np.copy(f[0].data[0, 5, 3:9, -6:])
+        i1a = np.copy(f[0].data[0, 5, 3:9, -6:])
+        i1b = np.copy(f[0].data[0, 5, -6:, 3:9])
+    with ReadFile(pathlib.Path(tmp_path / "out/testout_F_empirpad_01_01.fits")) as f:
+        i1c = np.copy(f[0].data[0, 5, -9:-3, 6:])
+        i1d = np.copy(f[0].data[0, 5, 6:, -9:-3])
     with ReadFile(pathlib.Path(tmp_path / "out/testout_F_empirpad_01_00.fits")) as f:
-        dpix = 2 * cfg2.postage_pad * cfg.n2
-        i2 = np.copy(f[0].data[0, 5, 3:9, dpix - 6 : dpix])
+        i2a = np.copy(f[0].data[0, 5, 3:9, dpix - 6 : dpix])
+        i2d = np.copy(f[0].data[0, 5, -dpix : -dpix + 6, -9:-3])
         # same region as above, shifted by dpix pixels due to overlap
+    with ReadFile(pathlib.Path(tmp_path / "out/testout_F_empirpad_00_01.fits")) as f:
+        i2b = np.copy(f[0].data[0, 5, dpix - 6 : dpix, 3:9])
+        i2c = np.copy(f[0].data[0, 5, -9:-3, -dpix : -dpix + 6])
     Mosaic(cfg2).share_padding_stamps()
     with ReadFile(pathlib.Path(tmp_path / "out/testout_F_empirpad_00_00.fits")) as f:
-        i3 = np.copy(f[0].data[0, 5, 3:9, -6:])
-    print(i1)
-    print(i2)
-    print(i3)
-    assert np.std(i2) > 0.003
-    assert np.all(i1 < 1.0e-7)
-    assert np.allclose(i2, i3)
+        i3a = np.copy(f[0].data[0, 5, 3:9, -6:])
+        i3b = np.copy(f[0].data[0, 5, -6:, 3:9])
+    with ReadFile(pathlib.Path(tmp_path / "out/testout_F_empirpad_01_01.fits")) as f:
+        i3c = np.copy(f[0].data[0, 5, -9:-3, 6:])
+        i3d = np.copy(f[0].data[0, 5, 6:, -9:-3])
+    assert np.std(i2a) > 0.003
+    assert np.all(i1a < 1.0e-7)
+    assert np.allclose(i2a, i3a)
+    assert np.std(i2b) > 0.003
+    assert np.all(i1b < 1.0e-7)
+    assert np.allclose(i2b, i3b)
+    assert np.std(i2c) > 0.003
+    assert np.all(i1c < 1.0e-7)
+    assert np.allclose(i2c, i3c)
+    assert np.std(i2d) > 0.003
+    assert np.all(i1d < 1.0e-7)
+    assert np.allclose(i2d, i3d)
 
     # remove stuff we don't need
     for iobs in range(len(obs)):
@@ -843,20 +861,6 @@ def test_PyIMCOM_run1(tmp_path, setup):
     assert np.median(outfidelity) < 1.5e-6
     assert np.amax(outfidelity) < 1.0e-5
     assert np.shape(outfidelity) == (100, 100)
-
-    # Test pad capability
-    my_block_pad = OutImage(pathlib.Path(tmp_path / "out/testout_F_empirpad_00_00.fits"))
-    my_block_pad._load_or_save_hdu_list()
-    i1 = np.copy(my_block_pad.hdu_list[0].data[0, 5, -6:, -6:])
-    my_block_pad2 = OutImage(pathlib.Path(tmp_path / "out/testout_F_empirpad_01_00.fits"))
-    my_block_pad2._load_or_save_hdu_list()
-    print("<<", my_block_pad2.hdu_list[0].data[0, 5, -6:, :6])
-    my_block_pad._update_hdu_data(my_block_pad2, "right", add_mode=False)
-    i2 = my_block_pad.hdu_list[0].data[0, 5, -6:, -6:]
-    print(i1)
-    print(i2)
-    assert np.allclose(i1, i2)
-    assert i1 == -1  # will fail
 
     ## Configuration test ##
 
