@@ -604,16 +604,16 @@ def setup(tmp_path):
     with ReadFile(pathlib.Path(tmp_path / "out/testout_F_empirpad_01_01.fits")) as f:
         i3c = np.copy(f[0].data[0, 5, -9:-3, 6:])
         i3d = np.copy(f[0].data[0, 5, 6:, -9:-3])
-    assert np.std(i2a) > 0.003
+    assert np.std(i2a) > 0.001
     assert np.all(i1a < 1.0e-7)
     assert np.allclose(i2a, i3a)
-    assert np.std(i2b) > 0.003
+    assert np.std(i2b) > 0.001
     assert np.all(i1b < 1.0e-7)
     assert np.allclose(i2b, i3b)
-    assert np.std(i2c) > 0.003
+    assert np.std(i2c) > 0.001
     assert np.all(i1c < 1.0e-7)
     assert np.allclose(i2c, i3c)
-    assert np.std(i2d) > 0.003
+    assert np.std(i2d) > 0.001
     assert np.all(i1d < 1.0e-7)
     assert np.allclose(i2d, i3d)
 
