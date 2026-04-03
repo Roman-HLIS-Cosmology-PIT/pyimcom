@@ -588,8 +588,8 @@ def setup(tmp_path):
         i1a = np.copy(f[0].data[0, 5, 3:9, -6:])
         i1b = np.copy(f[0].data[0, 5, -6:, 3:9])
     with ReadFile(pathlib.Path(tmp_path / "out/testout_F_empirpad_01_01.fits")) as f:
-        i1c = np.copy(f[0].data[0, 5, -9:-3, 6:])
-        i1d = np.copy(f[0].data[0, 5, 6:, -9:-3])
+        i1c = np.copy(f[0].data[0, 5, -9:-3, :6])
+        i1d = np.copy(f[0].data[0, 5, :6, -9:-3])
     with ReadFile(pathlib.Path(tmp_path / "out/testout_F_empirpad_01_00.fits")) as f:
         i2a = np.copy(f[0].data[0, 5, 3:9, dpix - 6 : dpix])
         i2d = np.copy(f[0].data[0, 5, -dpix : -dpix + 6, -9:-3])
