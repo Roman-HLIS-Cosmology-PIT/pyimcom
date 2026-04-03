@@ -586,7 +586,9 @@ def setup(tmp_path):
     with ReadFile(pathlib.Path(tmp_path / "out/testout_F_empirpad_00_00.fits")) as f:
         i1 = np.copy(f[0].data[0, 5, 3:9, -6:])
     with ReadFile(pathlib.Path(tmp_path / "out/testout_F_empirpad_01_00.fits")) as f:
-        i2 = np.copy(f[0].data[0, 5, 3:9, :6])
+        dpix = 2 * cfg2.postage_pad * cfg.n2
+        i2 = np.copy(f[0].data[0, 5, 3:9, dpix - 6 : dpix])
+        # same region as above, shifted by dpix pixels due to overlap
     Mosaic(cfg2).share_padding_stamps()
     with ReadFile(pathlib.Path(tmp_path / "out/testout_F_empirpad_00_00.fits")) as f:
         i3 = np.copy(f[0].data[0, 5, 3:9, -6:])
