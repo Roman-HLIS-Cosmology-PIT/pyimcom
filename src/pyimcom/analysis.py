@@ -736,6 +736,11 @@ class NoiseAnal:
         -------
         None
 
+        Notes
+        -----
+        If the image side length is not a multiple of 8, the extra pixels (`L` // 8)
+        are clipped.
+
         """
 
         L = self.cfg.NsideP  # side length in px
@@ -747,25 +752,26 @@ class NoiseAnal:
             indata = indata[bdpad:-bdpad, bdpad:-bdpad]
 
         s_out = self.cfg.dtheta * u.degree.to("arcsec")  # in arcsec
-        norm = NoiseAnal.get_norm(self.layer, L, Stn.RomanFilters[self.cfg.use_filter], s_out)
+        Lcut = L // 8 * 8  # "extra" pixels will be trimmed to get a multiple of 8
+        norm = NoiseAnal.get_norm(self.layer, Lcut, Stn.RomanFilters[self.cfg.use_filter], s_out)
 
         # Measure the 2D power spectrum of image.
-        ps = np.empty((L, L), dtype=np.float64)
-        rps = np.square(np.abs(np.fft.fftshift(np.fft.rfft2(indata), 0))) / norm
-        ps[:, L // 2 :] = rps[:, :-1]
-        ps[1:, : L // 2] = rps[L - 1 : 0 : -1, L // 2 : 0 : -1]
-        ps[0, : L // 2] = rps[0, L // 2 : 0 : -1]
-        self.ps2d = np.average(np.reshape(ps, (L // 8, 8, L // 8, 8)), axis=(1, 3))
+        ps = np.empty((Lcut, Lcut), dtype=np.float64)
+        rps = np.square(np.abs(np.fft.fftshift(np.fft.rfft2(indata[:Lcut, :Lcut]), 0))) / norm
+        ps[:, Lcut // 2 :] = rps[:, :-1]
+        ps[1:, : Lcut // 2] = rps[Lcut - 1 : 0 : -1, Lcut // 2 : 0 : -1]
+        ps[0, : Lcut // 2] = rps[0, Lcut // 2 : 0 : -1]
+        self.ps2d = np.average(np.reshape(ps, (Lcut // 8, 8, Lcut // 8, 8)), axis=(1, 3))
         del rps, ps
 
         # Calculate the azimuthally-averaged 1D power spectrum of the image.
         nradbins = (
-            L // 16
+            Lcut // 16
         )  # Number of radial bins is side length div. into 8 from binning and then (floor) div. by 2.
         ps_1d, ps_image_err = NoiseAnal.azimuthal_average(self.ps2d, nradbins, rbin, ridx)
-        # wavenumbers = NoiseAnal._get_wavenumbers(L, nradbins)
+        # wavenumbers = NoiseAnal._get_wavenumbers(Lcut, nradbins)
 
-        self.ps1d = np.zeros((L // 16, 2))
+        self.ps1d = np.zeros((Lcut // 16, 2))
         # self.ps1d[:, 0] = wavenumbers   # powerspectrum.k
         self.ps1d[:, 0] = ps_1d  # powerspectrum.ps_image
         self.ps1d[:, 1] = ps_image_err  # powerspectrum.ps_image_err
