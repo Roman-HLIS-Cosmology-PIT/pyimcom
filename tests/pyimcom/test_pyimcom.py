@@ -23,7 +23,7 @@ from astropy.modeling import models
 from astropy.table import Table
 from furry_parakeet.pyimcom_croutines import gridD5512C
 from gwcs import coordinate_frames as cf
-from pyimcom.analysis import OutImage
+from pyimcom.analysis import Mosaic, OutImage
 from pyimcom.coadd import Block
 from pyimcom.compress.compressutils import CompressedOutput, ReadFile
 from pyimcom.config import Config
@@ -572,6 +572,81 @@ def setup(tmp_path):
     cfg2()
     Block(cfg=cfg2, this_sub=1)
 
+    # now with padding
+    cfg2 = copy.deepcopy(cfg)
+    cfg2.linear_algebra = "Empirical"
+    cfg2.no_qlt_ctrl = True
+    cfg2.outstem += "_empirpad"
+    cfg2.n1 = 6
+    cfg2.postage_pad = 2
+    cfg2.pad_sides = "auto"
+    cfg2()
+    for iblk in range(4):
+        Block(cfg=cfg2, this_sub=iblk)
+    dpix = 2 * cfg2.postage_pad * cfg.n2
+    with ReadFile(pathlib.Path(tmp_path / "out/testout_F_empirpad_00_00.fits")) as f:
+        i1a = np.copy(f[0].data[0, 5, 3:9, -6:])
+        i1b = np.copy(f[0].data[0, 5, -6:, 3:9])
+    with ReadFile(pathlib.Path(tmp_path / "out/testout_F_empirpad_01_01.fits")) as f:
+        i1c = np.copy(f[0].data[0, 5, -9:-3, :6])
+        i1d = np.copy(f[0].data[0, 5, :6, -9:-3])
+    with ReadFile(pathlib.Path(tmp_path / "out/testout_F_empirpad_01_00.fits")) as f:
+        i2a = np.copy(f[0].data[0, 5, 3:9, dpix - 6 : dpix])
+        i2d = np.copy(f[0].data[0, 5, -dpix : -dpix + 6, -9:-3])
+        # same region as above, shifted by dpix pixels due to overlap
+    with ReadFile(pathlib.Path(tmp_path / "out/testout_F_empirpad_00_01.fits")) as f:
+        i2b = np.copy(f[0].data[0, 5, dpix - 6 : dpix, 3:9])
+        i2c = np.copy(f[0].data[0, 5, -9:-3, -dpix : -dpix + 6])
+    mos = Mosaic(cfg2)
+    mos.share_padding_stamps()
+    with ReadFile(pathlib.Path(tmp_path / "out/testout_F_empirpad_00_00.fits")) as f:
+        i3a = np.copy(f[0].data[0, 5, 3:9, -6:])
+        i3b = np.copy(f[0].data[0, 5, -6:, 3:9])
+    with ReadFile(pathlib.Path(tmp_path / "out/testout_F_empirpad_01_01.fits")) as f:
+        i3c = np.copy(f[0].data[0, 5, -9:-3, :6])
+        i3d = np.copy(f[0].data[0, 5, :6, -9:-3])
+    assert np.std(i2a) > 0.001
+    assert np.all(i1a < 1.0e-7)
+    assert np.allclose(i2a, i3a)
+    assert np.std(i2b) > 0.001
+    assert np.all(i1b < 1.0e-7)
+    assert np.allclose(i2b, i3b)
+    assert np.std(i2c) > 0.001
+    assert np.all(i1c < 1.0e-7)
+    assert np.allclose(i2c, i3c)
+    assert np.std(i2d) > 0.001
+    assert np.all(i1d < 1.0e-7)
+    assert np.allclose(i2d, i3d)
+    # check the noise power spectra
+    mos.get_noise_power_spectra(bins=8, overwrite=True)
+    with open(str(tmp_path) + "/out/testout_F_empirpad_NoisePS.npy", "rb") as f:
+        ps2d_all = np.load(f)
+        ps1d_all = np.load(f)
+        wavenumbers = np.load(f)
+    assert np.shape(ps2d_all) == (2, 18, 18)
+    assert np.shape(ps1d_all) == (2, 8, 9, 2)
+    assert np.shape(wavenumbers) == (9,)
+    assert np.abs(ps2d_all[0, 0, 0]) < 1.0e-10
+    assert 0.0017 < np.sum(ps2d_all[0]) < 0.002
+    assert np.all(np.abs(ps1d_all[:, :3, :, :]) < 1.0e-11)
+    assert np.all(np.abs(ps1d_all[:, -3:, :, :]) < 1.0e-11)
+    assert 1.8e-5 < np.sum(ps1d_all, axis=1)[0, 0, 0] < 2.0e-5
+    assert 1.6e-5 < np.sum(ps1d_all, axis=1)[0, 0, 1] < 1.8e-5
+    assert np.allclose(
+        wavenumbers,
+        [
+            3.05837232,
+            4.97362834,
+            6.91919263,
+            8.87435956,
+            10.82665007,
+            12.64160504,
+            14.60934787,
+            16.36958477,
+            17.67766953,
+        ],
+    )
+
     # remove stuff we don't need
     for iobs in range(len(obs)):
         for sca in range(1, 19):
@@ -625,7 +700,7 @@ def test_drawlayers(tmp_path, setup):
         f1 = str(tmp_path) + rf"/cache/in_{id:08d}_{sca:02d}.fits"
         f2 = str(tmp_path) + rf"/cache/otherin_{id:08d}_{sca:02d}.fits"
         with fits.open(f1) as d1, fits.open(f2) as d2:
-            print(id, sca, d1[0].data, d2[0].data)
+            # print(id, sca, d1[0].data, d2[0].data)
             assert np.allclose(d1[0].data, d2[0].data)
 
     # test for build_one_layer
@@ -640,7 +715,7 @@ def test_drawlayers(tmp_path, setup):
         f1 = str(tmp_path) + rf"/cache/in_{id:08d}_{sca:02d}.fits"
         f2 = str(tmp_path) + rf"/cache/otherin_{id:08d}_{sca:02d}.fits"
         with fits.open(f1) as d1, fits.open(f2) as d2:
-            print(id, sca, d1[0].data, d2[0].data)
+            # print(id, sca, d1[0].data, d2[0].data)
             assert np.allclose(d1[0].data, d2[0].data)
 
 
