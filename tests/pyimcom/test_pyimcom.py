@@ -597,7 +597,8 @@ def setup(tmp_path):
     with ReadFile(pathlib.Path(tmp_path / "out/testout_F_empirpad_00_01.fits")) as f:
         i2b = np.copy(f[0].data[0, 5, dpix - 6 : dpix, 3:9])
         i2c = np.copy(f[0].data[0, 5, -9:-3, -dpix : -dpix + 6])
-    Mosaic(cfg2).share_padding_stamps()
+    mos = Mosaic(cfg2)
+    mos.share_padding_stamps()
     with ReadFile(pathlib.Path(tmp_path / "out/testout_F_empirpad_00_00.fits")) as f:
         i3a = np.copy(f[0].data[0, 5, 3:9, -6:])
         i3b = np.copy(f[0].data[0, 5, -6:, 3:9])
@@ -616,6 +617,20 @@ def setup(tmp_path):
     assert np.std(i2d) > 0.001
     assert np.all(i1d < 1.0e-7)
     assert np.allclose(i2d, i3d)
+    # check the noise power spectra
+    mos.get_noise_power_spectra(bins=8, overwrite=True)
+    with open(str(tmp_path) + "/out/testout_F_empirpad_NoisePS.npy", "rb") as f:
+        ps2d_all = np.load(f)
+        ps1d_all = np.load(f)
+        wavenumbers = np.load(f)
+    print("=====")
+    print(">>", np.shape(ps2d_all))
+    print(ps2d_all)
+    print(">>", np.shape(ps1d_all))
+    print(ps1d_all)
+    print(">>", np.shape(wavenumbers))
+    print(wavenumbers)
+    assert wavenumbers == 0  # will fail, and will look at the output
 
     # remove stuff we don't need
     for iobs in range(len(obs)):
@@ -670,7 +685,7 @@ def test_drawlayers(tmp_path, setup):
         f1 = str(tmp_path) + rf"/cache/in_{id:08d}_{sca:02d}.fits"
         f2 = str(tmp_path) + rf"/cache/otherin_{id:08d}_{sca:02d}.fits"
         with fits.open(f1) as d1, fits.open(f2) as d2:
-            print(id, sca, d1[0].data, d2[0].data)
+            # print(id, sca, d1[0].data, d2[0].data)
             assert np.allclose(d1[0].data, d2[0].data)
 
     # test for build_one_layer
@@ -685,7 +700,7 @@ def test_drawlayers(tmp_path, setup):
         f1 = str(tmp_path) + rf"/cache/in_{id:08d}_{sca:02d}.fits"
         f2 = str(tmp_path) + rf"/cache/otherin_{id:08d}_{sca:02d}.fits"
         with fits.open(f1) as d1, fits.open(f2) as d2:
-            print(id, sca, d1[0].data, d2[0].data)
+            # print(id, sca, d1[0].data, d2[0].data)
             assert np.allclose(d1[0].data, d2[0].data)
 
 
