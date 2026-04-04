@@ -1173,10 +1173,17 @@ class _BlkGrp:
         """
         Analyze noise power spectra of this mosaic.
 
+        The output noise power spectra are written to ``self.cfg.outstem + "_NoisePS.npy"``. These
+        are in the format:
+
+        * `ps2d_all` = 2D power spectrum, [which_noise_layer, ybin, xbin]
+        * `ps1d_all` = 1D power spectrum, [which_noise_layer, coverage_bin, wavenumber_bin, value_or_err]
+        * `wavenumber` = 1D array of wavenumbers
+
         Parameters
         ----------
         bins : int, optional
-            Number of bins for 1D power spectra.
+            Number of coverage bins for 1D power spectra.
         overwrite : bool, optional
             Whether to overwrite existing results.
 
