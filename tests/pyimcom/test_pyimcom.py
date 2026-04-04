@@ -632,9 +632,19 @@ def setup(tmp_path):
     assert np.all(np.abs(ps1d_all[:, -3:, :, :]) < 1.0e-11)
     assert 1.8e-5 < np.sum(ps1d_all, axis=1)[0, 0, 0] < 2.0e-5
     assert 1.6e-5 < np.sum(ps1d_all, axis=1)[0, 0, 1] < 1.8e-5
-    assert np.allclose(wavenumbers,
-        [3.05837232,  4.97362834,  6.91919263,  8.87435956, 10.82665007, 12.64160504,
-            14.60934787, 16.36958477, 17.67766953]
+    assert np.allclose(
+        wavenumbers,
+        [
+            3.05837232,
+            4.97362834,
+            6.91919263,
+            8.87435956,
+            10.82665007,
+            12.64160504,
+            14.60934787,
+            16.36958477,
+            17.67766953,
+        ],
     )
 
     # remove stuff we don't need
