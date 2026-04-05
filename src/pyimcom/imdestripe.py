@@ -13,7 +13,8 @@ Cost_models
 Functions
 ---------
 write_to_file
-    Function to write some text to an output file
+    Function to write some text to an output file.
+    If filename is None, output is directed to stdout
 save_fits
     Save a 2D image to a FITS file with locking, retries, and atomic rename.
 apply_object_mask
@@ -633,7 +634,7 @@ class Parameters:
         return np.array(self.params[sca_i, :])[:, np.newaxis] * np.ones((self.n_rows, self.n_rows))
 
 
-def write_to_file(text, filename="destripe_out.txt"):
+def write_to_file(text, filename=None):
     """
     Function to write some text to an output file
 
@@ -642,16 +643,20 @@ def write_to_file(text, filename="destripe_out.txt"):
     text : Str
         The text to print
     filename : Str
-        Filename to write out to. Default 'destripe_out.txt'
+        Filename to write out to, or if None, output is directed to stdout
+
     """
 
-    if not os.path.exists(filename):
+    if filename is None:
+        print(text)
+
+    elif not os.path.exists(filename):
         with open(filename, "w+") as f:
             f.write(text + "\n")
+
     else:
         with open(filename, "a") as f:
             f.write(text + "\n")
-    print(text)
 
 
 def save_fits(image, filename, dir=None, overwrite=True, s=False, header=None, retries=3):
@@ -773,7 +778,7 @@ def huber_prime(x, d):
     return np.where(np.abs(x) <= d, quad_prime(x), 2 * d * np.sign(x))
 
 
-def get_scas(filter_, obsfile, cfg, indata_type="fits"):
+def get_scas(filter_, obsfile, cfg, indata_type="fits", of=None):
     """
     Function to get a list of all SCA images and their WCSs for this mosaic
 
@@ -787,6 +792,8 @@ def get_scas(filter_, obsfile, cfg, indata_type="fits"):
         built from the configuration file
     indata_type : Str
         input data type: 'fits' or 'asdf'. Default 'fits'
+    of : Str
+        filename to write output info to, or if None, output is directed to stdout
 
     Returns
     --------
@@ -818,10 +825,10 @@ def get_scas(filter_, obsfile, cfg, indata_type="fits"):
                         this_wcs = PyIMCOM_WCS(this_file["roman"]["meta"]["wcs"])
                         all_wcs.append(this_wcs)
 
-    write_to_file(f"N SCA images in this mosaic: {str(n_scas)}", cfg.ds_outpath + filter_ + cfg.ds_outstem)
-    write_to_file("SCA List:", cfg.ds_outpath + "SCA_list.txt")
+    write_to_file(f"N SCA images in this mosaic: {str(n_scas)}", of)
+    write_to_file("------- SCA List -------", of)
     for i, s in enumerate(all_scas):
-        write_to_file(f"SCA {i}: {s}", cfg.ds_outpath + "SCA_list.txt")
+        write_to_file(f"SCA {i}: {s}", of)
     return all_scas, all_wcs
 
 
@@ -982,6 +989,7 @@ def save_snapshot(
     cost_model,
     i,
     restart_file,
+    of=None,
 ):
     """
     Save restart state to pickle file.
@@ -1016,6 +1024,8 @@ def save_snapshot(
         current iteration number
     restart_file : Str
         path to the restart pickle file
+    of : Str
+        filename to write output info to, or if None, output is directed to stdout
     """
     crash_state = {
         "iteration": i,
@@ -1034,7 +1044,7 @@ def save_snapshot(
     }
     with open(restart_file, "wb") as f:
         pickle.dump(crash_state, f)
-    write_to_file(f"Checkpoint saved at iteration {i+1} -> {restart_file}")
+    write_to_file(f"Checkpoint saved at iteration {i+1} -> {restart_file}", of)
 
 
 def get_neighbors(scalist, ov_mat, overlap_thresh=0.1):
@@ -1061,7 +1071,9 @@ def get_neighbors(scalist, ov_mat, overlap_thresh=0.1):
     return neighbors
 
 
-def residual_function(psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg, extrareturn=False):
+def residual_function(
+    psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg, extrareturn=False, of=None
+):
     """
     Calculate the residual image, = grad(epsilon)
 
@@ -1087,7 +1099,8 @@ def residual_function(psi, f_prime, scalist, wcslist, neighbors, thresh, workers
     extrareturn : Bool
         if True, return residual terms 1 and 2 separately; Default False
             in addition to full residuals. returns resids, resids1, resids2
-
+    of : Str
+        filename to write output info to, or if None, output is directed to stdout
 
     Returns
     --------
@@ -1099,7 +1112,7 @@ def residual_function(psi, f_prime, scalist, wcslist, neighbors, thresh, workers
     if extrareturn:
         resids1 = np.zeros_like(resids)
         resids2 = np.zeros_like(resids)
-    write_to_file("Residual calculation started")
+    write_to_file("Residual calculation started", of)
     sys.stdout.flush()
     t_r_0 = time.time()
 
@@ -1116,6 +1129,7 @@ def residual_function(psi, f_prime, scalist, wcslist, neighbors, thresh, workers
                 neighbors,
                 thresh,
                 cfg,
+                of=of,
             )
             for k, sca_a in enumerate(scalist)
         ]
@@ -1134,14 +1148,14 @@ def residual_function(psi, f_prime, scalist, wcslist, neighbors, thresh, workers
 
         # KL explicitly give output locations to write_to_file (these should go to the diagnostics directory)
         # could give cfg to write_to_file
-    write_to_file(f"Residuals calculation finished in {(time.time() - t_r_0) / 60} minutes.")
-    write_to_file(f"Average time making resids per sca: {(time.time() - t_r_0) / len(scalist)} seconds")
+    write_to_file(f"Residuals calculation finished in {(time.time() - t_r_0) / 60} minutes.", of)
+    write_to_file(f"Average time making resids per sca: {(time.time() - t_r_0) / len(scalist)} seconds", of)
     if extrareturn:
         return resids, resids1, resids2
     return resids
 
 
-def residual_function_single(k, sca_a, wcs_a, psi_a, f_prime, scalist, neighbors, thresh, cfg):
+def residual_function_single(k, sca_a, wcs_a, psi_a, f_prime, scalist, neighbors, thresh, cfg, of=None):
     """
     Calculate the residual for a single SCA image
 
@@ -1165,6 +1179,8 @@ def residual_function_single(k, sca_a, wcs_a, psi_a, f_prime, scalist, neighbors
         threshold for Huber loss cost function; default None
     cfg : Config object
         the configuration for this run
+    of : Str
+        filename to write output info to, or if None, output is directed to stdout
 
     Returns
     --------
@@ -1218,7 +1234,7 @@ def residual_function_single(k, sca_a, wcs_a, psi_a, f_prime, scalist, neighbors
     return k, term_1, term_2_list
 
 
-def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg):
+def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg, of=None):
     """
     Calculate the cost function for a single SCA image
 
@@ -1240,6 +1256,8 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg):
         threshold for Huber loss cost function; default None
     cfg : Config object
         the configuration for this run
+    of : Str
+        filename to write output info to, or if None, output is directed to stdout
 
     Returns
     --------
@@ -1289,17 +1307,17 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg):
             overwrite=True,
         )
 
-        write_to_file(f"Sample stats for SCA {img_full_output}:")
-        write_to_file(f"Image A mean: {np.mean(I_A.image)}")
-        write_to_file(f"Image B mean: {np.mean(J_A_image)}")
-        write_to_file(f"Psi mean: {np.mean(psi)}")
-        write_to_file(f"f(Psi) mean: {np.mean(result)}")
-        write_to_file(f"Local epsilon for SCA {j}: {local_epsilon}")
+        write_to_file(f"Sample stats for SCA {img_full_output}:", of)
+        write_to_file(f"Image A mean: {np.mean(I_A.image)}", of)
+        write_to_file(f"Image B mean: {np.mean(J_A_image)}", of)
+        write_to_file(f"Psi mean: {np.mean(psi)}", of)
+        write_to_file(f"f(Psi) mean: {np.mean(result)}", of)
+        write_to_file(f"Local epsilon for SCA {j}: {local_epsilon}", of)
 
     return j, psi, local_epsilon
 
 
-def cost_function(p, f, thresh, workers, scalist, neighbors, cfg, tempdir=tempdir):
+def cost_function(p, f, thresh, workers, scalist, neighbors, cfg, tempdir=tempdir, of=None):
     """
     Calculate the cost function with the current de-striping parameters.
 
@@ -1321,6 +1339,8 @@ def cost_function(p, f, thresh, workers, scalist, neighbors, cfg, tempdir=tempdi
         the configuration for this run
     tempdir : Str
         directory to store temporary files
+    of : Str
+        filename to write output info to, or if None, output is directed to stdout
 
     Returns
     --------
@@ -1329,7 +1349,7 @@ def cost_function(p, f, thresh, workers, scalist, neighbors, cfg, tempdir=tempdi
     psi : D np array
         the difference images I_A-J_A
     """
-    write_to_file("Initializing cost function")
+    write_to_file("Initializing cost function", of)
     t0_cost = time.time()
     psi = np.memmap(
         tempdir + "psi_all.dat", dtype=use_output_float, mode="w+", shape=(len(scalist), 4088, 4088)
@@ -1339,7 +1359,7 @@ def cost_function(p, f, thresh, workers, scalist, neighbors, cfg, tempdir=tempdi
 
     with ProcessPoolExecutor(max_workers=workers) as executor:
         futures = [
-            executor.submit(cost_function_single, j, sca_a, p, f, scalist, neighbors, thresh, cfg)
+            executor.submit(cost_function_single, j, sca_a, p, f, scalist, neighbors, thresh, cfg, of=of)
             for j, sca_a in enumerate(scalist)
         ]
 
@@ -1350,12 +1370,12 @@ def cost_function(p, f, thresh, workers, scalist, neighbors, cfg, tempdir=tempdi
                 del psi_j
                 epsilon += local_eps
             except Exception as e:
-                print(f"Worker failed with exception: {e}", flush=True)
+                write_to_file(f"Worker failed with exception: {e}", of)
                 traceback.print_exc()
                 raise
-    write_to_file(f"Ending cost function. Time elapsed: {(time.time() - t0_cost) / 60} minutes")
+    write_to_file(f"Ending cost function. Time elapsed: {(time.time() - t0_cost) / 60} minutes", of)
     write_to_file(
-        f"Average time per cost function iteration: {(time.time() - t0_cost) / len(scalist)} seconds"
+        f"Average time per cost function iteration: {(time.time() - t0_cost) / len(scalist)} seconds", of
     )
     return epsilon, psi
 
@@ -1377,6 +1397,7 @@ def linear_search_general(
     cfg,
     n_iter=100,
     tol=10**-4,
+    of=None,
 ):
     """
     Linear search via combination bisection and secant methods for parameters that minimize the function
@@ -1416,6 +1437,8 @@ def linear_search_general(
          number of iterations at which to stop searching
     tol : float
          absolute value of d_cost at which to converge
+    of : Str
+        filename to write output info to, or if None, output is directed to stdout
 
     Returns
     --------
@@ -1456,7 +1479,7 @@ def linear_search_general(
         alpha_max = 10
 
     # Calculate f(alpha_max) and f(alpha_min), which need to be defined for secant update
-    write_to_file("### Calculating min and max epsilon and cost")
+    write_to_file("### Calculating min and max epsilon and cost", of)
     max_params = p.params + alpha_max * direction
     max_p.params = max_params
     max_epsilon, max_psi = cost_function(max_p, f, thresh, workers, scalist, neighbors, cfg)
@@ -1477,30 +1500,29 @@ def linear_search_general(
         t0_ls_iter = time.time()
 
         if k == 1:
-            write_to_file("### Beginning linear search")
-            write_to_file(f"LS Direction: {direction}")
-            write_to_file(f"Initial params: {p.params}")
-            write_to_file(f"Initial epsilon: {best_epsilon}")
-            write_to_file(f"Initial d_cost: {d_cost_init}, d_cost tol: {d_cost_tol}")
-            write_to_file(f"Initial alpha range (min, test, max): ({alpha_min}, {alpha_test}, {alpha_max})")
-
+            write_to_file("### Beginning linear search", of)
+            write_to_file(f"LS Direction: {direction}", of)
+            write_to_file(f"Initial params: {p.params}", of)
+            write_to_file(f"Initial epsilon: {best_epsilon}", of)
+            write_to_file(f"Initial d_cost: {d_cost_init}, d_cost tol: {d_cost_tol}", of)
+            write_to_file(f"Initial alpha (min, test, max): ({alpha_min}, {alpha_test}, {alpha_max})", of)
         if k == n_iter - 1:
-            write_to_file("WARNING: Linear search did not converge!!")
+            write_to_file("WARNING: Linear search did not converge!!", of)
 
         if k != 1:
             alpha_test = alpha_min - (
                 d_cost_min * (alpha_max - alpha_min) / (d_cost_max - d_cost_min)
             )  # secant update
-            write_to_file(f"Secant update: alpha_test={alpha_test}")
+            write_to_file(f"Secant update: alpha_test={alpha_test}", of)
             method = "secant"
             if np.isnan(alpha_test):
-                write_to_file("Secant update fail-- bisecting instead")
+                write_to_file("Secant update fail-- bisecting instead", of)
                 alpha_test = 0.5 * (alpha_min + alpha_max)  # bisection update
-                write_to_file(f"Bisection update: alpha_test={alpha_test}")
+                write_to_file(f"Bisection update: alpha_test={alpha_test}", of)
                 method = "bisection"
         elif k == 1:
             alpha_test = 0.5 * (alpha_min + alpha_max)  # bisection update
-            write_to_file(f"Bisection update: alpha_test={alpha_test}")
+            write_to_file(f"Bisection update: alpha_test={alpha_test}", of)
 
         working_params = p.params + alpha_test * direction
         working_p.params = working_params
@@ -1515,13 +1537,13 @@ def linear_search_general(
         convergence_crit = alpha_max - alpha_min
         conv_params.append([working_epsilon, alpha_test, d_cost])
 
-        write_to_file(f"Ending LS iteration {k}")
-        write_to_file(f"Current d_cost = {d_cost}, epsilon = {working_epsilon}")
-        write_to_file(f"Working resids: {working_resids}")
-        write_to_file(f"Working params: {working_p.params}")
-        write_to_file(f"Current alpha range (min, test, max): {alpha_min, alpha_test, alpha_max}")
-        write_to_file(f"Current delta alpha: {convergence_crit}")
-        write_to_file(f"Time spent in this LS iteration: {(time.time() - t0_ls_iter) / 60} minutes.")
+        write_to_file(f"Ending LS iteration {k}", of)
+        write_to_file(f"Current d_cost = {d_cost}, epsilon = {working_epsilon}", of)
+        write_to_file(f"Working resids: {working_resids}", of)
+        write_to_file(f"Working params: {working_p.params}", of)
+        write_to_file(f"Current alpha range (min, test, max): {alpha_min, alpha_test, alpha_max}", of)
+        write_to_file(f"Current delta alpha: {convergence_crit}", of)
+        write_to_file(f"Time spent in this LS iteration: {(time.time() - t0_ls_iter) / 60} minutes.", of)
 
         # Convergence and update criteria and checks
         if (working_epsilon < best_epsilon + tol * alpha_test * d_cost) and (np.abs(alpha_test) >= 1e-6):
@@ -1529,7 +1551,7 @@ def linear_search_general(
             best_p = copy.deepcopy(working_p)
             best_psi = working_psi
             best_resids = working_resids
-            write_to_file(f"Linear search convergence in {k} iterations")
+            write_to_file(f"Linear search convergence in {k} iterations", of)
             if testoutputs["testing"]:
                 save_fits(best_p.params, "best_p", dir=testoutputs["test_image_dir"], overwrite=True)
                 save_fits(
@@ -1555,7 +1577,7 @@ def linear_search_general(
 
 
 def linear_search_quadratic(
-    p, direction, f, f_prime, grad_current, thresh, workers, scalist, wcslist, neighbors, cfg
+    p, direction, f, f_prime, grad_current, thresh, workers, scalist, wcslist, neighbors, cfg, of=None
 ):
     """
     For the quadratic cost function, direct calculation of alpha that minimizes the function
@@ -1588,7 +1610,8 @@ def linear_search_quadratic(
         dictionary where keys are SCA indices and values are lists of indices of overlapping SCAs
     cfg : Config object
         the configuration for this run
-
+    of : Str
+        filename to write output info to, or if None, output is directed to stdout
 
     Returns
     --------
@@ -1630,18 +1653,18 @@ def linear_search_quadratic(
     new_p.params = new_params
     new_epsilon, new_psi = cost_function(new_p, f, thresh, workers, scalist, neighbors, cfg)
     new_resids = grad_current + (alpha_new / alpha_max) * (trial_resids - grad_current)
-    print(f"(Inside LS) Global elapsed t = {(time.time()-t0_global)/60:8.1f}")
+    write_to_file(f"(Inside LS) Global elapsed t = {(time.time()-t0_global)/60:8.1f}", of)
     sys.stdout.flush()
 
     d_cost = np.sum(new_resids * direction)
 
-    write_to_file("Ending LS")
-    write_to_file(f"Current d_cost = {d_cost}")
-    write_to_file(f"Current epsilon = {new_epsilon}")
-    write_to_file(f"Working resids: {new_resids}")
-    write_to_file(f"Working params: {new_p.params}")
-    write_to_file(f"Current alpha: {alpha_new}")
-    write_to_file(f"Time spent in this LS: {(time.time() - t0_ls) / 60} minutes.")
+    write_to_file("Ending LS", of)
+    write_to_file(f"Current d_cost = {d_cost}", of)
+    write_to_file(f"Current epsilon = {new_epsilon}", of)
+    write_to_file(f"Working resids: {new_resids}", of)
+    write_to_file(f"Working params: {new_p.params}", of)
+    write_to_file(f"Current alpha: {alpha_new}", of)
+    write_to_file(f"Time spent in this LS: {(time.time() - t0_ls) / 60} minutes.", of)
     sys.stdout.flush()
 
     # Convergence and update criteria and checks
@@ -1662,7 +1685,7 @@ def conjugate_gradient(
     restart_file=None,
     time_limit=None,
     cfg=None,
-    of="destripe_out.txt",
+    of=None,
 ):
     """
     Algorithm to use conjugate gradient descent to optimize the parameters for destriping.
@@ -1700,10 +1723,10 @@ def conjugate_gradient(
     p : params object
         the best fit parameters for destriping the SCA images
     """
-    write_to_file("### Starting conjugate gradient optimization")
-    print(f"Global elapsed t = {(time.time()-t0_global)/60:8.1f}")
-    print(f"HL Threshold (None, if cost fn is not Huber Loss): {thresh}")
-    print(f"Restart?: {cfg.ds_restart}\n")
+    write_to_file("### Starting conjugate gradient optimization", of)
+    write_to_file(f"Global elapsed t = {(time.time()-t0_global)/60:8.1f}", of)
+    write_to_file(f"HL Threshold (None, if cost fn is not Huber Loss): {thresh}", of)
+    write_to_file(f"Restart?: {cfg.ds_restart}\n", of)
 
     testoutputs["test_image_dir"] = cfg.ds_outpath + "test_images/" + str(0) + "/"
     log_file = os.path.join(cfg.ds_outpath, "cg_log.csv")
@@ -1711,7 +1734,7 @@ def conjugate_gradient(
     if cfg.ds_restart is not None:
         with open(cfg.ds_restart, "rb") as f_in:
             state = pickle.load(f_in)
-        write_to_file(f"Restarting CG from snapshot {cfg.ds_restart} at iteration {state['iteration']+1}")
+        write_to_file(f"Restarting CG from snapshot {cfg.ds_restart} at iteration {state['iteration']+1}", of)
         i = state["iteration"]
         p = state["p"]
         grad = state["grad"]
@@ -1823,7 +1846,7 @@ def conjugate_gradient(
 
         if cost_model == "quadratic":
             p_new, psi_new, grad_new, epsilon_new = linear_search_quadratic(
-                p, direction, f, f_prime, grad, thresh, workers, scalist, wcslist, neighbors, cfg
+                p, direction, f, f_prime, grad, thresh, workers, scalist, wcslist, neighbors, cfg, of=of
             )
 
         else:
@@ -1842,9 +1865,10 @@ def conjugate_gradient(
                 wcslist,
                 neighbors,
                 cfg,
+                of=of,
             )
 
-        print(f"Global elapsed t = {(time.time()-t0_global)/60:8.1f}")
+        write_to_file(f"Global elapsed t = {(time.time()-t0_global)/60:8.1f}", of)
         ls_time = (time.time() - t_start_LS) / 60
         write_to_file(f"Total time spent in linear search: {ls_time}", of)
         write_to_file(
@@ -1889,7 +1913,7 @@ def conjugate_gradient(
         write_to_file(
             f"Total time spent in this CG iteration: {(time.time() - t_start_CG_iter) / 60} minutes.", of
         )
-        print(f"Global elapsed t = {(time.time()-t0_global)/60:8.1f}")
+        write_to_file(f"Global elapsed t = {(time.time()-t0_global)/60:8.1f}", of)
         sys.stdout.flush()
 
         # Save checkpoint if walltime exceeded
@@ -1914,6 +1938,7 @@ def conjugate_gradient(
                     cost_model,
                     i,
                     restart_file,
+                    of=of,
                 )
                 return p
 
@@ -1926,7 +1951,7 @@ def conjugate_gradient(
     return p
 
 
-def main(cfg_file=None, overlaponly=False):
+def main(cfg_file=None, overlaponly=False, of=None):
     """
     Main function to run destriping via conjugate gradient descent.
 
@@ -1936,6 +1961,8 @@ def main(cfg_file=None, overlaponly=False):
         Configuration file (if not provided, reads from command line arguments).
     overlaponly : bool, optional
         Only compute the overlap matrix, then stop.
+    of : str, optional
+        Output file for logging. If None, logs are printed to stdout.
 
     Returns
     -------
@@ -1963,17 +1990,16 @@ def main(cfg_file=None, overlaponly=False):
 
     if CFG.cg_model not in CG_models:
         raise ValueError(f"CG model {CFG.cg_model} not in CG_models dictionary.")
-    outfile = outpath + filter_ + CFG.ds_outstem  # the file that the output prints etc are written to
 
     CFG()
 
     t0 = time.time()
 
     workers = os.cpu_count() // int(os.environ["OMP_NUM_THREADS"]) if "OMP_NUM_THREADS" in os.environ else 12
-    write_to_file(f"## Using {workers} workers for parallel processing.", filename=outfile)
+    write_to_file(f"## Using {workers} workers for parallel processing.", of)
 
-    all_scas, all_wcs = get_scas(filter_, CFG.ds_obsfile, CFG, indata_type="fits")
-    write_to_file(f"{len(all_scas)} SCAs in this mosaic", filename=outfile)
+    all_scas, all_wcs = get_scas(filter_, CFG.ds_obsfile, CFG, indata_type="fits", of=of)
+    write_to_file(f"{len(all_scas)} SCAs in this mosaic", of)
     sys.stdout.flush()
 
     # get overlap matrix
@@ -1981,14 +2007,11 @@ def main(cfg_file=None, overlaponly=False):
         ov_mat = np.load(outpath + "ovmat.npy")
     else:
         ovmat_t0 = time.time()
-        write_to_file("Overlap matrix computing start", filename=outfile)
+        write_to_file("Overlap matrix computing start", of)
         ov_mat = compareutils.get_overlap_matrix(all_wcs, verbose=True, subsamp=4)
         np.save(outpath + "ovmat.npy", ov_mat)
-        write_to_file(
-            f"Overlap matrix complete. Duration: {(time.time() - ovmat_t0) / 60} Minutes",
-            filename=outfile,
-        )
-        write_to_file(f"Overlap matrix saved to: {outpath}ovmat.npy", filename=outfile)
+        write_to_file(f"Overlap matrix complete. Duration: {(time.time() - ovmat_t0) / 60} Minutes", of)
+        write_to_file(f"Overlap matrix saved to: {outpath}ovmat.npy", of)
 
     # if we're only computing overlap matrices, can stop here
     if overlaponly:
@@ -2013,17 +2036,17 @@ def main(cfg_file=None, overlaponly=False):
             neighbors,
             time_limit=7200,
             cfg=CFG,
-            of=outfile,
+            of=of,
         )
         hdu = fits.PrimaryHDU(p.params)
         hdu.writeto(outpath + "final_params.fits", overwrite=True)
-        print(outpath + "final_params.fits created \n")
+        write_to_file(outpath + "final_params.fits created \n", of)
         sys.stdout.flush()
 
     except Exception as e:
-        print(f"Exception: {e}")
+        write_to_file(f"Exception: {e}", of)
         logging.exception("An error occurred:")
-        print("Conjugate gradient failed. Restart state saved to cg_restart.pkl\n")
+        write_to_file("Conjugate gradient failed. Restart state saved to cg_restart.pkl\n", of)
 
     for i, sca in enumerate(all_scas):
         obsid, scaid = get_ids(sca)
@@ -2044,8 +2067,8 @@ def main(cfg_file=None, overlaponly=False):
         del this_sca
 
     gc.collect()
-    write_to_file(f"Destriped images saved to {outpath + filter_} _DS_*.fits", filename=outfile)
-    write_to_file(f"Total hours elapsed: {(time.time() - t0) / 3600}", filename=outfile)
+    write_to_file(f"Destriped images saved to {outpath + filter_} _DS_*.fits", of)
+    write_to_file(f"Total hours elapsed: {(time.time() - t0) / 3600}", of)
 
     return outpath + filter_ + "_DS"
 
