@@ -36,6 +36,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
 from scipy import ndimage
+from scipy.fft import fft2 as scipy_fft2
 from skimage.filters import window
 
 from ..compress.compressutils import ReadFile
@@ -433,7 +434,7 @@ class NoiseReport(ReportSection):
             norm = norm * np.average(w**2)
             noiseframe = noiseframe * w
 
-        fft = np.fft.fftshift(np.fft.fft2(noiseframe))
+        fft = np.fft.fftshift(scipy_fft2(noiseframe, workers=4))
         ps = ((np.abs(fft)) ** 2) / norm
         if bin:
             # print('# 2D spectrum is 8x8 binned\n')

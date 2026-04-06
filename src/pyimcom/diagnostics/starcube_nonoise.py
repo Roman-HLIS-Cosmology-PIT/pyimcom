@@ -130,7 +130,7 @@ def gen_starcube_nonoise(infile_fcn, outstem, nblockmax=100):
             if not exists(infile):
                 continue
             # get WCS
-            with ReadFile(infile) as f:
+            with ReadFile(infile, layers=[use_slice]) as f:
                 mywcs = wcs.WCS(f[0].header)
                 map = f[0].data[0, use_slice, :, :]
                 wt = np.sum(np.where(f["INWEIGHT"].data[0, :, :, :] > 0.01, 1, 0), axis=0)
