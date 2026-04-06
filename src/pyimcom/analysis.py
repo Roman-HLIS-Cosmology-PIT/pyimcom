@@ -1173,7 +1173,7 @@ class _BlkGrp:
         """
         Analyze noise power spectra of this mosaic.
 
-        The output noise power spectra are written to ``self.cfg.outstem + "_NoisePS.npy"``. These
+        The output noise power spectra are written to ``self.cfg.outstem + "_NoisePS.npz"``. These
         are in the format:
 
         * `ps2d_all` = 2D power spectrum, [which_noise_layer, ybin, xbin]
@@ -1193,12 +1193,12 @@ class _BlkGrp:
 
         """
 
-        fname = self.cfg.outstem + "_NoisePS.npy"
+        fname = self.cfg.outstem + "_NoisePS.npz"
         if not overwrite and exists(fname):
-            with open(fname, "rb") as f:
-                self.ps2d_all = np.load(f)
-                self.ps1d_all = np.load(f)
-                self.wavenumbers = np.load(f)
+            with np.load(fname) as f:
+                self.ps2d_all = f["ps2d_all"]
+                self.ps1d_all = f["ps1d_all"]
+                self.wavenumbers = f["wavenumber"]
             return
 
         timer = Timer()
@@ -1273,11 +1273,7 @@ class _BlkGrp:
             self.ps1d_all[:, idx, :, :] /= count
         del coverage_idx, counts
 
-        with open(fname, "wb") as f:
-            np.save(f, self.ps2d_all)
-            np.save(f, self.ps1d_all)
-            np.save(f, self.wavenumbers)
-
+        np.savez(fname, ps2d_all=self.ps2d_all, ps1d_all=self.ps1d_all, wavenumbers=self.wavenumbers)
         print(f"finished at t = {timer():.2f} s")
 
     def get_star_catalog(self, layer: str = "gsstar14", overwrite: bool = False) -> None:
