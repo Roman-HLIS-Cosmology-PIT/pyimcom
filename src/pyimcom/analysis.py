@@ -1198,7 +1198,7 @@ class _BlkGrp:
             with np.load(fname) as f:
                 self.ps2d_all = f["ps2d_all"]
                 self.ps1d_all = f["ps1d_all"]
-                self.wavenumbers = f["wavenumber"]
+                self.wavenumbers = f["wavenumbers"]
             return
 
         timer = Timer()
