@@ -619,33 +619,36 @@ def setup(tmp_path):
     assert np.allclose(i2d, i3d)
     # check the noise power spectra
     mos.get_noise_power_spectra(bins=8, overwrite=True)
-    with np.load(str(tmp_path) + "/out/testout_F_empirpad_NoisePS.npz") as f:
-        ps2d_all = f["ps2d_all"]
-        ps1d_all = f["ps1d_all"]
-        wavenumbers = f["wavenumbers"]
-    assert np.shape(ps2d_all) == (2, 18, 18)
-    assert np.shape(ps1d_all) == (2, 8, 9, 2)
-    assert np.shape(wavenumbers) == (9,)
-    assert np.abs(ps2d_all[0, 0, 0]) < 1.0e-10
-    assert 0.0017 < np.sum(ps2d_all[0]) < 0.002
-    assert np.all(np.abs(ps1d_all[:, :3, :, :]) < 1.0e-11)
-    assert np.all(np.abs(ps1d_all[:, -3:, :, :]) < 1.0e-11)
-    assert 1.8e-5 < np.sum(ps1d_all, axis=1)[0, 0, 0] < 2.0e-5
-    assert 1.6e-5 < np.sum(ps1d_all, axis=1)[0, 0, 1] < 1.8e-5
-    assert np.allclose(
-        wavenumbers,
-        [
-            3.05837232,
-            4.97362834,
-            6.91919263,
-            8.87435956,
-            10.82665007,
-            12.64160504,
-            14.60934787,
-            16.36958477,
-            17.67766953,
-        ],
-    )
+    for _ in range(2):
+        with np.load(str(tmp_path) + "/out/testout_F_empirpad_NoisePS.npz") as f:
+            ps2d_all = f["ps2d_all"]
+            ps1d_all = f["ps1d_all"]
+            wavenumbers = f["wavenumbers"]
+        assert np.shape(ps2d_all) == (2, 18, 18)
+        assert np.shape(ps1d_all) == (2, 8, 9, 2)
+        assert np.shape(wavenumbers) == (9,)
+        assert np.abs(ps2d_all[0, 0, 0]) < 1.0e-10
+        assert 0.0017 < np.sum(ps2d_all[0]) < 0.002
+        assert np.all(np.abs(ps1d_all[:, :3, :, :]) < 1.0e-11)
+        assert np.all(np.abs(ps1d_all[:, -3:, :, :]) < 1.0e-11)
+        assert 1.8e-5 < np.sum(ps1d_all, axis=1)[0, 0, 0] < 2.0e-5
+        assert 1.6e-5 < np.sum(ps1d_all, axis=1)[0, 0, 1] < 1.8e-5
+        assert np.allclose(
+            wavenumbers,
+            [
+                3.05837232,
+                4.97362834,
+                6.91919263,
+                8.87435956,
+                10.82665007,
+                12.64160504,
+                14.60934787,
+                16.36958477,
+                17.67766953,
+            ],
+        )
+        # test loading from file
+        mos.get_noise_power_spectra(bins=8, overwrite=False)
 
     # remove stuff we don't need
     for iobs in range(len(obs)):
