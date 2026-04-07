@@ -2019,6 +2019,10 @@ class Block:
         ### Begin loop over all the postage stamps we want to create ###
 
         n_coadded = 0  # number of coadded postage stamps
+        if self.j_st_max + 1 - self.j_st_min % 2 == 1 or self.i_st_max + 1 - self.i_st_min % 2 == 1:
+            raise ValueError(
+                f"Size must be even: y={self.j_st_min}..{self.j_st_max}, x={self.i_st_min}..{self.i_st_max}"
+            )
         for j_st in range(self.j_st_min, self.j_st_max + 1, 2):
             for i_st in range(self.i_st_min, self.i_st_max + 1, 2):
                 for dj, di in product(range(2), range(2)):
