@@ -619,10 +619,10 @@ def setup(tmp_path):
     assert np.allclose(i2d, i3d)
     # check the noise power spectra
     mos.get_noise_power_spectra(bins=8, overwrite=True)
-    with open(str(tmp_path) + "/out/testout_F_empirpad_NoisePS.npy", "rb") as f:
-        ps2d_all = np.load(f)
-        ps1d_all = np.load(f)
-        wavenumbers = np.load(f)
+    with np.load(str(tmp_path) + "/out/testout_F_empirpad_NoisePS.npz") as f:
+        ps2d_all = f["ps2d_all"]
+        ps1d_all = f["ps1d_all"]
+        wavenumbers = f["wavenumbers"]
     assert np.shape(ps2d_all) == (2, 18, 18)
     assert np.shape(ps1d_all) == (2, 8, 9, 2)
     assert np.shape(wavenumbers) == (9,)
