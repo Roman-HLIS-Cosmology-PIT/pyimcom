@@ -59,10 +59,11 @@ def _percentiles_and_delete(arr, pctiles, target, delete_arr):
         target[k] = (1 - frac) * arr[p1] + frac * arr[p1 + 1]
 
     if delete_arr:
-        fn = arr.filename
+        fn = getattr(arr, "filename", None)
         del arr
-        with contextlib.suppress(FileNotFoundError):
-            os.remove(fn)
+        if fn is not None:
+            with contextlib.suppress(FileNotFoundError):
+                os.remove(fn)
 
 
 class LayerReport(ReportSection):
