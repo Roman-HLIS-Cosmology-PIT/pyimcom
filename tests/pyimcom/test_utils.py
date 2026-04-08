@@ -1,6 +1,12 @@
+"""Tests for assorted utility functions in PyIMCOM."""
+
+import contextlib
+import os
+
 import numpy as np
 from astropy.io import fits
 from astropy.wcs import WCS
+from pyimcom.diagnostics.layer_diagnostics import _percentiles_and_delete
 from pyimcom.utils.compareutils import get_overlap_matrix, getfootprint, str2dirstem
 
 
@@ -131,3 +137,25 @@ def test_str2dirstem():
     a, b = str2dirstem("/scr/georgewashington/johnadams/thomasjefferson.fits")
     assert a == "/scr/georgewashington/johnadams/"
     assert b == "thomasjefferson.fits"
+
+
+def test_percentiles_and_delete(tmp_path):
+    """Simple test of ``pyimcom.diagnostics.layer_diagnostics._percentiles_and_delete``."""
+
+    n = 10000
+    fn = str(tmp_path) + "/pct.dat"
+    x = np.memmap(fn, dtype=np.float32, mode="w+", shape=(n,))
+    x[:] = np.cos(np.linspace(0, n - 1, n))
+    pctiles = np.linspace(1.0, 5.0, 5) / 6.0 * 100.0
+    target = np.zeros_like(pctiles)
+    likely_target = -np.cos(np.linspace(np.pi / 6.0, 5.0 / 6.0 * np.pi, 5))
+    _percentiles_and_delete(x, pctiles, target, False)
+    assert np.all(np.abs(target - likely_target) < 0.01)
+    assert os.path.exists(fn)
+    target = np.zeros_like(pctiles)
+    _percentiles_and_delete(x, pctiles, target, True)
+    assert np.all(np.abs(target - likely_target) < 0.01)
+    del x
+    with contextlib.suppress(FileNotFoundError):
+        os.remove(fn)
+    assert not os.path.exists(fn)
