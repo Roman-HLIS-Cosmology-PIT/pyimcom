@@ -234,6 +234,10 @@ class CompressedOutput:
 
         """
 
+        # refuse to compress the science layer
+        if layerid == 0:
+            return
+
         # this failure to write the EXTNAME shouldn't happen, but just in case
         if layerid >= 16**4:
             return

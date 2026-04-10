@@ -135,6 +135,17 @@ class LayerReport(ReportSection):
                         if not exists(infile):
                             return None
                         chunk = iby * nblock + ibx  # noqa: B023
+
+                        # use the fact that the science layer does not compress
+                        if ilayer == 0:
+                            with fits.open(infile) as f:
+                                x_ = f[0].data[0, 0, :, :]
+                                if d > 0:
+                                    x_ = x_[d:-d, d:-d]
+                                _data[chunk * ns * ns : (chunk + 1) * ns * ns] = x_.ravel()
+                            return
+
+                        # end up here for the other layers
                         with ReadFile(infile, layers=[ilayer]) as f:  # noqa: B023
                             x_ = f[0].data[0, ilayer, :, :]  # noqa: B023
                             if d > 0:
