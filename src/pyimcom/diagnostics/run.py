@@ -54,7 +54,6 @@ if __name__ == "__main__":
     tmp_dir = sys.argv[3] if len(sys.argv) > 3 else None
     rpt = ValidationReport(sys.argv[1], sys.argv[2], clear_all=True, tmp_dir=tmp_dir)
     sectionlist = [MosaicImage, LayerReport, SimulatedStar, NoiseReport]
-    sectionlist = [SimulatedStar]  # <-- TAKE THIS OUT!!!!!
     for cls in sectionlist:
         s = cls(rpt)
         s.build()  # specify nblockmax to do just the lower corner
