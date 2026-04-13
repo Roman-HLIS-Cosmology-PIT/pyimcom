@@ -166,7 +166,7 @@ class Sca_img:
     Attributes
     --------
         image : 2D np array
-            the SCA image (4088x4088)
+            the SCA image, shape=(Settings.sca_nside, Settings.sca_nside)
         shape : Tuple
             the shape of the image
         w : WCS object
@@ -251,8 +251,8 @@ class Sca_img:
                     tempdir + obsid + "_" + scaid + "_geff.dat", dtype="float64", mode="w+", shape=self.shape
                 )
                 ra, dec = self.get_coordinates(pad=2.0)
-                ra = ra.reshape((4090, 4090))
-                dec = dec.reshape((4090, 4090))
+                ra = ra.reshape((Settings.sca_nside+2, Settings.sca_nside+2))
+                dec = dec.reshape((Settings.sca_nside+2, Settings.sca_nside+2))
                 derivs = np.array(
                     (
                         (ra[1:-1, 2:] - ra[1:-1, :-2]) / 2,
@@ -263,7 +263,7 @@ class Sca_img:
                 )
                 derivs_px = np.reshape(np.transpose(derivs), (Settings.sca_nside**2, 2, 2))
                 det_mat = np.reshape(np.linalg.det(derivs_px), (Settings.sca_nside, Settings.sca_nside))
-                g_eff[:, :] = 1 / (np.abs(det_mat) * np.cos(np.deg2rad(dec[1:4089, 1:4089])))
+                g_eff[:, :] = 1 / (np.abs(det_mat) * np.cos(np.deg2rad(dec[1:Settings.sca_nside+1, 1:Settings.sca_nside+1])))
                 g_eff.flush()
                 del g_eff
 
@@ -327,7 +327,7 @@ class Sca_img:
             * 1.458
             * 50
         )  # times gain and N_frames
-        self.image += noiseframe[4:4092, 4:4092]
+        self.image += noiseframe[4:Settings.sca_nside+4, 4:Settings.sca_nside+4]
         filename = self.obsid + "_" + self.scaid + "_noise"
 
         if not os.path.exists(testoutputs["test_image_dir"] + filename + ".fits"):
