@@ -856,7 +856,7 @@ def interpolate_image_bilinear(image_B, image_A, interpolated_image, mask=None, 
     """
 
     if coords_cache is not None:
-        cache_key = (image_A.scaid, image_B.scaid)
+        cache_key = (image_A.obsid+"_"+image_A.scaid, image_B.obsid+"_"+image_B.scaid)
         if cache_key in coords_cache:
             coords = coords_cache[cache_key]
         else:
@@ -887,7 +887,7 @@ def interpolate_image_bilinear(image_B, image_A, interpolated_image, mask=None, 
     sys.stderr.flush()
 
 
-def transpose_interpolate(image_A, wcs_A, image_B, original_image, coords_cache=None):
+def transpose_interpolate(image_A, wcs_A, obsid_A, scaid_A, image_B, original_image, coords_cache=None):
     """
     Interpolate backwards from image_A to image_B space.
     Uses bilinear_transpose(
@@ -900,20 +900,25 @@ def transpose_interpolate(image_A, wcs_A, image_B, original_image, coords_cache=
         the already-interpolated gradient image
      wcs_A : wcs.WCS object
         image A's WCS object
+    obsid_A : Str
+        image A's obsid, used for keying cached coordinate mappings
+    scaid_A : Str
+        image A's SCA id, used for keying cached coordinate mappings
      image_B : SCA object
         the image we're interpolating the gradient back onto
      original_image : 2D np array
         the gradient image re-interpolated into image B space
         Updated in place
      coords_cache : dict, optional
-        Pre-computed coordinate mappings keyed by (wcs_A_scaid, image_B.scaid) tuple
+        Pre-computed coordinate mappings keyed by (obsid_A+"_"+scaid_A, image_B.obsid+"_"+image_B.scaid) tuple
 
     """
     if coords_cache is not None:
-        cache_key = (wcs_A.wcs.crval, image_B.scaid)  # Use WCS center as identifier
+        cache_key = (obsid_A+"_"+scaid_A, image_B.obsid+"_"+image_B.scaid)  
         if cache_key in coords_cache:
             coords = coords_cache[cache_key]
         else:
+            print(f"Cache miss for key {cache_key}. Computing coordinate mapping.")
             x_target, y_target, is_in_ref = compareutils.map_sca2sca(wcs_A, image_B.w, pad=0)
             coords = np.column_stack((y_target.ravel(), x_target.ravel()))
     else:
@@ -1094,7 +1099,7 @@ def get_neighbors(scalist, ov_mat, overlap_thresh=0.1):
 
 def precompute_interpolation_mappings(all_scas, all_wcs, neighbors, outpath, of=None):
     """
-    Pre-compute all WCS interpolation coordinate mappings for SCA pairs.
+    Pre-compute all WCS interpolation coordinate mappings for Obs_SCA pairs.
     Saves to HDF5 file for fast loading in subsequent runs.
 
     Parameters
@@ -1147,7 +1152,7 @@ def precompute_interpolation_mappings(all_scas, all_wcs, neighbors, outpath, of=
             try:
                 x_target, y_target, is_in_ref = compareutils.map_sca2sca(wcs_a, wcs_b, pad=0)
                 coords_forward = np.column_stack((y_target.ravel(), x_target.ravel())).astype(np.float32)
-                cache_key_forward = (scaid_A, scaid_B)
+                cache_key_forward = (obsid_A+"_"+scaid_A, obsid_B+"_"+scaid_B)
                 coords_cache[cache_key_forward] = coords_forward
             except Exception as e:
                 write_to_file(f"Warning: Failed to compute forward mapping {sca_a} -> {sca_b}: {e}", of)
@@ -1336,7 +1341,7 @@ def residual_function_single(
         I_B = Sca_img(obsid_B, scaid_B, cfg)
         gradient_original = np.zeros(I_B.shape)
 
-        transpose_interpolate(gradient_interpolated, wcs_a, I_B, gradient_original, coords_cache=coords_cache)
+        transpose_interpolate(gradient_interpolated, wcs_a, obsid_A, scaid_A, I_B, gradient_original, coords_cache=coords_cache)
         gradient_original *= I_B.g_eff
 
         term_2 = transpose_par(gradient_original)
