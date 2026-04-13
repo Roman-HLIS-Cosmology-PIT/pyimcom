@@ -271,9 +271,12 @@ class NoiseReport(ReportSection):
 
                 print("# Running file: " + infile, "whitenoisekey =", whitenoisekey)
 
-                # mean coverage
+                # read layers and get mean coverage
                 pad = int(configStruct["PAD"])
-                with ReadFile(infile, layers=[]) as f:
+                with ReadFile(infile, layers=sorted([noiselayers[q] for q in NLK])) as f:
+                    infile_data = np.copy(
+                        f[0].data[0, :, bdpad : L + bdpad, bdpad : L + bdpad].astype(np.float32)
+                    )
                     n = np.shape(f["INWEIGHT"].data)[-1]
                     mean_coverage = np.mean(
                         np.sum(np.where(f["INWEIGHT"].data[0, :, :, :] > 0, 1, 0), axis=0)[
@@ -289,11 +292,6 @@ class NoiseReport(ReportSection):
                     ps1d_all = np.zeros((L // 16, 4, len(noiselayers)))
                 else:
                     raise Exception("Error: bin flag must be 0 (no binning) or 1 (8x8 binning)")
-
-                with ReadFile(infile, layers=sorted([noiselayers[q] for q in NLK])) as f:
-                    infile_data = np.copy(
-                        f[0].data[0, :, bdpad : L + bdpad, bdpad : L + bdpad].astype(np.float32)
-                    )
 
                 for i_layer, noiselayer in enumerate(NLK):
                     use_slice = noiselayers[noiselayer]
@@ -339,10 +337,10 @@ class NoiseReport(ReportSection):
 
                 # Reshape things for fits files
                 ps2d_all = np.transpose(ps2d_all, (2, 0, 1))
-                print("# TRANSPOSED ps2d shape:", np.shape(ps2d_all))
+                # print("# TRANSPOSED ps2d shape:", np.shape(ps2d_all))
                 # reshape P1D's:
                 ps1d_all = np.transpose(ps1d_all, (2, 0, 1)).reshape(-1, np.shape(ps1d_all)[1])
-                print("# TRANSPOSED ps1d shape:", np.shape(ps1d_all))
+                # print("# TRANSPOSED ps1d shape:", np.shape(ps1d_all))
 
                 # Save power spectra data in a fits file
                 # Two HDUs: Primary contains 2D spectrum, second is a table with 1D spectrum and MC values

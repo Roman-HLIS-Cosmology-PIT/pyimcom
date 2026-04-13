@@ -11,7 +11,6 @@ gen_starcube_nonoise
 import json
 import re
 import sys
-import time
 import warnings
 from os.path import exists
 
@@ -131,8 +130,6 @@ def gen_starcube_nonoise(infile_fcn, outstem, nblockmax=100):
             if not exists(infile):
                 continue
 
-            t0 = time.time()
-
             # get WCS and data
             with ReadFile(infile, layers=[use_slice]) as f:
                 mywcs = wcs.WCS(f[0].header)
@@ -144,10 +141,6 @@ def gen_starcube_nonoise(infile_fcn, outstem, nblockmax=100):
                 fmap = np.floor(fmap).astype(np.int16)  # and round to integer
                 for fy in range(81):
                     fhist[fy] += np.count_nonzero(fmap[bdpad:-bdpad, bdpad:-bdpad] == fy)
-
-            t1 = time.time()
-            print(infile, use_slice, res)
-            sys.stdout.flush()
 
             # extract HEALPix pixels with the stars
             ra_cent, dec_cent = mywcs.all_pix2world(
@@ -189,8 +182,6 @@ def gen_starcube_nonoise(infile_fcn, outstem, nblockmax=100):
             newpos[:, 7] = yi
             newpos[:, 8] = dx
             newpos[:, 9] = dy
-
-            t2 = time.time()
 
             newimage = np.zeros((npix, bd * 2 - 1, bd * 2 - 1))
             print(ibx, iby, infile, npix)
@@ -249,15 +240,9 @@ def gen_starcube_nonoise(infile_fcn, outstem, nblockmax=100):
                 sys.stdout.flush()
                 # end loop over simulated stars
 
-            t3 = time.time()
-
             pos = np.concatenate((pos, newpos), axis=0)
             image = np.concatenate((image, newimage.astype(np.float32)), axis=0)
             # end block loop
-
-            t4 = time.time()
-            print(f"{t1-t0:6.2f} {t2-t0:6.2f} {t3-t0:6.2f} {t4-t0:6.2f}")
-            sys.stdout.flush()
 
     # strip fictitious first object
     pos = pos[1:, :]
