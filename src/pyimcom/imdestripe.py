@@ -1694,7 +1694,7 @@ def linear_search_general(
             alpha_min = alpha_test
             d_cost_min = d_cost
 
-    return best_p, best_psi
+    return best_p, best_psi, best_resids, best_epsilon
 
 
 def linear_search_quadratic(
@@ -2187,6 +2187,8 @@ def main(cfg_file=None, overlaponly=False, of=None):
         write_to_file(f"Exception: {e}", of)
         logging.exception("An error occurred:")
         write_to_file("Conjugate gradient failed. Restart state saved to cg_restart.pkl\n", of)
+        # Exit early 
+        return
 
     for i, sca in enumerate(all_scas):
         obsid, scaid = get_ids(sca)
