@@ -887,7 +887,7 @@ def interpolate_image_bilinear(image_B, image_A, interpolated_image, mask=None, 
     sys.stderr.flush()
 
 
-def transpose_interpolate(image_A, wcs_A, image_B, original_image, coords=None):
+def transpose_interpolate(image_A, wcs_A, image_B, original_image, coords=None, of=None):
     """
     Interpolate backwards from image_A to image_B space.
     Uses bilinear_transpose(
@@ -907,6 +907,9 @@ def transpose_interpolate(image_A, wcs_A, image_B, original_image, coords=None):
         Updated in place
      coords_cache : dict, optional
         Pre-computed coordinate mappings keyed by (obsid_A+"_"+scaid_A, image_B.obsid+"_"+image_B.scaid) tuple
+        if None, will compute the coordinate mapping on the fly
+     of : Str
+        filename to write output info to, or if None, output is directed to stdout
 
     """
     if coords is None:
@@ -1086,7 +1089,7 @@ def get_neighbors(scalist, ov_mat, overlap_thresh=0.1):
     return neighbors
 
 
-def precompute_interpolation_mappings(all_scas, all_wcs, neighbors, outpath, of=None):
+def precompute_interpolation_mappings(all_scas, all_wcs, neighbors, outpath, of=None, load=False):
     """
     Pre-compute all WCS interpolation coordinate mappings for Obs_SCA pairs.
     Saves to HDF5 file for fast loading in subsequent runs.
@@ -1103,7 +1106,9 @@ def precompute_interpolation_mappings(all_scas, all_wcs, neighbors, outpath, of=
         directory to save mapping file to
     of : Str
         output file for logging
-
+    load : Bool
+        if True, load the pre-computed mappings from file instead of computing them,
+        and return both the file name and the dictionary ; default False
     Returns
     --------
     coords_cache : Dict
@@ -1116,13 +1121,16 @@ def precompute_interpolation_mappings(all_scas, all_wcs, neighbors, outpath, of=
 
     # Check if cache already exists
     if os.path.isfile(cache_file):
-        write_to_file(f"Loading pre-computed mappings from {cache_file}", of)
-        coords_cache = {}
-        with h5py.File(cache_file, "r") as hf:
-            for key in hf:
-                coords_cache[eval(key)] = np.array(hf[key])  # eval to convert str key back to tuple
-        write_to_file(f"Loaded {len(coords_cache)} pre-computed mappings", of)
-        return coords_cache
+        if load:
+            write_to_file(f"Loading pre-computed mappings from {cache_file}", of)
+            coords_cache = {}
+            with h5py.File(cache_file, "r") as hf:
+                for key in hf:
+                    coords_cache[eval(key)] = np.array(hf[key])  # eval to convert str key back to tuple
+            write_to_file(f"Loaded {len(coords_cache)} pre-computed mappings", of)
+            return cache_file, coords_cache
+        else:
+            return cache_file
 
     # Compute all mappings
     write_to_file("Computing all neighbor pair interpolation mappings...", of)
@@ -1161,6 +1169,11 @@ def precompute_interpolation_mappings(all_scas, all_wcs, neighbors, outpath, of=
     write_to_file(
         f"Mapping file saved. Pre-computation complete in {(time.time() - t0_map) / 60:.2f} minutes", of
     )
+    
+    # if not load, we don't need to keep coords_cache in memory, so we can delete it to free up RAM
+    if not load:
+        del coords_cache
+
     return cache_file
 
 
@@ -1328,20 +1341,26 @@ def residual_function_single(
 
     term_2_list = []
 
+    hf = None
+    if coords_file and os.path.isfile(coords_file):
+        hf = h5py.File(coords_file, "r")
+    elif coords_file:
+        write_to_file(f"Cache file {coords_file} not found. Computing coordinate mappings on the fly.", of)
+
     for j in neighbors[k]:
         sca_b = scalist[j]
         obsid_B, scaid_B = get_ids(sca_b)
 
         cache_key = (obsid_A+"_"+scaid_A, obsid_B+"_"+scaid_B)
-        if os.path.isfile(coords_file):
-            with h5py.File(coords_file, "r") as hf:
-                if cache_key in hf:
-                    coords = np.array(hf[cache_key])
-                else:
-                    write_to_file(f"Warning: Cache key {cache_key} not found in mapping file. Computing on the fly.", of)
-                    coords = None
+        if hf is not None:
+            key_str = str(cache_key)
+            if key_str in hf:
+                coords = np.array(hf[key_str])
+            else:
+                write_to_file(f"Warning: Cache key {cache_key} not found in mapping file. Computing on the fly.", of)
+                coords = None
         else:
-            write_to_file(f"Cache file {coords_file} not found. Computing coordinate mappings on the fly.", of)
+            coords = None
 
         I_B = Sca_img(obsid_B, scaid_B, cfg)
         gradient_original = np.zeros(I_B.shape)
@@ -1351,6 +1370,9 @@ def residual_function_single(
 
         term_2 = transpose_par(gradient_original)
         term_2_list.append((j, term_2))
+
+    if hf is not None:
+        hf.close()
 
     #     I_B.close()
     #     del I_B
@@ -1526,6 +1548,7 @@ def linear_search_general(
     n_iter=100,
     tol=10**-4,
     of=None,
+    coords_file=None
 ):
     """
     Linear search via combination bisection and secant methods for parameters that minimize the function
@@ -1567,7 +1590,8 @@ def linear_search_general(
          absolute value of d_cost at which to converge
     of : Str
         filename to write output info to, or if None, output is directed to stdout
-
+    coords_file : Str, optional
+        Path to the file containing pre-computed coordinate mappings to accelerate interpolation
     Returns
     --------
     best_p : parameters object
@@ -1611,14 +1635,14 @@ def linear_search_general(
     max_params = p.params + alpha_max * direction
     max_p.params = max_params
     max_epsilon, max_psi = cost_function(max_p, f, thresh, workers, scalist, neighbors, cfg)
-    max_resids = residual_function(max_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg)
+    max_resids = residual_function(max_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg, of=of, coords_file=coords_file)
     del max_psi
     d_cost_max = np.sum(max_resids * direction)
 
     min_params = p.params + alpha_min * direction
     min_p.params = min_params
     min_epsilon, min_psi = cost_function(min_p, f, thresh, workers, scalist, neighbors, cfg)
-    min_resids = residual_function(min_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg)
+    min_resids = residual_function(min_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg, of=of, coords_file=coords_file)
     del min_psi
     d_cost_min = np.sum(min_resids * direction)
 
@@ -1658,7 +1682,7 @@ def linear_search_general(
         working_epsilon, working_psi = cost_function(working_p, f, thresh, workers, scalist, neighbors, cfg)
         print(f"Global elapsed t = {(time.time()-t0_global)/60:8.1f}")
         working_resids = residual_function(
-            working_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg
+            working_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg, of=of, coords_file=coords_file
         )
         print(f"Global elapsed t = {(time.time()-t0_global)/60:8.1f}")
         d_cost = np.sum(working_resids * direction)
@@ -1705,7 +1729,7 @@ def linear_search_general(
 
 
 def linear_search_quadratic(
-    p, direction, f, f_prime, grad_current, thresh, workers, scalist, wcslist, neighbors, cfg, of=None
+    p, direction, f, f_prime, grad_current, thresh, workers, scalist, wcslist, neighbors, cfg, of=None, coords_file=None
 ):
     """
     For the quadratic cost function, direct calculation of alpha that minimizes the function
@@ -1740,7 +1764,9 @@ def linear_search_quadratic(
         the configuration for this run
     of : Str
         filename to write output info to, or if None, output is directed to stdout
-
+    coords_file : Str, optional
+        Path to the file containing pre-computed coordinate mappings to accelerate interpolation
+        
     Returns
     --------
     new_p: parameters object
@@ -1768,7 +1794,7 @@ def linear_search_quadratic(
     trial_params = p.params + alpha_max * direction
     trial_p.params = trial_params
     trial_epsilon, trial_psi = cost_function(trial_p, f, thresh, workers, scalist, neighbors, cfg)
-    trial_resids = residual_function(trial_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg)
+    trial_resids = residual_function(trial_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg, of=of, coords_file=coords_file)
     del trial_psi, trial_epsilon
 
     alpha_new = (
@@ -1988,7 +2014,7 @@ def conjugate_gradient(
 
         if cost_model == "quadratic":
             p_new, psi_new, grad_new, epsilon_new = linear_search_quadratic(
-                p, direction, f, f_prime, grad, thresh, workers, scalist, wcslist, neighbors, cfg, of=of
+                p, direction, f, f_prime, grad, thresh, workers, scalist, wcslist, neighbors, cfg, of=of, coords_file=coords_file
             )
 
         else:
@@ -2008,6 +2034,7 @@ def conjugate_gradient(
                 neighbors,
                 cfg,
                 of=of,
+                coords_file=coords_file,
             )
 
         write_to_file(f"Global elapsed t = {(time.time()-t0_global)/60:8.1f}", of)
