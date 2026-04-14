@@ -887,7 +887,7 @@ def interpolate_image_bilinear(image_B, image_A, interpolated_image, mask=None, 
     sys.stderr.flush()
 
 
-def transpose_interpolate(image_A, wcs_A, obsid_A, scaid_A, image_B, original_image, coords_cache=None):
+def transpose_interpolate(image_A, wcs_A, image_B, original_image, coords=None):
     """
     Interpolate backwards from image_A to image_B space.
     Uses bilinear_transpose(
@@ -900,10 +900,6 @@ def transpose_interpolate(image_A, wcs_A, obsid_A, scaid_A, image_B, original_im
         the already-interpolated gradient image
      wcs_A : wcs.WCS object
         image A's WCS object
-    obsid_A : Str
-        image A's obsid, used for keying cached coordinate mappings
-    scaid_A : Str
-        image A's SCA id, used for keying cached coordinate mappings
      image_B : SCA object
         the image we're interpolating the gradient back onto
      original_image : 2D np array
@@ -913,15 +909,8 @@ def transpose_interpolate(image_A, wcs_A, obsid_A, scaid_A, image_B, original_im
         Pre-computed coordinate mappings keyed by (obsid_A+"_"+scaid_A, image_B.obsid+"_"+image_B.scaid) tuple
 
     """
-    if coords_cache is not None:
-        cache_key = (obsid_A+"_"+scaid_A, image_B.obsid+"_"+image_B.scaid)  
-        if cache_key in coords_cache:
-            coords = coords_cache[cache_key]
-        else:
-            print(f"Cache miss for key {cache_key}. Computing coordinate mapping.")
-            x_target, y_target, is_in_ref = compareutils.map_sca2sca(wcs_A, image_B.w, pad=0)
-            coords = np.column_stack((y_target.ravel(), x_target.ravel()))
-    else:
+    if coords is None:
+        write_to_file(f"Cache miss for key. Computing coordinate mapping.", of)
         x_target, y_target, is_in_ref = compareutils.map_sca2sca(wcs_A, image_B.w, pad=0)
         coords = np.column_stack((y_target.ravel(), x_target.ravel()))
 
@@ -1172,7 +1161,7 @@ def precompute_interpolation_mappings(all_scas, all_wcs, neighbors, outpath, of=
     write_to_file(
         f"Mapping file saved. Pre-computation complete in {(time.time() - t0_map) / 60:.2f} minutes", of
     )
-    return coords_cache
+    return cache_file
 
 
 def residual_function(
@@ -1186,7 +1175,7 @@ def residual_function(
     cfg,
     extrareturn=False,
     of=None,
-    coords_cache=None,
+    coords_file=None,
 ):
     """
     Calculate the residual image, = grad(epsilon)
@@ -1215,7 +1204,7 @@ def residual_function(
             in addition to full residuals. returns resids, resids1, resids2
     of : Str
         filename to write output info to, or if None, output is directed to stdout
-    coords_cache : Dict, optional
+    coords_file : Str, optional
         Pre-computed coordinate mappings to accelerate interpolation
 
     Returns
@@ -1245,7 +1234,7 @@ def residual_function(
                 thresh,
                 cfg,
                 of=of,
-                coords_cache=coords_cache,
+                coords_file=coords_file,
             )
             for k, sca_a in enumerate(scalist)
         ]
@@ -1273,7 +1262,7 @@ def residual_function(
 
 def residual_function_single(
     k, sca_a, wcs_a, f_prime, scalist, neighbors, thresh, cfg, 
-    tempdir = tempdir, of=None, coords_cache=None
+    tempdir = tempdir, of=None, coords_file=None
 ):
     """
     Calculate the residual for a single SCA image
@@ -1300,8 +1289,8 @@ def residual_function_single(
         directory where the effective gain files are stored
     of : Str
         filename to write output info to, or if None, output is directed to stdout
-    coords_cache : Dict, optional
-        Pre-computed coordinate mappings to accelerate interpolation
+    coords_file : Str, optional
+        Path to the file containing pre-computed coordinate mappings to accelerate interpolation
 
     Returns
     --------
@@ -1343,10 +1332,21 @@ def residual_function_single(
         sca_b = scalist[j]
         obsid_B, scaid_B = get_ids(sca_b)
 
+        cache_key = (obsid_A+"_"+scaid_A, obsid_B+"_"+scaid_B)
+        if os.path.isfile(coords_file):
+            with h5py.File(coords_file, "r") as hf:
+                if cache_key in hf:
+                    coords = np.array(hf[cache_key])
+                else:
+                    write_to_file(f"Warning: Cache key {cache_key} not found in mapping file. Computing on the fly.", of)
+                    coords = None
+        else:
+            write_to_file(f"Cache file {coords_file} not found. Computing coordinate mappings on the fly.", of)
+
         I_B = Sca_img(obsid_B, scaid_B, cfg)
         gradient_original = np.zeros(I_B.shape)
 
-        transpose_interpolate(gradient_interpolated, wcs_a, obsid_A, scaid_A, I_B, gradient_original, coords_cache=coords_cache)
+        transpose_interpolate(gradient_interpolated, wcs_a, I_B, gradient_original, coords)
         gradient_original *= I_B.g_eff
 
         term_2 = transpose_par(gradient_original)
@@ -1814,7 +1814,7 @@ def conjugate_gradient(
     time_limit=None,
     cfg=None,
     of=None,
-    coords_cache=None,
+    coords_file=None,
 ):
     """
     Algorithm to use conjugate gradient descent to optimize the parameters for destriping.
@@ -1846,7 +1846,7 @@ def conjugate_gradient(
         containing all config parameters
     of : Str
         output file to write log messages to
-    coords_cache : Dict, optional
+    coords_file : Str, optional
         Pre-computed coordinate mappings to accelerate interpolation
 
     Returns
@@ -1933,7 +1933,7 @@ def conjugate_gradient(
                 workers,
                 cfg,
                 of=of,
-                coords_cache=coords_cache,
+                coords_file=coords_file,
             )
             write_to_file(
                 f"Minutes spent in initial residual function: {(time.time() - t_start_CG_iter) / 60}", of
@@ -2163,7 +2163,7 @@ def main(cfg_file=None, overlaponly=False, of=None):
     neighbors = get_neighbors(all_scas, ov_mat)
 
     # Pre-compute and cache interpolation mappings
-    coords_cache = precompute_interpolation_mappings(all_scas, all_wcs, neighbors, outpath, of=of)
+    coords_file = precompute_interpolation_mappings(all_scas, all_wcs, neighbors, outpath, of=of)
 
     # Initialize parameters
     p0 = Parameters(cfg=CFG, scalist=all_scas)
@@ -2183,8 +2183,9 @@ def main(cfg_file=None, overlaponly=False, of=None):
             time_limit=7200,
             cfg=CFG,
             of=of,
-            coords_cache=coords_cache,
+            coords_file=coords_file,
         )
+
         hdu = fits.PrimaryHDU(p.params)
         hdu.writeto(outpath + "final_params.fits", overwrite=True)
         write_to_file(outpath + "final_params.fits created \n", of)
