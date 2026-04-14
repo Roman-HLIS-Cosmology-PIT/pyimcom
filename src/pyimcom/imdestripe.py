@@ -1239,7 +1239,6 @@ def residual_function(
                 k,
                 sca_a,
                 wcslist[k],
-                psi[k, :, :],
                 f_prime,
                 scalist,
                 neighbors,
@@ -1273,7 +1272,8 @@ def residual_function(
 
 
 def residual_function_single(
-    k, sca_a, wcs_a, psi_a, f_prime, scalist, neighbors, thresh, cfg, of=None, coords_cache=None
+    k, sca_a, wcs_a, f_prime, scalist, neighbors, thresh, cfg, 
+    tempdir = tempdir, of=None, coords_cache=None
 ):
     """
     Calculate the residual for a single SCA image
@@ -1286,8 +1286,6 @@ def residual_function_single(
         the SCA label, formatted like <obsid>_<scaid>
     wcs_a : wcs.WCS object
         the WCS object for this SCA
-    psi_a : 2D np array
-        the difference image I_A - J_A for this SCA
     f_prime : Function
         the derivative of the cost function f
     scalist : List of Str
@@ -1298,6 +1296,8 @@ def residual_function_single(
         threshold for Huber loss cost function; default None
     cfg : Config object
         the configuration for this run
+    tempdir : Str
+        directory where the effective gain files are stored
     of : Str
         filename to write output info to, or if None, output is directed to stdout
     coords_cache : Dict, optional
@@ -1316,8 +1316,13 @@ def residual_function_single(
     # Go and get the WCS object for image A
     obsid_A, scaid_A = get_ids(sca_a)
 
+    # Fetch Psi
+    psi_path = tempdir+"psi_all.dat"
+    psi_shape = (len(scalist), Settings.sca_nside, Settings.sca_nside)
+    psi = np.memmap(psi_path, dtype=use_output_float, mode="r", shape=psi_shape)
+
     # Calculate and then transpose the gradient of I_A-J_A
-    gradient_interpolated = f_prime(psi_a, thresh) if thresh is not None else f_prime(psi_a)
+    gradient_interpolated = f_prime(psi[k,:,:], thresh) if thresh is not None else f_prime(psi[k,:,:])
 
     term_1 = transpose_par(gradient_interpolated)
 
@@ -1472,8 +1477,10 @@ def cost_function(p, f, thresh, workers, scalist, neighbors, cfg, tempdir=tempdi
     """
     write_to_file("Initializing cost function", of)
     t0_cost = time.time()
+    psi_path = tempdir + "psi_all.dat"
+    psi_shape = (len(scalist), Settings.sca_nside, Settings.sca_nside)
     psi = np.memmap(
-        tempdir + "psi_all.dat", dtype=use_output_float, mode="w+", shape=(len(scalist), 4088, 4088)
+        psi_path, dtype=use_output_float, mode="w+", shape=psi_shape
     )
     psi.fill(0)
     epsilon = 0
