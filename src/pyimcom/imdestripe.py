@@ -166,7 +166,7 @@ class Sca_img:
     Attributes
     --------
         image : 2D np array
-            the SCA image (4088x4088)
+            the SCA image, shape=(Settings.sca_nside, Settings.sca_nside)
         shape : Tuple
             the shape of the image
         w : WCS object
@@ -251,8 +251,8 @@ class Sca_img:
                     tempdir + obsid + "_" + scaid + "_geff.dat", dtype="float64", mode="w+", shape=self.shape
                 )
                 ra, dec = self.get_coordinates(pad=2.0)
-                ra = ra.reshape((4090, 4090))
-                dec = dec.reshape((4090, 4090))
+                ra = ra.reshape((Settings.sca_nside + 2, Settings.sca_nside + 2))
+                dec = dec.reshape((Settings.sca_nside + 2, Settings.sca_nside + 2))
                 derivs = np.array(
                     (
                         (ra[1:-1, 2:] - ra[1:-1, :-2]) / 2,
@@ -261,9 +261,12 @@ class Sca_img:
                         (dec[2:, 1:-1] - dec[:-2, 1:-1]) / 2,
                     )
                 )
-                derivs_px = np.reshape(np.transpose(derivs), (4088**2, 2, 2))
-                det_mat = np.reshape(np.linalg.det(derivs_px), (4088, 4088))
-                g_eff[:, :] = 1 / (np.abs(det_mat) * np.cos(np.deg2rad(dec[1:4089, 1:4089])))
+                derivs_px = np.reshape(np.transpose(derivs), (Settings.sca_nside**2, 2, 2))
+                det_mat = np.reshape(np.linalg.det(derivs_px), (Settings.sca_nside, Settings.sca_nside))
+                g_eff[:, :] = 1 / (
+                    np.abs(det_mat)
+                    * np.cos(np.deg2rad(dec[1 : Settings.sca_nside + 1, 1 : Settings.sca_nside + 1]))
+                )
                 g_eff.flush()
                 del g_eff
 
@@ -327,7 +330,7 @@ class Sca_img:
             * 1.458
             * 50
         )  # times gain and N_frames
-        self.image += noiseframe[4:4092, 4:4092]
+        self.image += noiseframe[4 : Settings.sca_nside + 4, 4 : Settings.sca_nside + 4]
         filename = self.obsid + "_" + self.scaid + "_noise"
 
         if not os.path.exists(testoutputs["test_image_dir"] + filename + ".fits"):
@@ -944,10 +947,16 @@ def get_effective_gain(sca, tempdir=tempdir):
     obsid = m.group(1)
     scaid = m.group(2)
     g_eff = np.memmap(
-        tempdir + obsid + "_" + scaid + "_geff.dat", dtype="float64", mode="r", shape=(4088, 4088)
+        tempdir + obsid + "_" + scaid + "_geff.dat",
+        dtype="float64",
+        mode="r",
+        shape=(Settings.sca_nside, Settings.sca_nside),
     )
     N_eff = np.memmap(
-        tempdir + obsid + "_" + scaid + "_Neff.dat", dtype="float32", mode="r", shape=(4088, 4088)
+        tempdir + obsid + "_" + scaid + "_Neff.dat",
+        dtype="float32",
+        mode="r",
+        shape=(Settings.sca_nside, Settings.sca_nside),
     )
     return g_eff, N_eff
 
@@ -1080,7 +1089,7 @@ def residual_function(
     Parameters
     --------
     psi : 3D np array
-        the image difference array (I_A - J_A) (N_SCA, 4088, 4088)
+        the image difference array (I_A - J_A) (N_SCA, Settings.sca_nside, Settings.sca_nside)
     f_prime : Function
         the derivative of the cost function f
         in the future this should be set by default based on what you pass for f
@@ -1352,7 +1361,10 @@ def cost_function(p, f, thresh, workers, scalist, neighbors, cfg, tempdir=tempdi
     write_to_file("Initializing cost function", of)
     t0_cost = time.time()
     psi = np.memmap(
-        tempdir + "psi_all.dat", dtype=use_output_float, mode="w+", shape=(len(scalist), 4088, 4088)
+        tempdir + "psi_all.dat",
+        dtype=use_output_float,
+        mode="w+",
+        shape=(len(scalist), Settings.sca_nside, Settings.sca_nside),
     )
     psi.fill(0)
     epsilon = 0
