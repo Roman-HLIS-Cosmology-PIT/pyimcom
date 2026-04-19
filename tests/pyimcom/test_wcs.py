@@ -1,7 +1,9 @@
 import gwcs
 import numpy as np
 import pytest
-from astropy import coordinates as coord, models, units as u
+from astropy import coordinates as coord
+from astropy.modeling import models
+from astropy import units as u
 from astropy.io import fits
 from astropy.wcs import WCS
 from gwcs import coordinate_frames as cf
@@ -90,7 +92,7 @@ def test_gwcs():
     distortion.inverse = models.AffineTransformation2D(np.linalg.inv(cd), translation=[0, 0])
     celestial_rotation = models.RotateNative2Celestial(9.55, -41.0, 180.0)
     shift = models.Shift(-(crpix[0] - 1)) & models.Shift(-(crpix[1] - 1))
-    det2sky = (shift | distortion | models.Pix2Sky_ARC() | celestial_rotation)
+    det2sky = shift | distortion | models.Pix2Sky_ARC() | celestial_rotation
     det2sky.name = "TestMapping1"
     detector_frame = cf.Frame2D(name="detector", axes_names=("x", "y"), unit=(u.pix, u.pix))
     sky_frame = cf.CelestialFrame(reference_frame=coord.ICRS(), name="icrs", unit=(u.deg, u.deg))
