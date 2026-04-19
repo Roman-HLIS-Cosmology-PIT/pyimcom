@@ -23,7 +23,7 @@ from astropy.modeling import models
 from astropy.table import Table
 from furry_parakeet.pyimcom_croutines import gridD5512C
 from gwcs import coordinate_frames as cf
-from pyimcom.analysis import Mosaic, OutImage
+from pyimcom.analysis import Mosaic, OutImage, Suite
 from pyimcom.coadd import Block
 from pyimcom.compress.compressutils import CompressedOutput, ReadFile
 from pyimcom.config import Config
@@ -649,6 +649,13 @@ def setup(tmp_path):
         )
         # test loading from file
         mos.get_noise_power_spectra(bins=8, overwrite=False)
+
+    # test Suite class
+    nrun = 4
+    s = Suite(cfg2, prime=3, nrun=nrun)
+    indices = [(0, 0), (1, 1), (1, 0), (0, 1)]
+    for j in range(nrun):
+        assert (s[j].ibx, s[j].iby) == indices[j]
 
     # remove stuff we don't need
     for iobs in range(len(obs)):
