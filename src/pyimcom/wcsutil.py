@@ -797,6 +797,8 @@ def _stand_alone_test(infile):
     if infile[-5:] == ".asdf":
         with asdf.open(infile) as f:
             wcsobj = PyIMCOM_WCS(f["roman"]["meta"]["wcs"])
+            w = LocWCS(f["roman"]["meta"]["wcs"], N=Settings.sca_nside)
+            w.wcs_approx_sip(p_order=2, verbose=True)  # check that verbose works
 
     if infile[-5:] == ".fits":
         with fits.open(infile) as f:
