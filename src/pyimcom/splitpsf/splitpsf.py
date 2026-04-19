@@ -27,8 +27,6 @@ class SplitPSF:
         2D version of integrated Blackman.
     Truncate_2D_integratedBlackman
         2D version of integrated Blackman.
-    padft2d
-        2D pad and Fourier transform for a square array.
     tophatfilter
        Smooth 3D array in each of the last 2 planes with a tophat of the given width.
     gauss_deconv
@@ -101,17 +99,6 @@ class SplitPSF:
         X_[:m] = SplitPSF.Window_integratedBlackman(np.linspace(-1.0, 1.0, m + 2))[1:-1]
         X_[-m:] = X_[m - 1 :: -1]
         return np.outer(X_, X_)
-
-    @staticmethod
-    def padft2d(arr):
-        """2D pad and Fourier transform for a square array"""
-        n = np.shape(arr)[1]
-        arr_double = np.zeros((2 * n, 2 * n), dtype=arr.dtype)
-        arr_double[:n, :n] = arr
-        arr_double = np.roll(arr_double, -(n // 2), axis=0)
-        arr_double = np.roll(arr_double, -(n // 2), axis=1)
-        ft = np.fft.fftshift(np.fft.fft2(arr_double.astype(np.complex128)))
-        return ft[n // 2 : -(n // 2), n // 2 : -(n // 2)]
 
     @staticmethod
     def tophatfilter(inArray, tophatwidth):
