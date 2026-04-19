@@ -1,7 +1,10 @@
 import io
 import sys
+import time
 
-from pyimcom.config import Config, fpaCoords, Timer
+import numpy as np
+from pyimcom.config import Config, Timer, fpaCoords
+import pytest
 
 
 def _fpcheck(a, b, tol):
