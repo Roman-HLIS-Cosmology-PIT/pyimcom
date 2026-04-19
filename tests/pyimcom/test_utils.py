@@ -2,6 +2,7 @@
 
 import contextlib
 import os
+import pytest
 
 import numpy as np
 from astropy.io import fits
@@ -137,6 +138,14 @@ def test_str2dirstem():
     a, b = str2dirstem("/scr/georgewashington/johnadams/thomasjefferson.fits")
     assert a == "/scr/georgewashington/johnadams/"
     assert b == "thomasjefferson.fits"
+
+    a, b = str2dirstem("jamesmadison.fits")
+    assert a == "./"
+    assert b == "jamesmadison.fits"
+
+    # check that the correct exception is raised
+    with pytest.raises(TypeError):
+        str2dirstem(None)
 
 
 def test_percentiles_and_delete(tmp_path):
