@@ -2,9 +2,9 @@
 
 import contextlib
 import os
-import pytest
 
 import numpy as np
+import pytest
 from astropy.io import fits
 from astropy.wcs import WCS
 from pyimcom.diagnostics.layer_diagnostics import _percentiles_and_delete
