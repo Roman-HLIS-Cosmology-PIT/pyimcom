@@ -1471,6 +1471,6 @@ class Suite(_BlkGrp):
         self.nrun = nrun
         self.outimages = [None for ib in range(nrun)]
         for ib in range(nrun):
-            ibx, iby = divmod(ib * 691 % cfg.nblock**2, cfg.nblock)
+            ibx, iby = divmod(ib * prime % cfg.nblock**2, cfg.nblock)
             fpath = cfg.outstem + f"_{ibx:02d}_{iby:02d}.fits"
             self.outimages[ib] = OutImage(fpath, cfg, self.hdu_names)
