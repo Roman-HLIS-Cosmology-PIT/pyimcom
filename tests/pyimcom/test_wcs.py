@@ -96,8 +96,8 @@ def test_gwcs():
     sky_frame = cf.CelestialFrame(reference_frame=coord.ICRS(), name="icrs", unit=(u.deg, u.deg))
     sca_gwcs = gwcs.WCS([(detector_frame, det2sky), (sky_frame, None)])
 
-    # PyIMCOM version of this
-    pyimcom_wcs = PyIMCOM(sca_gwcs, noconvert=True)
+    # PyIMCOM_WCS version of this
+    pyimcom_wcs = PyIMCOM_WCS(sca_gwcs, noconvert=True)
     x = 256.0
     y = 512.0
     ra, dec = pyimcom_wcs.all_pix2world(x, y)
