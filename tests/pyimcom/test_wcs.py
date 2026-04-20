@@ -2,9 +2,9 @@ import gwcs
 import numpy as np
 import pytest
 from astropy import coordinates as coord
-from astropy.modeling import models
 from astropy import units as u
 from astropy.io import fits
+from astropy.modeling import models
 from astropy.wcs import WCS
 from gwcs import coordinate_frames as cf
 from pyimcom.wcsutil import ABasis, PyIMCOM_WCS, get_pix_area
@@ -102,7 +102,7 @@ def test_gwcs():
     pyimcom_wcs = PyIMCOM_WCS(sca_gwcs, noconvert=True)
     x = 256.0
     y = 512.0
-    ra, dec = pyimcom_wcs.all_pix2world(x, y)
+    ra, dec = pyimcom_wcs.all_pix2world(np.array([x]), np.array([y]))
     ra2, dec2 = sca_gwcs.pixel_to_world_values([x], [y])
     print(ra, dec)
     assert np.hypot(ra - ra2[0], dec - dec2[0]) < 1.0e-5  # check pixel mapping
