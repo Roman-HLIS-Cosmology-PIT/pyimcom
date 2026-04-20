@@ -7,8 +7,7 @@ import numpy as np
 import pytest
 from astropy.io import fits
 from astropy.wcs import WCS
-
-# from pyimcom.diagnostics.layer_diagnostics import _percentiles_and_delete
+from pyimcom.diagnostics.layer_diagnostics import _percentiles_and_delete
 from pyimcom.utils.compareutils import get_overlap_matrix, getfootprint, str2dirstem
 
 
