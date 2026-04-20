@@ -7,6 +7,7 @@ import numpy as np
 from astropy.io import fits
 from pyimcom.compress.compressutils import CompressedOutput, ReadFile
 from pyimcom.compress.compressutils_wrapper import compress_all_blocks, compress_one_block
+from pyimcom.compress.i24 import i24compress, i24decompress
 
 EXAMPLE_FILE = (
     "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/compressiontest_F_02_11.fits"
@@ -122,3 +123,29 @@ def test_allcprs(tmp_path):
     """
 
     runcprs(tmp_path, allfiles=True)
+
+
+def test_bad_or_trivial():
+    """Test bad or trivial compression commands."""
+
+    # trivial compression
+    x = np.linspace(0, 24, 25).reshape((5, 5)).astype(np.float32)
+    xc, _ = CompressedOutput.compress_2d_image(x, "NULL", {})
+    assert np.allclose(x, xc)
+
+    # trivial decompression
+    x = np.linspace(0, 24, 25).reshape((5, 5)).astype(np.float32)
+    xc = CompressedOutput.decompress_2d_image(x, "NULL", {})
+    assert np.allclose(x, xc)
+
+    # compression dictionary when there's nothing
+    hdulist = fits.HDUList([fits.PrimaryHDU(x), fits.ImageHDU(x[:2, :], name="X")])
+    d = CompressedOutput.get_compression_dict(hdulist, 1)
+    assert len(d) == 0
+
+    # (de-)compressing with NULL
+    xd, xo = i24compress(x, "NULL", {})
+    assert np.allclose(x, xd)
+    assert xo is None
+    xr = i24decompress(xd, "NULL", {})
+    assert np.allclose(x, xr)

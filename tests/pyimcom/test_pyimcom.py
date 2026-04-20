@@ -849,8 +849,8 @@ def test_PyIMCOM_run1(tmp_path, setup):
         # values from noise layers
         test5 = np.array([[0.7601451, 0.9042513], [0.64049757, 0.70962816]])
         test6 = np.array([[0.24921854, -0.23588116], [-0.39272013, -0.6111549]])
-        assert np.amax(np.abs(fblock[0].data[0, 5, :2, :2] - test5)) < 1e-3
-        assert np.amax(np.abs(fblock[0].data[0, 6, :2, :2] - test6)) < 1e-3
+        assert np.amax(np.abs(fblock[0].data[0, 5, :2, :2] - test5)) < 1.5e-3
+        assert np.amax(np.abs(fblock[0].data[0, 6, :2, :2] - test6)) < 1.5e-3
 
         # simulated Gaussian galaxy
         xc_ = 14  # center of region

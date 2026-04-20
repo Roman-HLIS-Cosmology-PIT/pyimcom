@@ -2,7 +2,7 @@
 
 import matplotlib.pyplot as plt
 import numpy as np
-from pyimcom.psfutil import OutPSF, PSFGrp
+from pyimcom.psfutil import OutPSF, PSFGrp, PSFInterpolator
 
 
 def test_simple_airy(tmp_path, monkeypatch):
@@ -59,3 +59,10 @@ def test_interpolators():
     OutPSF.iD5512C_getw(w, 0.5)
     w[5] -= 1.0
     assert np.all(np.abs(w) < 1e-8)
+
+
+def test_psf_interpolator():
+    """Test toggling the PSF interpolator to ensure no errors."""
+
+    PSFInterpolator.set_G4460()
+    PSFInterpolator.unset_G4460()
