@@ -32,7 +32,6 @@ import copy
 import numpy as np
 from astropy.io import fits
 
-
 # Compression scheme table
 i24_recognized_schemes = ["I24A", "I24B"]
 
