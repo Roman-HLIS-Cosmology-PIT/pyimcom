@@ -102,11 +102,11 @@ def test_gwcs():
     pyimcom_wcs = PyIMCOM_WCS(sca_gwcs, noconvert=True)
     x = 256.0
     y = 512.0
-    ra, dec = pyimcom_wcs.all_pix2world(np.array([x]), np.array([y]))
+    ra, dec = pyimcom_wcs.all_pix2world(np.array([x]), np.array([y]), 0)
     ra2, dec2 = sca_gwcs.pixel_to_world_values([x], [y])
     print(ra, dec)
     assert np.hypot(ra - ra2[0], dec - dec2[0]) < 1.0e-5  # check pixel mapping
-    xx, yy = pyimcom_wcs.all_world2pix(ra, dec)
+    xx, yy = pyimcom_wcs.all_world2pix(ra, dec, 0)
     assert np.hypot(x - xx, y - yy) < 0.01  # check pixel mapping
 
 
