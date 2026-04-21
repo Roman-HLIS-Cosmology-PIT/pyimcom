@@ -28,8 +28,9 @@ import numpy as np
 from astropy import units as u
 from astropy.io import fits
 
-JWST = os.environ.get("INSTRUMENT", "WFI") == "NIRCAM" 
-# This will be True if the environment variable INSTRUMENT is set to "NIRCAM", and False otherwise. 
+JWST = os.environ.get("INSTRUMENT", "WFI") == "NIRCAM"
+# This will be True if the environment variable INSTRUMENT is set to "NIRCAM", and False otherwise.
+
 
 class Timer:
     """
@@ -127,18 +128,19 @@ class Settings:
 
     @classmethod
     def jwst(cls):
-        """Method to modify the Settings object to have JWST NIRCam parameters
-        instead of Roman WFI parameters."""
+        """
+        Method to modify the Settings object to have JWST NIRCam parameters
+        instead of Roman WFI parameters.
+
+        Note: Currently only includes those attributes that are used in imdestripe.py,
+        but more can be added as needed.
+
+        """
 
         cls.pixscale_native = 0.031 * cls.arcsec
         cls.sca_nside = 2048
-        cls.sca_ctrpix = (cls.sca_nside - 1) / 2
-        cls.sca_sidelength = cls.sca_nside * cls.pixscale_native
-
         # KL Leaving "Roman" so we don't have to change as much in the code
-        # KL Check these values though
-        cls.RomanFilters = ["F070W", "F090W", "F115W", "F150W", "F200W", "F277W", "F356W", "F444W"]  
-        cls.QFilterNative = [0.070, 0.090, 0.115, 0.150, 0.200, 0.277, 0.356, 0.444]
+        cls.RomanFilters = ["F070W", "F090W", "F115W", "F150W", "F200W", "F277W", "F356W", "F444W"]  # Y
 
 
 class fpaCoords:
