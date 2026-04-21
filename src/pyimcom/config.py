@@ -122,6 +122,21 @@ class Settings:
         ]
     )
 
+    @classmethod
+    def jwst(cls):
+        """Method to modify the Settings object to have JWST NIRCam parameters
+        instead of Roman WFI parameters."""
+
+        cls.pixscale_native = 0.031 * cls.arcsec
+        cls.sca_nside = 2048
+        cls.sca_ctrpix = (cls.sca_nside - 1) / 2
+        cls.sca_sidelength = cls.sca_nside * cls.pixscale_native
+
+        # KL Leaving "Roman" so we don't have to change as much in the code
+        # KL Check these values though
+        cls.RomanFilters = ["F070W", "F090W", "F115W", "F150W", "F200W", "F277W", "F356W", "F444W"]  
+        cls.QFilterNative = [0.070, 0.090, 0.115, 0.150, 0.200, 0.277, 0.356, 0.444]
+
 
 class fpaCoords:
     """This contains some static data on the FPA coordinate system.
