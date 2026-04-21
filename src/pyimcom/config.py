@@ -20,6 +20,7 @@ format_axis
 """
 
 import json
+import os
 from importlib.resources import files
 from time import perf_counter
 
@@ -27,6 +28,7 @@ import numpy as np
 from astropy import units as u
 from astropy.io import fits
 
+JWST = os.getenv("INSTRUMENT") == "NIRCAM"
 
 class Timer:
     """
