@@ -87,7 +87,7 @@ from filelock import FileLock, Timeout
 from memory_profiler import memory_usage
 from scipy.ndimage import binary_dilation
 
-from .config import Config, Settings
+from .config import Config, Settings, JWST
 from .utils import compareutils
 from .wcsutil import PyIMCOM_WCS
 
@@ -109,7 +109,7 @@ testoutputs = {
 warnings.filterwarnings("ignore", category=AsdfConversionWarning)
 warnings.filterwarnings("ignore", category=AsdfPackageVersionWarning)
 
-# from Config.Settings import RomanFilters as filters
+if JWST: Settings.jwst()
 filters = Settings.RomanFilters
 t0_global = time.time()  # after imports
 
