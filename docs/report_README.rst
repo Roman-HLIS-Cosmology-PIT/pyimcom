@@ -32,7 +32,6 @@ However the user may optionally specify the following arguments:
 The build method calls ``pyimcom.pictures.genpic.make_picture_1band`` to create the mosaic image, which is written out to ``self.datastem_mosaic.png``.
 The image is then included in the report, and the section is written out.
 
-
 LayerReport
 ===========                                                                 
 
@@ -44,7 +43,7 @@ For each layer, the diagnostic calculates the value of the image percentiles : [
 
                                                                       
 SimulatedStar
-======
+=============
 
 The SimulatedStar report section is constructed using the ``pyimcom.diagnostics.stars`` module, which defines the class SimulatedStar, inheriting from the base class ReportSection.
 It generates a set of diagnostics for the simulated stars in the PyIMCOM run.
@@ -78,7 +77,7 @@ The section also creates and writes the figure ``datastem + _SimulatedStar_etmap
 
 
 NoiseReport
-======
+===========
 
 The NoiseReport section is constructed using the ``pyimcom.diagnostics.noise_diagnostics`` module, which defines the class NoiseReport, inheriting from the base class ReportSection.
 This section shows a report on noise properties of the PyIMCOM run.
