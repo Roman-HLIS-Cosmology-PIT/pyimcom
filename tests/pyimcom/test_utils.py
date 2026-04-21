@@ -8,6 +8,7 @@ import pytest
 from astropy.io import fits
 from astropy.wcs import WCS
 from pyimcom.diagnostics.layer_diagnostics import _percentiles_and_delete
+from pyimcom.pictures.genpic import resolve_bounds
 from pyimcom.utils.compareutils import get_overlap_matrix, getfootprint, str2dirstem
 
 
@@ -168,3 +169,27 @@ def test_percentiles_and_delete(tmp_path):
     with contextlib.suppress(FileNotFoundError):
         os.remove(fn)
     assert not os.path.exists(fn)
+
+
+def test_resolve_bounds():
+    """Edge cases in resolve_bounds."""
+
+    a = resolve_bounds(None, 36)
+    assert a == (0, 36, 0, 36)
+
+    a = resolve_bounds("this_isn't_a_valid_anything", 30)
+    assert a == (0, 30, 0, 30)
+
+    # these should create errores
+    with pytest.raises(Exception):
+        resolve_bounds([20, 40, 20, 30], 36)
+    with pytest.raises(Exception):
+        resolve_bounds([20, 30, 20, 40], 36)
+    with pytest.raises(Exception):
+        resolve_bounds([-5, 20, 20, 30], 36)
+    with pytest.raises(Exception):
+        resolve_bounds([20, 30, -5, 30], 36)
+    with pytest.raises(Exception):
+        resolve_bounds([30, 20, 20, 30], 36)
+    with pytest.raises(Exception):
+        resolve_bounds([20, 30, 30, 20], 36)
