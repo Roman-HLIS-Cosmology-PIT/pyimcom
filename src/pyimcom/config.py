@@ -28,7 +28,8 @@ import numpy as np
 from astropy import units as u
 from astropy.io import fits
 
-JWST = os.getenv("INSTRUMENT") == "NIRCAM"
+JWST = os.environ.get("INSTRUMENT", "WFI") == "NIRCAM" 
+# This will be True if the environment variable INSTRUMENT is set to "NIRCAM", and False otherwise. 
 
 class Timer:
     """
