@@ -310,7 +310,7 @@ class I24Cube:
         elif d == 3 and inarray.dtype.name == "uint8":
             self.mode = "uint8"
         else:
-            raise Exception("Can't initialize I24Cube: unrecognized data type or dimension.")
+            raise TypeError("Can't initialize I24Cube: unrecognized data type or dimension.")
 
         # extract minimum and maximum (these need to be provided)
         self.vmin = float(pars["VMIN"])
@@ -330,7 +330,7 @@ class I24Cube:
         if "BITKEEP" in pars:
             self.bitkeep = int(pars["BITKEEP"])
             if self.bitkeep >= 24 or self.bitkeep <= 0:
-                raise Exception(f"Can't keep {self.bitkeep:d} bits")
+                raise ValueError(f"Can't keep {self.bitkeep:d} bits")
         else:
             self.bitkeep = 24
         if "REORDER" in pars:
