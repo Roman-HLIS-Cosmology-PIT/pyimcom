@@ -66,7 +66,7 @@ def resolve_bounds(bounds, nblock):
         if check1(ymin, ymax, xmin, xmax):
             return ymin, ymax, xmin, xmax
         else:
-            raise Exception("genpic.resolve_bounds: Invalid bounds")
+            raise ValueError("genpic.resolve_bounds: Invalid bounds")
 
     # by default, take the whole block
     return 0, nblock, 0, nblock

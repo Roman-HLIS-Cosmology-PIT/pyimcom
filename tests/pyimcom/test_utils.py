@@ -181,15 +181,15 @@ def test_resolve_bounds():
     assert a == (0, 30, 0, 30)
 
     # these should create errores
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         resolve_bounds([20, 40, 20, 30], 36)
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         resolve_bounds([20, 30, 20, 40], 36)
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         resolve_bounds([-5, 20, 20, 30], 36)
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         resolve_bounds([20, 30, -5, 30], 36)
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         resolve_bounds([30, 20, 20, 30], 36)
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         resolve_bounds([20, 30, 30, 20], 36)
