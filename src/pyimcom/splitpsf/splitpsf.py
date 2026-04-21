@@ -418,14 +418,11 @@ def split_psf_to_fits(psf_file, wcs_format, pars, outfile):
 
 # ### MAIN DRIVER ### #
 if __name__ == "__main__":
-    """Call with python3 -m pyimcom.splitpsf [config_file]"""
+    # Call with python3 -m pyimcom.splitpsf [config_file]
 
     # Extract the information we need from the config file
     with open(sys.argv[1]) as f:
         cfg_dict = json.load(f)
-    print("Configuration file:\n")
-    print(cfg_dict)
-    print("")
 
     if "INLAYERCACHE" not in cfg_dict:
         raise KeyError("Couldn't find INLAYERCACHE.")
@@ -434,29 +431,23 @@ if __name__ == "__main__":
     if cfg_dict["OUTPSF"] != "GAUSSIAN":
         raise ValueError("SplitPSF currently only works for Gaussians.")
     sigma = float(cfg_dict["EXTRASMOOTH"])
-    print("PSF sigma (input pixels) -->", sigma)
 
     # get number of rows
     with fits.open(cfg_dict["OBSFILE"]) as f:
         Nobs = f[1].header["NAXIS2"]
         filters_obs = f[1].data["filter"]
-    print(Nobs, "observations to search")
-    print(filters_obs)
 
     # extract oversampling factor
     ovsamp = int(cfg_dict["INPSF"][2])
-    print(f"Input PSFs are {ovsamp:f}x oversampled")
 
     # extract PSF splitting parameters
     r1 = float(cfg_dict["PSFSPLIT"][0])
     r2 = float(cfg_dict["PSFSPLIT"][1])
     epsilon = float(cfg_dict["PSFSPLIT"][2])
-    print(r1, r2, epsilon)
 
     # decide on stamp size; multiple of 8, must include r2 radius
     smallstampsize = int(np.ceil(r2 * ovsamp * 2 + 4))
     smallstampsize += 8 - smallstampsize % 8
-    print("chosen stamp size = ", smallstampsize)
 
     # where to put the files
     targetdir = cfg_dict["INLAYERCACHE"] + ".psf"
@@ -467,8 +458,6 @@ if __name__ == "__main__":
         print("Couldn't make directory", targetdir, ":", error)
 
     use_filter = Settings.RomanFilters[int(cfg_dict["FILTER"])]
-    print("selecting from filter", use_filter)
-    print("")
 
     count = 0
     for iobs in range(Nobs):
@@ -482,7 +471,6 @@ if __name__ == "__main__":
             # Need to transfer this file
             outfile = targetdir + f"/psf_{iobs:d}.fits"
             print(f"{iobs:8d}/{Nobs:8d} found, file is at " + psf_file, "-->", outfile)
-            print("   sci in =", sci_filename)
             split_psf_to_fits(
                 psf_file,
                 sci_filename,
@@ -502,6 +490,4 @@ if __name__ == "__main__":
 
             sys.stdout.flush()
             count = count + 1
-            print("exposure counter =", count)
-            print("")
             # if count==1: exit() # <-- for testing: exit after one file

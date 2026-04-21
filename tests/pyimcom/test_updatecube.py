@@ -106,3 +106,55 @@ def test_update(tmp_path):
     with open(f"{tmp_path}/cache/in_oldcfg.json", "r") as f:
         cfg = json.load(f)
     assert cfg["CONFIG0"]["INPSF"][-1] == 6
+
+
+def test_update_notpresent(tmp_path):
+    """Tests update_cube.py; makes dummy files."""
+
+    tmp_path = str(tmp_path)
+
+    # make cache directory
+    os.makedirs(f"{tmp_path}/cache", exist_ok=True)
+
+    # first, get the configuration file.
+    with open(tmp_path + "/cfg.txt", "w") as f:
+        f.write(myCfg_format.replace("$TMPDIR", tmp_path))
+    with open(tmp_path + "/cache/in_oldcfg.json", "w") as f:
+        f.write(myCfg_format.replace("$TMPDIR", tmp_path))
+
+    # which files we want -- this is arbitrary since `update`
+    # doesn't know where these are, it just moves them around, so make dummies
+    filelist = [(1400, 12), (191403, 7), (12345678, 18)]
+    for obsidsca in filelist:
+        im = np.zeros((4, 4), dtype=np.int32)
+        im[0, 0] = obsid = obsidsca[0]
+        im[0, 1] = sca = obsidsca[1]
+        fits.PrimaryHDU(im).writeto(f"{tmp_path}/cache/in_{obsid:08d}_{sca:02d}.fits", overwrite=True)
+
+        if sca == 7:
+            continue  # leave one out
+
+        im2 = np.copy(im)
+        im2[-1, -1] = 256  # label the new file with this corner of the array
+        fits.PrimaryHDU(im2).writeto(f"{tmp_path}/cache/in_{obsid:08d}_{sca:02d}_subI.fits", overwrite=True)
+
+    # now try to run the update
+    update(tmp_path + "/cfg.txt", proceed=True)
+
+    # check that the files weren't moved
+    # check whether we have the right files
+    for obsidsca in filelist:
+        obsid = obsidsca[0]
+        sca = obsidsca[1]
+        with fits.open(f"{tmp_path}/cache/in_{obsid:08d}_{sca:02d}.fits") as f:
+            assert f[0].data[0, 0] == obsid
+            assert f[0].data[0, 1] == sca
+            assert f[0].data[-1, -1] == 0
+
+        if sca == 7:
+            continue  # leave one out
+
+        with fits.open(f"{tmp_path}/cache/in_{obsid:08d}_{sca:02d}_subI.fits") as f:
+            assert f[0].data[0, 0] == obsid
+            assert f[0].data[0, 1] == sca
+            assert f[0].data[-1, -1] == 256
