@@ -50,6 +50,8 @@ Running PyIMCOM
 
 - `How to compress PyIMCOM output files <docs/compress_README.rst>`_
 
+- `How to generate a report after running PyIMCOM <docs/report_README.rst>`_
+
 Post-processing of PyIMCOM outputs
 ----------------------------------
 
