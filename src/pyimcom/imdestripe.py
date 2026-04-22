@@ -237,6 +237,20 @@ class Sca_img:
                 self.header = None
                 self.shape = np.shape(self.image)
                 # Note: keep _file_handle open to maintain memmap
+            elif indata_type=="jwst":
+                file = fits.open(
+                    cfg.ds_obsfile + obsid + "_" + scaid + "_cpr.fits",
+                    memmap=True,
+                ) # ds_obsfile is 'path/to/jw' 
+                # obsid is <ppppp><ooo><vvv>_<gg><s><aa>_<eeeee>
+                # scaid is nrcb<n>
+                image_hdu = "SCI"
+                self.w = wcs.WCS(file[image_hdu].header)
+                self.image = np.copy(file[image_hdu].data).astype(np.float64)
+                self.header = file[image_hdu].header
+                self.shape = np.shape(self.image)
+                self._file_handle = None
+                file.close()
 
         self.obsid = obsid
         self.scaid = scaid
@@ -290,6 +304,8 @@ class Sca_img:
                 self.apply_asdf_mask()
             elif indata_type == "fits":
                 self.apply_permanent_mask()
+            elif indata_type == "jwst":
+                self.apply_jwst_mask()
             self.mask *= np.logical_not(
                 object_mask
             )  # self.mask = True for good pixels, so set object_mask'ed pixels to False
@@ -372,29 +388,22 @@ class Sca_img:
         self.image *= ~mask
         self.mask *= ~mask
 
-    def get_permanent_mask(self):
+    def apply_jwst_mask(self):
         """
-        Apply permanent pixel mask.
-        Updates self.image and self.mask
+        Apply JWST data quality mask. Updates self.image and self.mask
         """
-        pm = fits.open(
-            self.cfg.ds_obsfile
-            + filters[self.cfg.use_filter]
-            + "_"
-            + self.obsid
-            + "_"
-            + self.scaid
-            + ".fits",
-        )["MASK"].data
-        pm_array = np.copy(pm)
-        return pm_array
+        mask = np.where(self.image==np.nan, 0, 1) 
+        self.image *= mask # this will set NaN pixels to 0 in the image, and keep the rest unchanged
+        self.mask *= mask # this will set the mask to 0 for NaN pixels, and keep the rest unchanged
 
     def apply_all_mask(self):
         """
         Apply permanent pixel mask.
         Updates self.image in-place
         """
-        self.image *= self.mask
+        # Multiply by mask but set Nans to zero
+        self.image = np.where(np.isnan(self.image), 0, self.image*self.mask) 
+        # self.image *= self.mask 
 
     def subtract_parameters(self, p, j):
         """
