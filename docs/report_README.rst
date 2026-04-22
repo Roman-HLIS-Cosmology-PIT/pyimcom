@@ -11,9 +11,13 @@ There are several components to generating the report. All the relevant parts ar
 Base classes are defined in ``pyimcom.diagnostics.report``, along with the ``ValidationReport`` section. Then more specific report categories, which are built on the base classes, are defined inside ``layer_diagnostics.py``, ``mosaicimage.py``, ``noise_diagnostics.py``, and ''stars.py``.
 
 The module is run once per mosiac using ``pyimcom.diagnostics.run``, which creates the report file (with sections MosaicImage, LayerReport, SimulatedStar, NoiseReport) and compiles it into a PDF.
-The format to run the diagnostic report is:
-  ``python3 -m pyimcom.diagnostics.run $outstem\_00\_00.cpr.fits.gz $tag\_report > $tag-S$njob.txt" ``
-where ``outstem`` indicates the location of the pyimcom output files (one output file is needed for information in the FITS header and the Config file) and $tag indicates some output tag.
+The bash command to run the diagnostic report is:
+
+.. code-block:: bash
+
+    python3 -m pyimcom.diagnostics.run $outstem\_00_00.cpr.fits.gz $tag\_report > $tag-S$njob.txt
+
+where ``$outstem`` indicates the location of the pyimcom output files (one output file is needed for information in the FITS header and the Config file); ``$tag`` indicates some output tag (this is to tell the script where to save files); and ``$njob`` is a job number (just for where to send STDOUT, it doesn't affect the script itself).
 The default is for the report to be generated with the output stem ``_report.pdf``.
 
 Available Reports
@@ -39,7 +43,7 @@ The LayerReport section is built using ``pyimcom.diagnostics.layer_diagnostics``
 To build the report section via LayerReport.build, the class does not require any additional arguments, though it accepts the following optional arguments:
 - ``nblockmax``: an optional int giving the maximum number of blocks per side to allow. If the given value is larger than nblock in the configuration, the whole mosaic will be built. The default is 100.
 
-For each layer, the diagnostic calculates the value of the image percentiles : [0, 0.01, 0.1, 1, 5, 25, 50, 75, 95, 99, 99.9, 99.99, 100] and includes those values in a table in the report.
+For each layer, the diagnostic calculates the value of the image percentiles: [0, 0.01, 0.1, 1, 5, 25, 50, 75, 95, 99, 99.9, 99.99, 100] and includes those values in a table in the report.
 
                                                                       
 SimulatedStar
@@ -49,23 +53,28 @@ The SimulatedStar report section is constructed using the ``pyimcom.diagnostics.
 It generates a set of diagnostics for the simulated stars in the PyIMCOM run.
 
 The build method calls the functions:
-- ``pyimcom.diagnostics.dynrange.get_dynrange_data`` : Takes files from the inpath and writes out hisograms of the estimated dynamic range. The output files are:
-    Histograms:
-        outstem +'_sqrtS_hist.dat': histogram of noise amplification factor sqrtS
-        outstem +'_neff_hist.dat': histogram of effective exposure number
+
+- ``pyimcom.diagnostics.dynrange.get_dynrange_data``: Takes files from the inpath and writes out hisograms of the estimated dynamic range. The output files are:
+
+  - Histograms:
+
+    - ``outstem +'_sqrtS_hist.dat'``: histogram of noise amplification factor sqrtS
+    - ``outstem +'_neff_hist.dat'``: histogram of effective exposure number
     Both of these have a header that indicates the fraction of data that is off scale high.
 
-    dynamic range file:
-        outstem +'_dynrange.dat': table of percentiles of noisy star images
+  - dynamic range file:
+
+    - ``outstem +'_dynrange.dat'``: table of percentiles of noisy star images
     (Columns are radius and [1,5,25,50,75,95,99] percentiles)
 
 - ``pyimcom.diagnostics.starcube_nonoise.gen_starcube_nonoise``: Generates a catalog of injected stars and their properties in the coadd image, and extracts the star cube and the star moments. 
+
 The output files are:
     Star Catalog:
-        outstem + "_StarCat_galsim.fits": images of injected stars in the coadd image, generated using GalSim
-        outstem + "_StarCat.txt": catalog of injected sources and their properties (eg. positions, shapes) 
+        ``outstem + "_StarCat_galsim.fits"``: images of injected stars in the coadd image, generated using GalSim
+        ``outstem + "_StarCat.txt"``: catalog of injected sources and their properties (eg. positions, shapes) 
     Fidelity Histogram:
-        outstem + "_fidHist.txt": histogram of the fidelity of the star images, which is a measure of how well the star images are reconstructed in the coadd image. 
+        ``outstem + "_fidHist.txt"``: histogram of the fidelity of the star images, which is a measure of how well the star images are reconstructed in the coadd image. 
         The histogram reports instances of fidelity integer values in dB.
 
 - ``pyimcom.diagnostics.context_figure.ReportFigContext`` : This is a context manager for report figures in PyIMCOM.
@@ -82,20 +91,23 @@ NoiseReport
 The NoiseReport section is constructed using the ``pyimcom.diagnostics.noise_diagnostics`` module, which defines the class NoiseReport, inheriting from the base class ReportSection.
 This section shows a report on noise properties of the PyIMCOM run.
 
- The class has several methods:
-  - ``build_noisespec``: Computes 1 and 2-dimensional noise power spectrum for each block and writes out the file ``<datastem>_<blockID>_ps.fits``,
-    which contains 3 HDUs: the 2D power spectrum, the block config, and the 1D power spectrum.
-  - ``measure_pwoer_spectrum``: Measures the 2D power spectrum for each block. May be windowed and/or binned.
-  - ``_get_wavenumbers``: Internal method to get the wavenumber arrays for the power spectrum.
-  - ``azimuthal_average``: Internal method to compute the azimuthal average of the 2D power spectrum to get the 1D power spectrum.
-  - ``get_powerspectra``: Calculates the azimuthally-averaged 1D power spectrum of the image.
-  - ``average_spectra``: Averages together all the per-block power spectra in one band.
-  - ``gen_overview_fig``: Create and write LaTeX code to include an overview figure of the noise power spectra showing the 2D power spectrum in each of the 4 main noise layers.
-  - ``build``: The main method to build the NoiseReport section, which calls the above methods to compute the power spectra and generate the overview figure, and then writes out the section for inclusion in the report.
-      The build method of NoiseReport requires some optional arguments, whose defaults are given:
-    -  nblockmax : int, optional. Maximum size of mosaic to build. Default: 100
-    -  m_ab : float, optional. Scaling magnitude (not currently used). Default: 23.9
-    -  bin_flag : int, optional. Whether to bin? (1 = bin 8x8, 0 = do not bin). Default: 1
-    -  alpha : float, optional. Tukey window width for noise power spectrum. Default: 0.9
-    -  tarfiles : bool, optional. Generate a tarball of the data files? Default: True
+The class has several methods:
+
+- ``build_noisespec``: Computes 1 and 2-dimensional noise power spectrum for each block and writes out the file ``<datastem>_<blockID>_ps.fits``,
+  which contains 3 HDUs: the 2D power spectrum, the block config, and the 1D power spectrum.
+- ``measure_pwoer_spectrum``: Measures the 2D power spectrum for each block. May be windowed and/or binned.
+- ``_get_wavenumbers``: Internal method to get the wavenumber arrays for the power spectrum.
+- ``azimuthal_average``: Internal method to compute the azimuthal average of the 2D power spectrum to get the 1D power spectrum.
+- ``get_powerspectra``: Calculates the azimuthally-averaged 1D power spectrum of the image.
+- ``average_spectra``: Averages together all the per-block power spectra in one band.
+- ``gen_overview_fig``: Create and write LaTeX code to include an overview figure of the noise power spectra showing the 2D power spectrum in each of the 4 main noise layers.
+- ``build``: The main method to build the NoiseReport section, which calls the above methods to compute the power spectra and generate the overview figure, and then writes out the section for inclusion in the report.
+
+  The build method of NoiseReport requires some optional arguments, whose defaults are given:
+
+  -  nblockmax : int, optional. Maximum size of mosaic to build. Default: 100
+  -  m_ab : float, optional. Scaling magnitude (not currently used). Default: 23.9
+  -  bin_flag : int, optional. Whether to bin? (1 = bin 8x8, 0 = do not bin). Default: 1
+  -  alpha : float, optional. Tukey window width for noise power spectrum. Default: 0.9
+  -  tarfiles : bool, optional. Generate a tarball of the data files? Default: True
                                                                       
