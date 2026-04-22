@@ -77,6 +77,7 @@ import sys
 import time
 import traceback
 import uuid
+import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import asdf
@@ -1234,7 +1235,9 @@ def residual_function(
     sys.stdout.flush()
     t_r_0 = time.time()
 
-    with ProcessPoolExecutor(max_workers=workers) as executor:
+    start_method = "forkserver" if os.name.lower() == "posix" else "spawn"
+    ctx = mp.get_context(start_method)
+    with ProcessPoolExecutor(max_workers=workers, mp_context=ctx) as executor:
         futures = [
             executor.submit(
                 residual_function_single,
@@ -1507,7 +1510,9 @@ def cost_function(p, f, thresh, workers, scalist, neighbors, cfg, tempdir=tempdi
     psi.fill(0)
     epsilon = 0
 
-    with ProcessPoolExecutor(max_workers=workers) as executor:
+    start_method = "forkserver" if os.name.lower() == "posix" else "spawn"
+    ctx = mp.get_context(start_method)
+    with ProcessPoolExecutor(max_workers=workers, mp_context=ctx) as executor:
         futures = [
             executor.submit(cost_function_single, j, sca_a, p, f, scalist, neighbors, thresh, cfg, of=of)
             for j, sca_a in enumerate(scalist)
