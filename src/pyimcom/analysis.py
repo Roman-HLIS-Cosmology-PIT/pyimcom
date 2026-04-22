@@ -162,20 +162,24 @@ class OutImage:
                 last_line = line
         return last_line
 
-    def get_time_consump(self) -> None:
+    def get_time_consump(self) -> float:
         """
         Parse terminal output to get time consumption.
 
         Returns
         -------
-        None
+        float
+            Time consumption in seconds (if found), otherwise nan.
 
         """
 
         fname = self.fpath.replace(".fits", ".out")
-        last_line = OutImage.get_last_line(fname)
-        m = re.match("finished at t = ([0-9.]+) s", last_line)
-        return float(m.group(1))
+        try:
+            last_line = OutImage.get_last_line(fname)
+            m = re.match("finished at t = ([0-9.]+) s", last_line)
+            return float(m.group(1))
+        except FileNotFoundError:
+            return np.nan
 
     def _load_or_save_hdu_list(
         self, load_mode: bool = True, save_file: bool = False, auto_to_all: bool = False

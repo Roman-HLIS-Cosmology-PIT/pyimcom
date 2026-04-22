@@ -5,9 +5,11 @@ This does 2 blocks.
 """
 
 import copy
+import io
 import os
 import pathlib
 import re
+from contextlib import redirect_stdout
 
 import asdf
 import galsim
@@ -545,7 +547,14 @@ def setup(tmp_path):
     print(cfg.to_file(None))
     # Running all 4 blocks so we can include the diagnostics in the test coverage.
     for iblk in range(4):
-        Block(cfg=cfg, this_sub=iblk)
+        ibx, iby = divmod(iblk, 2)
+        f = io.StringIO()
+        with redirect_stdout(f):
+            Block(cfg=cfg, this_sub=iblk)
+        fout = str(tmp_path / f"out/testout_F_{ibx:02d}_{iby:02d}.out")
+        with open(fout, "w") as ff:
+            ff.write(f.getvalue())
+        assert os.path.exists(fout)
     gen_truthcats_from_cfg(cfg)
 
     # now try the multi-kappa kernel
@@ -652,10 +661,22 @@ def setup(tmp_path):
 
     # test Suite class
     nrun = 4
+    s = Suite(cfg, prime=3, nrun=nrun)
+    indices = [(0, 0), (1, 1), (1, 0), (0, 1)]
+    for j in range(nrun):
+        assert (s.outimages[j].ibx, s.outimages[j].iby) == indices[j]
+    s.get_consump_map()
+    t = np.load(str(tmp_path) + "/out/testout_F_Consump.npy")
+    assert np.all(t >= 0)
+    s.clear()
     s = Suite(cfg2, prime=3, nrun=nrun)
     indices = [(0, 0), (1, 1), (1, 0), (0, 1)]
     for j in range(nrun):
         assert (s.outimages[j].ibx, s.outimages[j].iby) == indices[j]
+    s.get_consump_map()
+    t = np.load(str(tmp_path) + "/out/testout_F_empirpad_Consump.npy")
+    assert np.all(np.isnan(t))  # we didn't save these so should get nan
+    s.clear()
 
     # remove stuff we don't need
     for iobs in range(len(obs)):
@@ -877,6 +898,9 @@ def test_PyIMCOM_run1(tmp_path, setup):
 
     # Test output reader
     my_block = OutImage(pth)
+    timespent = my_block.get_time_consump()
+    print(f"{timespent} s spent")
+    assert timespent >= 0.0
     sci_image = my_block.get_coadded_layer("SCI")
     ci = np.argmax(sci_image)
     sci_image.ravel()[ci]
