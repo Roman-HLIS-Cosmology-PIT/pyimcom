@@ -87,7 +87,7 @@ from filelock import FileLock, Timeout
 from memory_profiler import memory_usage
 from scipy.ndimage import binary_dilation
 
-from .config import Config, Settings, JWST
+from .config import JWST, Config, Settings
 from .utils import compareutils
 from .wcsutil import PyIMCOM_WCS
 
@@ -109,7 +109,8 @@ testoutputs = {
 warnings.filterwarnings("ignore", category=AsdfConversionWarning)
 warnings.filterwarnings("ignore", category=AsdfPackageVersionWarning)
 
-if JWST: Settings.jwst()
+if JWST:
+    Settings.jwst()
 filters = Settings.RomanFilters
 t0_global = time.time()  # after imports
 
@@ -240,11 +241,11 @@ class Sca_img:
                 self.shape = np.shape(self.image)
                 self.type = "asdf"
                 # Note: keep _file_handle open to maintain memmap
-            elif indata_type=="jwst":
+            elif indata_type == "jwst":
                 file = fits.open(
-                    cfg.ds_obsfile + obsid + "_" + scaid + "_cpr.fits",
+                    cfg.ds_obsfile + obsid + "_" + scaid + "_crf.fits",
                     memmap=True,
-                ) # ds_obsfile is 'path/to/jw' 
+                )  # ds_obsfile is 'path/to/jw'
                 # obsid is <ppppp><ooo><vvv>_<gg><s><aa>_<eeeee>
                 # scaid is nrcb<n>
                 image_hdu = "SCI"
@@ -396,9 +397,10 @@ class Sca_img:
         """
         Apply JWST data quality mask. Updates self.image and self.mask
         """
-        mask = np.where(self.image==np.nan, 0, 1) 
-        self.image *= mask # this will set NaN pixels to 0 in the image, and keep the rest unchanged
-        self.mask *= mask # this will set the mask to 0 for NaN pixels, and keep the rest unchanged
+        # JWST bad pixels are represented as NaN in SCI; map them to zero and mark as masked.
+        valid = ~np.isnan(self.image)
+        self.image = np.where(valid, self.image, 0.0)
+        self.mask = np.logical_and(self.mask, valid)
 
     def apply_all_mask(self):
         """
@@ -406,8 +408,8 @@ class Sca_img:
         Updates self.image in-place
         """
         # Multiply by mask but set Nans to zero
-        self.image = np.where(np.isnan(self.image), 0, self.image*self.mask) 
-        # self.image *= self.mask 
+        self.image = np.where(np.isnan(self.image), 0, self.image * self.mask)
+        # self.image *= self.mask
 
     def subtract_parameters(self, p, j):
         """
@@ -502,7 +504,7 @@ class Sca_img:
 
         for k in sca_b_list:
             sca_b = scalist[k]
-            obsid_B, scaid_B = get_ids(sca_b)
+            obsid_B, scaid_B = get_ids(sca_b, indata_type=self.type)
 
             N_BinA += 1
             I_B = Sca_img(obsid_B, scaid_B, self.cfg, indata_type=self.type)  # Initialize image B
@@ -823,12 +825,12 @@ def get_scas(filter_, obsfile, cfg, indata_type="fits", of=None):
     all_wcs = []
 
     if indata_type == "jwst":
-        for f in sorted(glob.glob(obsfile + "*_cpr.fits")):
+        for f in sorted(glob.glob(obsfile + "*_crf.fits")):
             # example to match: jw04793001001_02101_00001_nrcb1_crf.fits
-            m = re.search(r"jw(\d+)_(\d+)_(\d+)_(\d+)_(nrcb\d+)", f) 
+            m = re.search(r"(jw\d+_\d+_\d+_nrcb\d+)", f)
             if m:
                 n_scas += 1
-                this_obsfile = str(m.group(0))
+                this_obsfile = str(m.group(1))
                 all_scas.append(this_obsfile)
                 this_file = fits.open(f, memmap=True)
                 this_wcs = wcs.WCS(this_file["SCI"].header)
@@ -977,9 +979,9 @@ def get_effective_gain(sca, tempdir=tempdir, indata_type="fits"):
         obsid = m.group(1)
         scaid = m.group(2)
     elif indata_type == "jwst":
-        m = re.search(r"jw(\d+)_(\d+)_(\d+)_(\d+)_(nrcb\d+)", sca)
-        obsid = m.group(1) + "_" + m.group(2) + "_" + m.group(3) + "_" + m.group(4)
-        scaid = m.group(5)
+        m = re.search(r"(jw\d+_\d+_\d+)_(nrcb\d+)", sca)
+        obsid = m.group(1)
+        scaid = m.group(2)
 
     g_eff = np.memmap(
         tempdir + obsid + "_" + scaid + "_geff.dat",
@@ -1019,9 +1021,9 @@ def get_ids(sca, indata_type="fits"):
         obsid = m.group(1)
         scaid = m.group(2)
     elif indata_type == "jwst":
-        m = re.search(r"jw(\d+)_(\d+)_(\d+)_(\d+)_(nrcb\d+)", sca) 
-        obsid = m.group(1) + "_" + m.group(2) + "_" + m.group(3) + "_" + m.group(4)
-        scaid = m.group(5)
+        m = re.search(r"(jw\d+_\d+_\d+)_(nrcb\d+)", sca)
+        obsid = m.group(1)
+        scaid = m.group(2)
     return obsid, scaid
 
 
@@ -1123,7 +1125,17 @@ def get_neighbors(scalist, ov_mat, overlap_thresh=0.1):
 
 
 def residual_function(
-    psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg, extrareturn=False, of=None, indata_type="fits"
+    psi,
+    f_prime,
+    scalist,
+    wcslist,
+    neighbors,
+    thresh,
+    workers,
+    cfg,
+    extrareturn=False,
+    of=None,
+    indata_type="fits",
 ):
     """
     Calculate the residual image, = grad(epsilon)
@@ -1209,7 +1221,9 @@ def residual_function(
     return resids
 
 
-def residual_function_single(k, sca_a, wcs_a, psi_a, f_prime, scalist, neighbors, thresh, cfg, of=None, indata_type="fits"):
+def residual_function_single(
+    k, sca_a, wcs_a, psi_a, f_prime, scalist, neighbors, thresh, cfg, of=None, indata_type="fits"
+):
     """
     Calculate the residual for a single SCA image
 
@@ -1249,7 +1263,7 @@ def residual_function_single(k, sca_a, wcs_a, psi_a, f_prime, scalist, neighbors
         for each SCA j that overlaps with this one
     """
     # Go and get the WCS object for image A
-    obsid_A, scaid_A = get_ids(sca_a)
+    obsid_A, scaid_A = get_ids(sca_a, indata_type=indata_type)
 
     # Calculate and then transpose the gradient of I_A-J_A
     gradient_interpolated = f_prime(psi_a, thresh) if thresh is not None else f_prime(psi_a)
@@ -1257,7 +1271,7 @@ def residual_function_single(k, sca_a, wcs_a, psi_a, f_prime, scalist, neighbors
     term_1 = transpose_par(gradient_interpolated)
 
     # Retrieve the effective gain and N_eff to normalize the gradient before transposing back
-    g_eff_A, n_eff_A = get_effective_gain(sca_a)
+    g_eff_A, n_eff_A = get_effective_gain(sca_a, indata_type=indata_type)
 
     # Avoid dividing by zero
     valid_mask = n_eff_A != 0
@@ -1271,7 +1285,7 @@ def residual_function_single(k, sca_a, wcs_a, psi_a, f_prime, scalist, neighbors
 
     for j in neighbors[k]:
         sca_b = scalist[j]
-        obsid_B, scaid_B = get_ids(sca_b)
+        obsid_B, scaid_B = get_ids(sca_b, indata_type=indata_type)
 
         I_B = Sca_img(obsid_B, scaid_B, cfg, indata_type=indata_type)  # Initialize image B
         gradient_original = np.zeros(I_B.shape)
@@ -1326,13 +1340,7 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg, of=Non
     local_epsilon : Float
         the cost function value for this SCA
     """
-    if indata_type == "fits":
-        m = re.search(r"_(\d+)_(\d+)", sca_a)
-        obsid_A, scaid_A = m.group(1), m.group(2)
-    elif indata_type == "jwst":
-        m = re.search(r"jw(\d+)_(\d+)_(\d+)_(\d+)_(nrcb\d+)", sca_a)
-        obsid_A = m.group(1) + "_" + m.group(2) + "_" + m.group(3) + "_" + m.group(4)
-        scaid_A = m.group(5)
+    obsid_A, scaid_A = get_ids(sca_a, indata_type=indata_type)
 
     I_A = Sca_img(obsid_A, scaid_A, cfg, indata_type=indata_type)
     I_A.subtract_parameters(p, j)
@@ -1380,7 +1388,9 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg, of=Non
     return j, psi, local_epsilon
 
 
-def cost_function(p, f, thresh, workers, scalist, neighbors, cfg, tempdir=tempdir, of=None, indata_type="fits"):
+def cost_function(
+    p, f, thresh, workers, scalist, neighbors, cfg, tempdir=tempdir, of=None, indata_type="fits"
+):
     """
     Calculate the cost function with the current de-striping parameters.
 
@@ -1427,7 +1437,19 @@ def cost_function(p, f, thresh, workers, scalist, neighbors, cfg, tempdir=tempdi
 
     with ProcessPoolExecutor(max_workers=workers) as executor:
         futures = [
-            executor.submit(cost_function_single, j, sca_a, p, f, scalist, neighbors, thresh, cfg, of=of, indata_type=indata_type)
+            executor.submit(
+                cost_function_single,
+                j,
+                sca_a,
+                p,
+                f,
+                scalist,
+                neighbors,
+                thresh,
+                cfg,
+                of=of,
+                indata_type=indata_type,
+            )
             for j, sca_a in enumerate(scalist)
         ]
 
@@ -1553,15 +1575,23 @@ def linear_search_general(
     write_to_file("### Calculating min and max epsilon and cost", of)
     max_params = p.params + alpha_max * direction
     max_p.params = max_params
-    max_epsilon, max_psi = cost_function(max_p, f, thresh, workers, scalist, neighbors, cfg, indata_type=indata_type)
-    max_resids = residual_function(max_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg, indata_type=indata_type)
+    max_epsilon, max_psi = cost_function(
+        max_p, f, thresh, workers, scalist, neighbors, cfg, indata_type=indata_type
+    )
+    max_resids = residual_function(
+        max_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg, indata_type=indata_type
+    )
     del max_psi
     d_cost_max = np.sum(max_resids * direction)
 
     min_params = p.params + alpha_min * direction
     min_p.params = min_params
-    min_epsilon, min_psi = cost_function(min_p, f, thresh, workers, scalist, neighbors, cfg, indata_type=indata_type)
-    min_resids = residual_function(min_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg, indata_type=indata_type)
+    min_epsilon, min_psi = cost_function(
+        min_p, f, thresh, workers, scalist, neighbors, cfg, indata_type=indata_type
+    )
+    min_resids = residual_function(
+        min_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg, indata_type=indata_type
+    )
     del min_psi
     d_cost_min = np.sum(min_resids * direction)
 
@@ -1598,7 +1628,9 @@ def linear_search_general(
         working_params = p.params + alpha_test * direction
         working_p.params = working_params
 
-        working_epsilon, working_psi = cost_function(working_p, f, thresh, workers, scalist, neighbors, cfg, indata_type=indata_type)
+        working_epsilon, working_psi = cost_function(
+            working_p, f, thresh, workers, scalist, neighbors, cfg, indata_type=indata_type
+        )
         print(f"Global elapsed t = {(time.time()-t0_global)/60:8.1f}")
         working_resids = residual_function(
             working_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg, indata_type=indata_type
@@ -1648,7 +1680,19 @@ def linear_search_general(
 
 
 def linear_search_quadratic(
-    p, direction, f, f_prime, grad_current, thresh, workers, scalist, wcslist, neighbors, cfg, of=None, indata_type="fits"
+    p,
+    direction,
+    f,
+    f_prime,
+    grad_current,
+    thresh,
+    workers,
+    scalist,
+    wcslist,
+    neighbors,
+    cfg,
+    of=None,
+    indata_type="fits",
 ):
     """
     For the quadratic cost function, direct calculation of alpha that minimizes the function
@@ -1712,8 +1756,12 @@ def linear_search_quadratic(
     # Calculate
     trial_params = p.params + alpha_max * direction
     trial_p.params = trial_params
-    trial_epsilon, trial_psi = cost_function(trial_p, f, thresh, workers, scalist, neighbors, cfg, indata_type=indata_type)
-    trial_resids = residual_function(trial_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg, indata_type=indata_type)
+    trial_epsilon, trial_psi = cost_function(
+        trial_p, f, thresh, workers, scalist, neighbors, cfg, indata_type=indata_type
+    )
+    trial_resids = residual_function(
+        trial_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg, indata_type=indata_type
+    )
     del trial_psi, trial_epsilon
 
     alpha_new = (
@@ -1724,7 +1772,9 @@ def linear_search_quadratic(
 
     new_params = p.params + alpha_new * direction
     new_p.params = new_params
-    new_epsilon, new_psi = cost_function(new_p, f, thresh, workers, scalist, neighbors, cfg, indata_type=indata_type)
+    new_epsilon, new_psi = cost_function(
+        new_p, f, thresh, workers, scalist, neighbors, cfg, indata_type=indata_type
+    )
     new_resids = grad_current + (alpha_new / alpha_max) * (trial_resids - grad_current)
     write_to_file(f"(Inside LS) Global elapsed t = {(time.time()-t0_global)/60:8.1f}", of)
     sys.stdout.flush()
@@ -1868,7 +1918,9 @@ def conjugate_gradient(
 
         # Compute the gradient
         if grad is None:
-            grad = residual_function(psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg, indata_type=indata_type)
+            grad = residual_function(
+                psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg, indata_type=indata_type
+            )
             write_to_file(
                 f"Minutes spent in initial residual function: {(time.time() - t_start_CG_iter) / 60}", of
             )
@@ -1922,7 +1974,19 @@ def conjugate_gradient(
 
         if cost_model == "quadratic":
             p_new, psi_new, grad_new, epsilon_new = linear_search_quadratic(
-                p, direction, f, f_prime, grad, thresh, workers, scalist, wcslist, neighbors, cfg, of=of, indata_type=indata_type
+                p,
+                direction,
+                f,
+                f_prime,
+                grad,
+                thresh,
+                workers,
+                scalist,
+                wcslist,
+                neighbors,
+                cfg,
+                of=of,
+                indata_type=indata_type,
             )
 
         else:
@@ -1942,8 +2006,7 @@ def conjugate_gradient(
                 neighbors,
                 cfg,
                 of=of,
-                indata_type=indata_type
-
+                indata_type=indata_type,
             )
 
         write_to_file(f"Global elapsed t = {(time.time()-t0_global)/60:8.1f}", of)
@@ -2129,7 +2192,7 @@ def main(cfg_file=None, overlaponly=False, of=None):
         write_to_file("Conjugate gradient failed. Restart state saved to cg_restart.pkl\n", of)
 
     for i, sca in enumerate(all_scas):
-        obsid, scaid = get_ids(sca)
+        obsid, scaid = get_ids(sca, indata_type=indata_type)
         this_sca = Sca_img(obsid, scaid, CFG, add_objmask=False, indata_type=indata_type)
         this_param_set = p.forward_par(i)
         ds_image = this_sca.image - this_param_set
