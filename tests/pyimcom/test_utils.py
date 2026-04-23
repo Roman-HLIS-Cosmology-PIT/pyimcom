@@ -180,7 +180,7 @@ def test_resolve_bounds():
     a = resolve_bounds("this_isn't_a_valid_anything", 30)
     assert a == (0, 30, 0, 30)
 
-    # these should create errores
+    # these should create errors
     with pytest.raises(ValueError):
         resolve_bounds([20, 40, 20, 30], 36)
     with pytest.raises(ValueError):
