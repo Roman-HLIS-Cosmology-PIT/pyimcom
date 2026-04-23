@@ -2092,7 +2092,7 @@ def conjugate_gradient(
     return p
 
 
-def main(cfg_file=None, overlaponly=False, of=None):
+def main(cfg_file=None, overlaponly=False, of=None, testing=False):
     """
     Main function to run destriping via conjugate gradient descent.
 
@@ -2102,8 +2102,10 @@ def main(cfg_file=None, overlaponly=False, of=None):
         Configuration file (if not provided, reads from command line arguments).
     overlaponly : bool, optional
         Only compute the overlap matrix, then stop.
-    of : str, optional
+    of : str, optionals
         Output file for logging. If None, logs are printed to stdout.
+    testing : bool, optional
+        If True, saves additional diagnostic images and info for testing and validation.
 
     Returns
     -------
@@ -2125,6 +2127,7 @@ def main(cfg_file=None, overlaponly=False, of=None):
     filter_ = filters[CFG.use_filter]
     outpath = CFG.ds_outpath
     indata_type = "jwst" if JWST else "fits"
+    if testing: testoutputs["testing"] = True
 
     # Prior on cost function is not yet implemented
     # if CFG.cost_prior != 0:
