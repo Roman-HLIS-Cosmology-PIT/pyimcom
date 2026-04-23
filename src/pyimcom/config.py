@@ -136,11 +136,21 @@ class Settings:
         but more can be added as needed.
 
         """
-
-        cls.pixscale_native = 0.031 * cls.arcsec
+        
         cls.sca_nside = 2048
+        nircam_short_bands = \
+        ['F070W', 'F090W', 'F115W', 'F140M', 'F150W', 'F150W2', 
+         'F162M', 'F164N', 'F182M', 'F187N', 'F200W', 'F210M', 
+         'F212N']
+        nircam_long_bands = \
+        ['F250M', 'F277W', 'F300M', 'F322W2', 'F323N', 
+         'F335M', 'F356W', 'F360M', 'F405N', 'F410M', 'F430M', 
+         'F444W', 'F460M', 'F466N', 'F470N', 'F480M']
         # KL Leaving "Roman" so we don't have to change as much in the code
-        cls.RomanFilters = ["F070W", "F090W", "F115W", "F150W", "F200W", "F277W", "F356W", "F444W"]  # Y
+        cls.RomanFilters = nircam_short_bands + nircam_long_bands
+
+        cls.pixscale_short_native = 0.031 * cls.arcsec
+        cls.pixscale_long_native = 0.062 * cls.arcsec
 
 
 class fpaCoords:
