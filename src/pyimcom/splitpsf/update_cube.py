@@ -133,8 +133,4 @@ def update(cfg_file, proceed=True):
 
 # Command line driver
 if __name__ == "__main__":
-    proceed = True
-    if len(sys.argv) > 2:
-        proceed = False
-    print(f">> proceed = {proceed}")
-    update(sys.argv[1], proceed=proceed)
+    update(sys.argv[1], proceed=len(sys.argv) <= 2)

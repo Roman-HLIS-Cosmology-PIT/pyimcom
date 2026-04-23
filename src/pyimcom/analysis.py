@@ -162,20 +162,24 @@ class OutImage:
                 last_line = line
         return last_line
 
-    def get_time_consump(self) -> None:
+    def get_time_consump(self) -> float:
         """
         Parse terminal output to get time consumption.
 
         Returns
         -------
-        None
+        float
+            Time consumption in seconds (if found), otherwise nan.
 
         """
 
         fname = self.fpath.replace(".fits", ".out")
-        last_line = OutImage.get_last_line(fname)
-        m = re.match("finished at t = ([0-9.]+) s", last_line)
-        return float(m.group(1))
+        try:
+            last_line = OutImage.get_last_line(fname)
+            m = re.match("finished at t = ([0-9.]+) s", last_line)
+            return float(m.group(1))
+        except FileNotFoundError:
+            return np.nan
 
     def _load_or_save_hdu_list(
         self, load_mode: bool = True, save_file: bool = False, auto_to_all: bool = False
@@ -1471,6 +1475,6 @@ class Suite(_BlkGrp):
         self.nrun = nrun
         self.outimages = [None for ib in range(nrun)]
         for ib in range(nrun):
-            ibx, iby = divmod(ib * 691 % cfg.nblock**2, cfg.nblock)
+            ibx, iby = divmod(ib * prime % cfg.nblock**2, cfg.nblock)
             fpath = cfg.outstem + f"_{ibx:02d}_{iby:02d}.fits"
             self.outimages[ib] = OutImage(fpath, cfg, self.hdu_names)

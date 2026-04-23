@@ -57,6 +57,10 @@ def gen_truthcats(pars):
 
     """
 
+    # Example from OSC testing:
+    # gen_truthcats([None, 1, "/fs/scratch/PCON0003/cond0007/itertest2-out/itertest2_F",
+    #     "pyimcom/temp/test1"])
+
     t0 = time.time()
 
     # bd = 40  # padding size
@@ -390,9 +394,3 @@ def gen_truthcats(pars):
 def gen_truthcats_from_cfg(cfg):
     """Usage from configuration file."""
     gen_truthcats([None, cfg.use_filter, cfg.outstem, None])
-
-
-# stand-alone usage
-if __name__ == "__main__":
-    # gen_truthcats(sys.argv)
-    gen_truthcats([None, 1, "/fs/scratch/PCON0003/cond0007/itertest2-out/itertest2_F", "pyimcom/temp/test1"])

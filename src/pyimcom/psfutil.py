@@ -57,6 +57,8 @@ class PSFInterpolator:
     -------
     set_G4460
         Set up G4460 as default interpolator (classmethod).
+    unset_G4460
+        Unset G4460 as default interpolator (classmethod).
 
     Attributes
     ----------
@@ -82,6 +84,13 @@ class PSFInterpolator:
             cls.iC_sym = iG4460C_sym
         else:
             warnings.warn("Couldn't find G4460, using D5512 interpolator as default.")
+
+    @classmethod
+    def unset_G4460(cls):
+        """Return to default interpolator (D5512)"""
+        cls.gridC = gridD5512C
+        cls.iC = iD5512C
+        cls.iC_sym = iD5512C_sym
 
 
 class OutPSF:

@@ -27,8 +27,6 @@ class SplitPSF:
         2D version of integrated Blackman.
     Truncate_2D_integratedBlackman
         2D version of integrated Blackman.
-    padft2d
-        2D pad and Fourier transform for a square array.
     tophatfilter
        Smooth 3D array in each of the last 2 planes with a tophat of the given width.
     gauss_deconv
@@ -101,17 +99,6 @@ class SplitPSF:
         X_[:m] = SplitPSF.Window_integratedBlackman(np.linspace(-1.0, 1.0, m + 2))[1:-1]
         X_[-m:] = X_[m - 1 :: -1]
         return np.outer(X_, X_)
-
-    @staticmethod
-    def padft2d(arr):
-        """2D pad and Fourier transform for a square array"""
-        n = np.shape(arr)[1]
-        arr_double = np.zeros((2 * n, 2 * n), dtype=arr.dtype)
-        arr_double[:n, :n] = arr
-        arr_double = np.roll(arr_double, -(n // 2), axis=0)
-        arr_double = np.roll(arr_double, -(n // 2), axis=1)
-        ft = np.fft.fftshift(np.fft.fft2(arr_double.astype(np.complex128)))
-        return ft[n // 2 : -(n // 2), n // 2 : -(n // 2)]
 
     @staticmethod
     def tophatfilter(inArray, tophatwidth):
@@ -431,14 +418,11 @@ def split_psf_to_fits(psf_file, wcs_format, pars, outfile):
 
 # ### MAIN DRIVER ### #
 if __name__ == "__main__":
-    """Call with python3 -m pyimcom.splitpsf [config_file]"""
+    # Call with python3 -m pyimcom.splitpsf [config_file]
 
     # Extract the information we need from the config file
     with open(sys.argv[1]) as f:
         cfg_dict = json.load(f)
-    print("Configuration file:\n")
-    print(cfg_dict)
-    print("")
 
     if "INLAYERCACHE" not in cfg_dict:
         raise KeyError("Couldn't find INLAYERCACHE.")
@@ -447,29 +431,23 @@ if __name__ == "__main__":
     if cfg_dict["OUTPSF"] != "GAUSSIAN":
         raise ValueError("SplitPSF currently only works for Gaussians.")
     sigma = float(cfg_dict["EXTRASMOOTH"])
-    print("PSF sigma (input pixels) -->", sigma)
 
     # get number of rows
     with fits.open(cfg_dict["OBSFILE"]) as f:
         Nobs = f[1].header["NAXIS2"]
         filters_obs = f[1].data["filter"]
-    print(Nobs, "observations to search")
-    print(filters_obs)
 
     # extract oversampling factor
     ovsamp = int(cfg_dict["INPSF"][2])
-    print(f"Input PSFs are {ovsamp:f}x oversampled")
 
     # extract PSF splitting parameters
     r1 = float(cfg_dict["PSFSPLIT"][0])
     r2 = float(cfg_dict["PSFSPLIT"][1])
     epsilon = float(cfg_dict["PSFSPLIT"][2])
-    print(r1, r2, epsilon)
 
     # decide on stamp size; multiple of 8, must include r2 radius
     smallstampsize = int(np.ceil(r2 * ovsamp * 2 + 4))
     smallstampsize += 8 - smallstampsize % 8
-    print("chosen stamp size = ", smallstampsize)
 
     # where to put the files
     targetdir = cfg_dict["INLAYERCACHE"] + ".psf"
@@ -480,8 +458,6 @@ if __name__ == "__main__":
         print("Couldn't make directory", targetdir, ":", error)
 
     use_filter = Settings.RomanFilters[int(cfg_dict["FILTER"])]
-    print("selecting from filter", use_filter)
-    print("")
 
     count = 0
     for iobs in range(Nobs):
@@ -495,7 +471,6 @@ if __name__ == "__main__":
             # Need to transfer this file
             outfile = targetdir + f"/psf_{iobs:d}.fits"
             print(f"{iobs:8d}/{Nobs:8d} found, file is at " + psf_file, "-->", outfile)
-            print("   sci in =", sci_filename)
             split_psf_to_fits(
                 psf_file,
                 sci_filename,
@@ -515,6 +490,4 @@ if __name__ == "__main__":
 
             sys.stdout.flush()
             count = count + 1
-            print("exposure counter =", count)
-            print("")
             # if count==1: exit() # <-- for testing: exit after one file

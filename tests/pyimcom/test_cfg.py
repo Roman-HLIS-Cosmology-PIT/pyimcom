@@ -1,7 +1,10 @@
 import io
 import sys
+import time
 
-from pyimcom.config import Config
+import numpy as np
+import pytest
+from pyimcom.config import Config, Timer, fpaCoords
 
 
 def _fpcheck(a, b, tol):
@@ -205,4 +208,31 @@ def test_interface(tmp_path):
     assert cfg.use_filter == 1
 
 
-# test_interface("out") # <-- comment out in production version
+def test_timer():
+    """Test for the timer reset."""
+    tt = Timer()
+    time.sleep(0.4)
+    t0 = tt(reset=True)
+    time.sleep(0.4)
+    t1 = tt()
+    assert t0 > 0.3
+    assert t1 > 0.3
+
+
+def test_fpacoords():
+    """FPA coordinate test."""
+
+    # check that this raises an exception
+    with pytest.raises(ValueError):
+        fpaCoords.pix2fpa(0, 256, 256)
+
+    # this one should work
+    x, y = fpaCoords.pix2fpa(6, 0, 0)
+    assert np.abs(-87.855 - x) < 0.001
+    assert np.abs(-93.495 - y) < 0.001
+    x2, y2 = fpaCoords.pix2fpa(6, 0, 4087)
+    assert np.abs(y2 - y - 40.87) < 0.001
+    assert np.abs(x2 - x) < 0.001
+    x3, y3 = fpaCoords.pix2fpa(6, 4087, 0)
+    assert np.abs(x3 - x - 40.87) < 0.001
+    assert np.abs(y3 - y) < 0.001

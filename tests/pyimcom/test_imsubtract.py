@@ -8,7 +8,7 @@ from astropy.io import fits
 from pyimcom.config import Config
 from pyimcom.splitpsf.imsubtract import fftconvolve_multi, run_imsubtract
 from pyimcom.splitpsf.imsubtract_wrapper import run_imsubtract_all, run_imsubtract_single
-from pyimcom.splitpsf.splitpsf import split_psf_to_fits
+from pyimcom.splitpsf.splitpsf import SplitPSF, split_psf_to_fits
 from pyimcom.splitpsf.splitpsf_wrapper import split_psf_single
 from scipy.signal import fftconvolve
 
@@ -334,3 +334,21 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
         "r1_00013912_17_subI.fits",
     ]:
         os.remove(str(tmp_imsub) + "/" + fl)
+
+
+def test_staticmethods():
+    """Unit tests for staticmethods in splitpsf.py."""
+
+    # test for Truncate_2D_integratedBlackman
+    # 11x11 block, transition width of 3 on each side
+    arr = SplitPSF.Truncate_2D_integratedBlackman(11, 3)
+    u = 0.0770055
+    assert np.allclose(
+        arr[6, :],
+        np.array([u, 0.5, 1 - u, 1, 1, 1, 1, 1, 1 - u, 0.5, u]),
+        rtol=0,
+        atol=1.0e-6,
+    )
+    assert np.allclose(arr[6, :], arr[:, 6], rtol=0, atol=1.0e-6)
+    for x in [arr[0, 0], arr[0, -1], arr[-1, 0], arr[-1, -1]]:
+        assert np.abs(x - u**2) < 1.0e-6

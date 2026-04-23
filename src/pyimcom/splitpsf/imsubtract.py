@@ -777,7 +777,6 @@ if __name__ == "__main__":
 
     """
 
-    start = time.time()
     # get the json file
     config_file = sys.argv[1]
 
@@ -790,7 +789,3 @@ if __name__ == "__main__":
     if len(sys.argv) > 3:
         display = sys.argv[3]
     run_imsubtract(config_file, display=display, scanum=sca, workers=4)
-
-    end = time.time()
-    elapsed = end - start
-    print(f"finished at t = {elapsed:.2f} s")

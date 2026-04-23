@@ -4,9 +4,11 @@ import re
 import urllib.request
 
 import numpy as np
+import pytest
 from astropy.io import fits
 from pyimcom.compress.compressutils import CompressedOutput, ReadFile
 from pyimcom.compress.compressutils_wrapper import compress_all_blocks, compress_one_block
+from pyimcom.compress.i24 import I24Cube, i24compress, i24decompress
 
 EXAMPLE_FILE = (
     "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/compressiontest_F_02_11.fits"
@@ -88,6 +90,26 @@ def runcprs(tmp_path, allfiles=False):
             assert np.amax(np.abs(diff)) <= maxdiff_ref[j]
 
 
+def test_i24():
+    """Test for conversion functions."""
+
+    arr = np.sin(np.linspace(20, 39, 20)).astype(np.float32).reshape((5, 4))
+    pars = {"VMIN": -1.0, "VMAX": 1.0, "SOFTBIAS": 16, "ALPHA": 1.25, "REORDER": False}
+    data = I24Cube(arr, pars)
+    data.to_mode("uint8")
+    assert np.shape(data.data) == (3, 5, 4)
+    data.to_mode("float32")
+    assert np.amax(np.abs(arr - data.data)) < 1.0e-6
+
+    arr = np.sin(np.linspace(20, 39, 20)).astype(np.float32).reshape((5, 4))
+    pars = {"VMIN": -1.0, "VMAX": 1.0, "ALPHA": 1.25, "REORDER": False}
+    data = I24Cube(arr, pars)
+    data.to_mode("uint8")
+    assert np.shape(data.data) == (3, 5, 4)
+    data.to_mode("float32")
+    assert np.amax(np.abs(arr - data.data)) < 1.0e-6
+
+
 def test_singlecprs(tmp_path):
     """
     Test compression of a file.
@@ -122,3 +144,36 @@ def test_allcprs(tmp_path):
     """
 
     runcprs(tmp_path, allfiles=True)
+
+
+def test_bad_or_trivial():
+    """Test bad or trivial compression commands."""
+
+    # trivial compression
+    x = np.linspace(0, 24, 25).reshape((5, 5)).astype(np.float32)
+    xc, _ = CompressedOutput.compress_2d_image(x, "NULL", {})
+    assert np.allclose(x, xc)
+
+    # trivial decompression
+    x = np.linspace(0, 24, 25).reshape((5, 5)).astype(np.float32)
+    xc = CompressedOutput.decompress_2d_image(x, "NULL", {})
+    assert np.allclose(x, xc)
+
+    # compression dictionary when there's nothing
+    hdulist = fits.HDUList([fits.PrimaryHDU(x), fits.ImageHDU(x[:2, :], name="X")])
+    d = CompressedOutput.get_compression_dict(hdulist, 1)
+    assert len(d) == 0
+
+    # I24Cube errors
+    p = {"VMIN": -1.0, "VMAX": 1.0}
+    with pytest.raises(ValueError):
+        I24Cube(x, {"BITKEEP": 33} | p)
+    with pytest.raises(ValueError):
+        I24Cube(x.ravel(), p)
+
+    # (de-)compressing with NULL
+    xd, xo = i24compress(x, "NULL", {})
+    assert np.allclose(x, xd)
+    assert xo is None
+    xr = i24decompress(xd, "NULL", {})
+    assert np.allclose(x, xr)
