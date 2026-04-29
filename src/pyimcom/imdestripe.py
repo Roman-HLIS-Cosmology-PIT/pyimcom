@@ -118,11 +118,6 @@ t0_global = time.time()  # after imports
 use_output_float = np.float32
 tempdir = str(os.environ["TMPDIR"]) if "TMPDIR" in os.environ else "./"
 
-# For test outputs: set sca=0 to not produce test outputs.
-img_full_output = {"obsid": 670, "scaid": 10}
-if not testoutputs["testing"]:
-    img_full_output = {"obsid": -1, "scaid": -1}  # don't do these big outputs
-
 
 class Cost_models:
     """
@@ -230,6 +225,7 @@ class Sca_img:
                 self.shape = np.shape(self.image)
                 self._file_handle = None
                 self.type = "fits"
+                self.mask_threshold = [0, 0.3] # m, c for object masking
                 file.close()
 
             elif indata_type == "asdf":
@@ -240,6 +236,7 @@ class Sca_img:
                 self.header = None
                 self.shape = np.shape(self.image)
                 self.type = "asdf"
+                self.mask_threshold = [0, 0.3] # m, c for object masking
                 # Note: keep _file_handle open to maintain memmap
             elif indata_type == "jwst":
                 file = fits.open(
@@ -255,6 +252,7 @@ class Sca_img:
                 self.shape = np.shape(self.image)
                 self._file_handle = None
                 self.type = "jwst"
+                self.mask_threshold = [15, 5] # m, c for object masking
                 file.close()
 
         self.obsid = obsid
@@ -304,13 +302,13 @@ class Sca_img:
             self.apply_noise()
 
         if add_objmask:
-            _, object_mask = apply_object_mask(self.image)
             if indata_type == "asdf":
                 self.apply_asdf_mask()
             elif indata_type == "fits":
                 self.apply_permanent_mask()
             elif indata_type == "jwst":
                 self.apply_jwst_mask()
+            _, object_mask = apply_object_mask(self.image, threshold_m=self.mask_threshold[0], threshold_c=self.mask_threshold[1], type=self.type)
             self.mask *= np.logical_not(
                 object_mask
             )  # self.mask = True for good pixels, so set object_mask'ed pixels to False
@@ -727,7 +725,7 @@ def save_fits(image, filename, dir=None, overwrite=True, s=False, header=None, r
                 raise RuntimeError(f"Failed to write {fp} after {retries} attempts. Last error: {e}") from e
 
 
-def apply_object_mask(image, mask=None, threshold_m=0, threshold_c=0.3, inplace=False):
+def apply_object_mask(image, mask=None, threshold_m=0, threshold_c=0.3, inplace=False, type="fits"):
     """
     Apply a bright object mask to an image.
 
@@ -743,6 +741,8 @@ def apply_object_mask(image, mask=None, threshold_m=0, threshold_c=0.3, inplace=
         constant to add to the threshold.
     inplace : Bool
         Whether to modify the input image directly.
+    type : Str
+        Type of the input image. Options: 'fits', 'asdf', 'jwst'. Default: 'fits'
 
     Returns
     --------
@@ -755,7 +755,17 @@ def apply_object_mask(image, mask=None, threshold_m=0, threshold_c=0.3, inplace=
         neighbor_mask = mask
     else:
         median_val = np.median(image)
-        high_value_mask = image >= threshold_m * median_val + threshold_c
+        if type == "jwst":
+            # We need tiered thresholding for JWST data because of vastly different sky scenes.
+            if median_val<0.1:
+                high_value_mask = image >= median_val + threshold_c
+            elif 0.1<median_val<0.4:
+                high_value_mask = image >= threshold_m * median_val + threshold_c
+            else:
+                high_value_mask = image >= 0.5*threshold_m * median_val 
+        else:
+            high_value_mask = image >= threshold_m * median_val + threshold_c
+            
         neighbor_mask = binary_dilation(high_value_mask, structure=np.ones((5, 5), dtype=bool))
 
     if inplace:
@@ -979,7 +989,7 @@ def get_effective_gain(sca, tempdir=tempdir, indata_type="fits"):
         obsid = m.group(1)
         scaid = m.group(2)
     elif indata_type == "jwst":
-        m = re.search(r"(jw\d+_\d+_\d+)_(nrcb\d+)", sca)
+        m = re.search(r"jw(\d+_\d+_\d+)_(nrcb\d+)", sca)
         obsid = m.group(1)
         scaid = m.group(2)
 
@@ -1021,7 +1031,7 @@ def get_ids(sca, indata_type="fits"):
         obsid = m.group(1)
         scaid = m.group(2)
     elif indata_type == "jwst":
-        m = re.search(r"(jw\d+_\d+_\d+)_(nrcb\d+)", sca)
+        m = re.search(r"jw(\d+_\d+_\d+)_(nrcb\d+)", sca)
         obsid = m.group(1)
         scaid = m.group(2)
     return obsid, scaid
@@ -2113,7 +2123,8 @@ def main(cfg_file=None, overlaponly=False, of=None, testing=False):
         Prefix for destriped images. Add f"_{obsid}_{sca}.fits" to get the full file name.
 
     """
-
+    global img_full_output
+    
     CG_models = {"FR", "PR", "HS", "DY"}
 
     if cfg_file is None:
@@ -2123,11 +2134,22 @@ def main(cfg_file=None, overlaponly=False, of=None, testing=False):
         CFG = Config(cfg_file=cfg_file)
     else:
         raise ValueError("Please provide a config file as a command line argument.")
-
-    filter_ = filters[CFG.use_filter]
+    
     outpath = CFG.ds_outpath
-    indata_type = "jwst" if JWST else "fits"
+    if JWST:   
+        indata_type = "jwst" 
+        filter_ = CFG.use_filter
+    else:
+        indata_type = "fits"
+        filter_ = filters[CFG.use_filter]
     if testing: testoutputs["testing"] = True
+
+    # For test outputs: set sca=0 to not produce test outputs.
+    img_full_output = {"obsid": "04793009001_02101_00001", "scaid": "nrcb2"} if JWST else {"obsid": 670, "scaid": 10}
+    if not testoutputs["testing"]:
+        img_full_output = {"obsid": -1, "scaid": -1}  # don't do these big outputs
+
+
 
     # Prior on cost function is not yet implemented
     # if CFG.cost_prior != 0:
