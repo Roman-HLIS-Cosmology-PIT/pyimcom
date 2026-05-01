@@ -85,7 +85,7 @@ from astropy import wcs
 from astropy.io import fits
 from filelock import FileLock, Timeout
 from memory_profiler import memory_usage
-from scipy.ndimage import binary_dilation
+from scipy.ndimage import binary_dilation, binary_propagation
 
 from .config import JWST, Config, Settings
 from .utils import compareutils
@@ -225,7 +225,7 @@ class Sca_img:
                 self.shape = np.shape(self.image)
                 self._file_handle = None
                 self.type = "fits"
-                self.mask_threshold = [0, 0.3] # m, c for object masking
+                self.mask_threshold = [0, 0.3]  # m, c for object masking
                 file.close()
 
             elif indata_type == "asdf":
@@ -236,7 +236,7 @@ class Sca_img:
                 self.header = None
                 self.shape = np.shape(self.image)
                 self.type = "asdf"
-                self.mask_threshold = [0, 0.3] # m, c for object masking
+                self.mask_threshold = [0, 0.3]  # m, c for object masking
                 # Note: keep _file_handle open to maintain memmap
             elif indata_type == "jwst":
                 file = fits.open(
@@ -252,7 +252,7 @@ class Sca_img:
                 self.shape = np.shape(self.image)
                 self._file_handle = None
                 self.type = "jwst"
-                self.mask_threshold = [15, 5] # m, c for object masking
+                self.mask_threshold = [15, 5]  # m, c for object masking
                 file.close()
 
         self.obsid = obsid
@@ -308,7 +308,12 @@ class Sca_img:
                 self.apply_permanent_mask()
             elif indata_type == "jwst":
                 self.apply_jwst_mask()
-            _, object_mask = apply_object_mask(self.image, threshold_m=self.mask_threshold[0], threshold_c=self.mask_threshold[1], type=self.type)
+            _, object_mask = apply_object_mask(
+                self.image,
+                threshold_m=self.mask_threshold[0],
+                threshold_c=self.mask_threshold[1],
+                type=self.type,
+            )
             self.mask *= np.logical_not(
                 object_mask
             )  # self.mask = True for good pixels, so set object_mask'ed pixels to False
@@ -619,8 +624,25 @@ class Parameters:
             raise ValueError(f"Model {cfg.ds_model} not in model_params dictionary.")
         self.model = cfg.ds_model
         self.n_rows = cfg.ds_rows
+        self.n_cols = Settings.sca_nside
         self.params_per_row = model_params[self.model]
-        self.params = np.zeros((len(scalist), self.n_rows * self.params_per_row))
+
+        if cfg.amp_cols is not None and cfg.amp_cols > 0:
+            if self.n_cols % cfg.amp_cols != 0:
+                raise ValueError(
+                    f"Column width (amp_cols={cfg.amp_cols}) does not evenly divide "
+                    f"image columns ({self.n_cols}). Ensure n_cols % amp_cols == 0."
+                )
+            self.amp_cols = cfg.amp_cols
+            self.n_col_blocks = self.n_cols // cfg.amp_cols
+        else:
+            self.amp_cols = None
+            self.n_col_blocks = 0
+
+        params_per_row = self.n_rows * self.params_per_row
+        params_per_sca = params_per_row + self.n_col_blocks
+
+        self.params = np.zeros((len(scalist), params_per_sca))
         self.current_shape = "2D"
         self.scalist = scalist
 
@@ -634,7 +656,8 @@ class Parameters:
 
     def forward_par(self, sca_i):
         """
-        Takes one SCA row (n_rows) from the params and casts it into 2D (n_rows x n_rows)
+        Takes one SCA row (n_rows) from the params and casts it into 2D (n_rows x n_cols)
+        with additive row and column-block offsets.
 
         Parameters
         --------
@@ -643,11 +666,28 @@ class Parameters:
 
         Returns
         --------
-         2D np.array, the image of SCA_i's parameters
+         2D np.array, the image of SCA_i's parameters (stripe image)
         """
         if self.current_shape != "2D":
             self.params_2_images()
-        return np.array(self.params[sca_i, :])[:, np.newaxis] * np.ones((self.n_rows, self.n_rows))
+
+        params_row_len = self.n_rows * self.params_per_row
+
+        # Build row image using existing per-row logic
+        row_params = np.array(self.params[sca_i, :params_row_len])[:, np.newaxis]
+        row_image = row_params * np.ones((self.n_rows, self.n_cols))
+
+        # Build column-block image if enabled
+        if self.n_col_blocks > 0:
+            col_params = self.params[sca_i, params_row_len : params_row_len + self.n_col_blocks]
+            col_image = np.zeros((self.n_rows, self.n_cols))
+            for b in range(self.n_col_blocks):
+                j_start = b * self.amp_cols
+                j_end = j_start + self.amp_cols
+                col_image[:, j_start:j_end] = col_params[b]  # Broadcast over rows
+            return row_image + col_image
+        else:
+            return row_image
 
 
 def write_to_file(text, filename=None):
@@ -725,7 +765,14 @@ def save_fits(image, filename, dir=None, overwrite=True, s=False, header=None, r
                 raise RuntimeError(f"Failed to write {fp} after {retries} attempts. Last error: {e}") from e
 
 
-def apply_object_mask(image, mask=None, threshold_m=0, threshold_c=0.3, inplace=False, type="fits"):
+def apply_object_mask(
+    image,
+    mask=None,
+    threshold_m=0,
+    threshold_c=0.3,
+    inplace=False,
+    type="fits",
+):
     """
     Apply a bright object mask to an image.
 
@@ -756,16 +803,52 @@ def apply_object_mask(image, mask=None, threshold_m=0, threshold_c=0.3, inplace=
     else:
         median_val = np.median(image)
         if type == "jwst":
-            # We need tiered thresholding for JWST data because of vastly different sky scenes.
-            if median_val<0.1:
-                high_value_mask = image >= median_val + threshold_c
-            elif 0.1<median_val<0.4:
-                high_value_mask = image >= threshold_m * median_val + threshold_c
+            # Use robust background/noise estimation + seeded region growing for JWST scenes.
+            valid = np.isfinite(image)
+            if not np.any(valid):
+                high_value_mask = np.zeros_like(image, dtype=bool)
+                seed_threshold = 0.0
+                grow_threshold = 0.0
             else:
-                high_value_mask = image >= 0.5*threshold_m * median_val 
+                work = np.array(image, copy=True)
+                vals = work[valid]
+
+                # Iterative clipping to estimate sky background robustly.
+                clip_vals = vals
+                for _ in range(3):
+                    bkg = np.median(clip_vals)
+                    mad = np.median(np.abs(clip_vals - bkg))
+                    sigma = 1.4826 * mad
+                    if sigma <= 0:
+                        break
+                    keep = np.abs(clip_vals - bkg) < (3.0 * sigma)
+                    if np.count_nonzero(keep) < 100:
+                        break
+                    clip_vals = clip_vals[keep]
+
+                bkg = np.median(clip_vals)
+                mad = np.median(np.abs(clip_vals - bkg))
+                sigma = 1.4826 * mad
+                if not np.isfinite(sigma) or sigma <= 0:
+                    sigma = np.std(clip_vals) if clip_vals.size > 1 else 0.0
+
+                residual = np.zeros_like(work)
+                residual[valid] = work[valid] - bkg
+
+                # Two-level thresholding: bright seeds + lower-threshold growth.
+                seed_threshold = max(threshold_c, 6.0 * sigma)
+                grow_threshold = max(0.5 * threshold_c, 2.5 * sigma)
+
+                seed_mask = np.logical_and(valid, residual >= seed_threshold)
+                grow_candidates = np.logical_and(valid, residual >= grow_threshold)
+                grown_mask = binary_propagation(seed_mask, mask=grow_candidates)
+                high_value_mask = binary_dilation(
+                    grown_mask, structure=np.ones((3, 3), dtype=bool), iterations=2
+                )
+
         else:
             high_value_mask = image >= threshold_m * median_val + threshold_c
-            
+
         neighbor_mask = binary_dilation(high_value_mask, structure=np.ones((5, 5), dtype=bool))
 
     if inplace:
@@ -948,20 +1031,39 @@ def transpose_interpolate(image_A, wcs_A, image_B, original_image):
     pyimcom_croutines.bilinear_transpose(image_A, rows, cols, coords, num_coords, original_image)
 
 
-def transpose_par(img):
+def transpose_par(img, cfg=None):
     """
-    Sum up the values of an image across rows
+    Extract parameter contributions from an image via adjoint of forward_par.
+
+    For row-only model: sums each row across columns.
+    For row+column model: also sums each column-block across rows.
 
     Parameters
     --------
     img : 2D np.array
-        Input array
+        Input gradient/residual image
+    cfg : Config object or None
+        If provided and amp_cols is enabled, returns concatenated
+        [row_contributions, col_block_contributions]. If None, returns only row sums.
 
-     Returns
+    Returns
     --------
-       1D np.array, the sum across each row of I
+       1D np.array, concatenation of [row sums, column-block sums] if cfg enables col_blocks,
+       otherwise just row sums (backward compatible)
     """
-    return np.sum(img, axis=1)
+    row_contrib = np.sum(img, axis=1)
+
+    if cfg is not None and hasattr(cfg, "amp_cols") and cfg.amp_cols is not None and cfg.amp_cols > 0:
+        n_cols = img.shape[1]  # Use actual image width, not Settings.sca_nside
+        n_col_blocks = n_cols // cfg.amp_cols
+        col_contrib = np.zeros(n_col_blocks)
+        for b in range(n_col_blocks):
+            j_start = b * cfg.amp_cols
+            j_end = j_start + cfg.amp_cols
+            col_contrib[b] = np.sum(img[:, j_start:j_end])  # Sum over all rows in this block
+        return np.concatenate([row_contrib, col_contrib])
+    else:
+        return row_contrib
 
 
 def get_effective_gain(sca, tempdir=tempdir, indata_type="fits"):
@@ -1278,7 +1380,7 @@ def residual_function_single(
     # Calculate and then transpose the gradient of I_A-J_A
     gradient_interpolated = f_prime(psi_a, thresh) if thresh is not None else f_prime(psi_a)
 
-    term_1 = transpose_par(gradient_interpolated)
+    term_1 = transpose_par(gradient_interpolated, cfg=cfg)
 
     # Retrieve the effective gain and N_eff to normalize the gradient before transposing back
     g_eff_A, n_eff_A = get_effective_gain(sca_a, indata_type=indata_type)
@@ -1303,7 +1405,7 @@ def residual_function_single(
         transpose_interpolate(gradient_interpolated, wcs_a, I_B, gradient_original)
         gradient_original *= I_B.g_eff
 
-        term_2 = transpose_par(gradient_original)
+        term_2 = transpose_par(gradient_original, cfg=cfg)
         term_2_list.append((j, term_2))
 
     #     I_B.close()
@@ -2124,7 +2226,7 @@ def main(cfg_file=None, overlaponly=False, of=None, testing=False):
 
     """
     global img_full_output
-    
+
     CG_models = {"FR", "PR", "HS", "DY"}
 
     if cfg_file is None:
@@ -2134,22 +2236,23 @@ def main(cfg_file=None, overlaponly=False, of=None, testing=False):
         CFG = Config(cfg_file=cfg_file)
     else:
         raise ValueError("Please provide a config file as a command line argument.")
-    
+
     outpath = CFG.ds_outpath
-    if JWST:   
-        indata_type = "jwst" 
+    if JWST:
+        indata_type = "jwst"
         filter_ = CFG.use_filter
     else:
         indata_type = "fits"
         filter_ = filters[CFG.use_filter]
-    if testing: testoutputs["testing"] = True
+    if testing:
+        testoutputs["testing"] = True
 
     # For test outputs: set sca=0 to not produce test outputs.
-    img_full_output = {"obsid": "04793009001_02101_00001", "scaid": "nrcb2"} if JWST else {"obsid": 670, "scaid": 10}
+    img_full_output = (
+        {"obsid": "04793009001_02101_00001", "scaid": "nrcb2"} if JWST else {"obsid": 670, "scaid": 10}
+    )
     if not testoutputs["testing"]:
         img_full_output = {"obsid": -1, "scaid": -1}  # don't do these big outputs
-
-
 
     # Prior on cost function is not yet implemented
     # if CFG.cost_prior != 0:
