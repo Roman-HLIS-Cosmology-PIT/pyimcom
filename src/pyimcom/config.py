@@ -340,7 +340,10 @@ class Config:
         "hub_thresh",
         "cg_maxiter",
         "cg_tol",
-        "gaindir",  # SECTION IX
+        "gaindir", # SECTION IX
+        "col_pars",
+        "amp_cols",
+        "col_boundary_const",
         "tileschm",
         "rerun",
         "mosaic",  # SECTION X
@@ -543,6 +546,9 @@ class Config:
         self.ds_noisefile = cfg_dict.get("DSNOISEFILE", False)
         self.ds_restart = cfg_dict.get("DSRESTART")
         self.gaindir = cfg_dict.get("GAINDIR", False)
+        self.col_pars = cfg_dict.get("AMPCOLS", [None, 0.0])
+        self.amp_cols = self.col_pars[0]
+        self.col_boundary_const = self.col_pars[1]
 
         # Lagrange multiplier (kappa) information
         # list of kappa/C values, ascending order
