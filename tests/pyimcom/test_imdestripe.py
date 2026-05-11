@@ -56,6 +56,7 @@ class MinimalConfig:
 
     def __init__(self, ds_rows=100, ds_model="constant", cost_model="quadratic"):
         self.ds_rows = ds_rows
+        self.sca_nside = ds_rows
         self.ds_model = ds_model
         self.cost_model = cost_model
         self.cg_model = "PR"
