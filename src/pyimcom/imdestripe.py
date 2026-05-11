@@ -1416,15 +1416,13 @@ def residual_function_single(
     return k, term_1, term_2_list
 
 
-def compute_boundary_continuity_penalty(destriped_image, mask, amp_cols, col_boundary_const):
+def compute_boundary_continuity_penalty(destriped_image, mask, amp_cols, col_boundary_const, chunk_width=50, chunk_height=100):
     """
     Penalize large discontinuities in the destriped image across amp-width
-    boundaries, making the final destriped image continuous even if individual parameters
-    are discontinuous.
+    boundaries, pushing the final destriped image towards being continuous.
 
-    The discontinuity is measured as the median absolute difference in destriped values
-    across boundaries, computed over non-masked pixels in chunks of ~100 rows.
-    Using the median makes the penalty robust to pixel-level noise and masked regions.
+    The discontinuity is measured as the mean absolute difference in destriped values
+    across boundaries, computed over non-masked pixels in chunks of 100 rows x 100 columns (50 on each side).
 
     Parameters
     ----------
@@ -1436,6 +1434,12 @@ def compute_boundary_continuity_penalty(destriped_image, mask, amp_cols, col_bou
         Column-block width. If None or <= 0, no penalty.
     col_boundary_const : int
         Strength of the column boundary penalty. If <= 0, no penalty.
+    chunk_width : int
+        HALF width of the chunks to consider for the penalty. Mean is over this many cols on each side.
+        (Default: 50)
+    chunk_height : int
+        Height of the chunks to consider for the penalty. This is a number of rows.
+        (Default: 100)
 
     Returns
     -------
@@ -1451,36 +1455,37 @@ def compute_boundary_continuity_penalty(destriped_image, mask, amp_cols, col_bou
 
     n_rows, n_cols = destriped_image.shape
     n_col_blocks = n_cols // amp_cols
-    chunk_size = 100  # ~100 rows per chunk for robustness
-
     penalty = 0.0
+
+    write_to_file(f"Computing boundary continuity penalty for {n_col_blocks} column blocks with chunks of size {chunk_width}x{chunk_height} (yielding N chunks per boundary: {n_rows // (4 * chunk_height) } )")
 
     # Loop over each column-block boundary
     for b in range(1, n_col_blocks):
-        left_col_idx = b * amp_cols - 1
-        right_col_idx = b * amp_cols
+        left_col_lower = b * amp_cols - chunk_width
+        right_col_upper = b * amp_cols + chunk_width
+        col_chunk_lower = slice(left_col_lower, b*amp_cols)
+        col_chunk_upper = slice(b*amp_cols, right_col_upper)
 
-        # Loop over row chunks
-        for chunk_start in range(0, n_rows, chunk_size):
-            chunk_end = min(chunk_start + chunk_size, n_rows)
-            chunk_rows = slice(chunk_start, chunk_end)
+        # Loop over chunks
+        for chunk_start in range(0, n_rows, 4*chunk_height):
+            chunk_end = min(chunk_start + chunk_height, n_rows)
+            row_chunk = slice(chunk_start, chunk_end)
 
             # Extract left and right columns for this chunk
-            left_vals = destriped_image[chunk_rows, left_col_idx]
-            right_vals = destriped_image[chunk_rows, right_col_idx]
-            left_mask = mask[chunk_rows, left_col_idx]
-            right_mask = mask[chunk_rows, right_col_idx]
+            left_vals = destriped_image[row_chunk, col_chunk_lower]
+            right_vals = destriped_image[row_chunk, col_chunk_upper]
+            left_mask = mask[row_chunk, col_chunk_lower]
+            right_mask = mask[row_chunk, col_chunk_upper]
 
-            # Only include pixels where both sides are unmasked
-            valid = left_mask & right_mask
+            # Compute the means of the left and right chunks, but only count pixels that are nonzero
+            left_mean = np.mean(left_vals[left_mask])
+            right_mean = np.mean(right_vals[right_mask])
 
-            if np.any(valid):
-                # Compute discontinuities for valid pixels only
-                discontinuities = left_vals[valid] - right_vals[valid]
-                # Use median discontinuity to be robust to outliers
-                median_disc = np.median(discontinuities)
-                # Square and accumulate (penalizes both positive and negative discontinuities equally)
-                penalty += median_disc**2
+            # Compute the difference between the means
+            mean_diff = left_mean - right_mean
+
+            # Square and accumulate (penalizes both positive and negative differences equally)
+            penalty += mean_diff**2
 
     return lambda_reg * penalty
 
@@ -1553,13 +1558,13 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg, of=Non
             I_A.image, I_A.mask, cfg.amp_cols, cfg.col_boundary_const
         )
         local_epsilon += boundary_penalty
+
+    if full_output["scaid"] != 0 and testoutputs["testing"] and example_obs and example_sca:
         write_to_file(
             f"SCA {j}: boundary continuity penalty = {boundary_penalty:.2e}, "
             f"total cost = {local_epsilon:.2e}",
             of,
         )
-
-    if full_output["scaid"] != 0 and testoutputs["testing"] and example_obs and example_sca:
         hdu = fits.PrimaryHDU(J_A_image * J_A_mask)
         hdu.writeto(
             testoutputs["test_image_dir"] + f'{full_output["obsid"]}_{full_output["scaid"]}_J_A_masked.fits',
