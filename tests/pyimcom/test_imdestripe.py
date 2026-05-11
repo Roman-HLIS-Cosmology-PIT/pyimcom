@@ -70,6 +70,10 @@ class MinimalConfig:
         self.gaindir = False
         self.hub_thresh = 1.0
         self.ds_restart = None
+        # amplitude parameters so that this runs with new JWST destripe
+        self.col_pars = [None, 0.0]
+        self.amp_cols = self.col_pars[0]
+        self.col_boundary_const = self.col_pars[1]
 
 
 def create_test_config(ds_rows=100, ds_model="constant", cost_model="quadratic"):
