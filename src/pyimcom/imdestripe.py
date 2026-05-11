@@ -1416,7 +1416,9 @@ def residual_function_single(
     return k, term_1, term_2_list
 
 
-def compute_boundary_continuity_penalty(destriped_image, mask, amp_cols, col_boundary_const, chunk_width=50, chunk_height=100):
+def compute_boundary_continuity_penalty(
+    destriped_image, mask, amp_cols, col_boundary_const, chunk_width=50, chunk_height=100
+):
     """
     Penalize large discontinuities in the destriped image across amp-width
     boundaries, pushing the final destriped image towards being continuous.
@@ -1457,17 +1459,19 @@ def compute_boundary_continuity_penalty(destriped_image, mask, amp_cols, col_bou
     n_col_blocks = n_cols // amp_cols
     penalty = 0.0
 
-    write_to_file(f"Computing boundary continuity penalty for {n_col_blocks} column blocks with chunks of size {chunk_width}x{chunk_height} (yielding N chunks per boundary: {n_rows // (4 * chunk_height) } )")
+    write_to_file(
+        f"Computing boundary continuity penalty for {n_col_blocks} column blocks with chunks of size {chunk_width}x{chunk_height} (yielding N chunks per boundary: {n_rows // (4 * chunk_height) } )"
+    )
 
     # Loop over each column-block boundary
     for b in range(1, n_col_blocks):
         left_col_lower = b * amp_cols - chunk_width
         right_col_upper = b * amp_cols + chunk_width
-        col_chunk_lower = slice(left_col_lower, b*amp_cols)
-        col_chunk_upper = slice(b*amp_cols, right_col_upper)
+        col_chunk_lower = slice(left_col_lower, b * amp_cols)
+        col_chunk_upper = slice(b * amp_cols, right_col_upper)
 
         # Loop over chunks
-        for chunk_start in range(0, n_rows, 4*chunk_height):
+        for chunk_start in range(0, n_rows, 4 * chunk_height):
             chunk_end = min(chunk_start + chunk_height, n_rows)
             row_chunk = slice(chunk_start, chunk_end)
 
