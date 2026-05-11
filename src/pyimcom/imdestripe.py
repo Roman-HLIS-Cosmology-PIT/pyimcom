@@ -624,7 +624,7 @@ class Parameters:
             raise ValueError(f"Model {cfg.ds_model} not in model_params dictionary.")
         self.model = cfg.ds_model
         self.n_rows = cfg.ds_rows
-        self.n_cols = Settings.sca_nside
+        self.n_cols = getattr(cfg, "sca_nside", Settings.sca_nside)
         self.params_per_row = model_params[self.model]
 
         if cfg.amp_cols is not None and cfg.amp_cols > 0:
@@ -1521,20 +1521,21 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg, of=Non
     local_epsilon : Float
         the cost function value for this SCA
     """
+    full_output = globals().get("img_full_output", {"scaid": 0, "obsid": -1})
     obsid_A, scaid_A = get_ids(sca_a, indata_type=indata_type)
 
     I_A = Sca_img(obsid_A, scaid_A, cfg, indata_type=indata_type)
     I_A.subtract_parameters(p, j)
     I_A.apply_all_mask()
 
-    if img_full_output["scaid"] != 0 and testoutputs["testing"]:
-        example_obs = obsid_A == str(img_full_output["obsid"])
-        example_sca = scaid_A == str(img_full_output["scaid"])
+    if full_output["scaid"] != 0 and testoutputs["testing"]:
+        example_obs = obsid_A == str(full_output["obsid"])
+        example_sca = scaid_A == str(full_output["scaid"])
         if example_obs and example_sca:
             hdu = fits.PrimaryHDU(I_A.image)
             hdu.writeto(
                 testoutputs["test_image_dir"]
-                + f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_I_A_sub_masked.fits',
+                + f'{full_output["obsid"]}_{full_output["scaid"]}_I_A_sub_masked.fits',
                 overwrite=True,
             )
 
@@ -1558,21 +1559,20 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg, of=Non
             of,
         )
 
-    if img_full_output["scaid"] != 0 and testoutputs["testing"] and example_obs and example_sca:
+    if full_output["scaid"] != 0 and testoutputs["testing"] and example_obs and example_sca:
         hdu = fits.PrimaryHDU(J_A_image * J_A_mask)
         hdu.writeto(
-            testoutputs["test_image_dir"]
-            + f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_J_A_masked.fits',
+            testoutputs["test_image_dir"] + f'{full_output["obsid"]}_{full_output["scaid"]}_J_A_masked.fits',
             overwrite=True,
         )
 
         hdu = fits.PrimaryHDU(psi)
         hdu.writeto(
-            testoutputs["test_image_dir"] + f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_Psi.fits',
+            testoutputs["test_image_dir"] + f'{full_output["obsid"]}_{full_output["scaid"]}_Psi.fits',
             overwrite=True,
         )
 
-        write_to_file(f"Sample stats for SCA {img_full_output}:", of)
+        write_to_file(f"Sample stats for SCA {full_output}:", of)
         write_to_file(f"Image A mean: {np.mean(I_A.image)}", of)
         write_to_file(f"Image B mean: {np.mean(J_A_image)}", of)
         write_to_file(f"Psi mean: {np.mean(psi)}", of)
