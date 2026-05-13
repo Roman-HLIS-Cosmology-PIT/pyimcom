@@ -106,7 +106,7 @@ def map_sca2sca(target_wcs, ref_wcs, pad=0, dtype=np.float64, subsamp=1):
     is_in_ref = np.logical_and(
         (xf + 0.5 + pad) * (nside - 0.5 - xf + pad) > 0, (yf + 0.5 + pad) * (nside - 0.5 - yf + pad) >= 0
     )
-    return xf.astype(dtype), yf.astype(dtype), is_in_ref
+    return xf.astype(dtype, copy=False), yf.astype(dtype, copy=False), is_in_ref
 
 
 def get_overlap_matrix(list_of_wcs, pad=0, verbose=False, subsamp=1):
@@ -159,7 +159,7 @@ def get_overlap_matrix(list_of_wcs, pad=0, verbose=False, subsamp=1):
     # 4 sin^2 {(theta1+theta2)/2} = 2 [ p1 + p2 - p1*p2 + SQRT{p1*p2*(2-p1)*(2-p2)} ]
     x = caps[:, :-1]
     sep2 = np.sum((x[:, None, :] - x[None, :, :]) ** 2, axis=2)
-    ov = np.where(sep2 < sep2max, 1.0, 0.0).astype(np.float64)
+    ov = np.where(sep2 < sep2max, np.float32(1), np.float32(0))
 
     # check candidate overlaps
     for i in range(1, N):
