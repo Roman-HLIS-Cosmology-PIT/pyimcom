@@ -357,8 +357,8 @@ class LocWCS:
         xbar, ybar = self.approx_wcs.all_world2pix(ra, dec, 0)
         del ra, dec
         d = np.zeros((2, N, N), dtype=np.float32)
-        d[0, :, :] = (xbar.reshape((N, N)) - x).astype(np.float32)
-        d[1, :, :] = (ybar.reshape((N, N)) - y).astype(np.float32)
+        d[0, :, :] = xbar.reshape((N, N)) - x
+        d[1, :, :] = ybar.reshape((N, N)) - y
         self.errmap = d
 
     def err_interp(self, a=4, n_pad=2048):
@@ -500,7 +500,7 @@ class PyIMCOM_WCS:
             return self.obj.all_pix2world(pos, origin)
 
         if self.type == "ASTROPY+":
-            dp = np.vstack((self.err[0](pos[::-1, :]), self.err[1](pos[::-1, :]))).T.astype(np.float64)
+            dp = np.vstack((self.err[0](pos[::-1, :]), self.err[1](pos[::-1, :]))).T
             return self.obj.all_pix2world(pos + dp, origin)
 
         if self.type == "GWCS":
@@ -573,7 +573,7 @@ class PyIMCOM_WCS:
             # 3 iterations is overkill but we want to be sure.
             # also we want to avoid slight discontinuities
             for _ in range(3):
-                dp = np.vstack((self.err[0](pos1[::-1, :]), self.err[1](pos1[::-1, :]))).T.astype(np.float64)
+                dp = np.vstack((self.err[0](pos1[::-1, :]), self.err[1](pos1[::-1, :]))).T
                 pos1 = pos2 - dp
             return pos1
 
