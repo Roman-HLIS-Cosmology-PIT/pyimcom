@@ -115,7 +115,7 @@ t0_global = time.time()  # after imports
 
 # Module settings
 use_output_float = np.float32
-tempdir = str(os.environ["TMPDIR"]) if "TMPDIR" in os.environ else "./"
+tempdir = str(os.environ["TMPDIR"]) + "/" if "TMPDIR" in os.environ else "./"
 
 # For test outputs: set sca=0 to not produce test outputs.
 img_full_output = {"obsid": 670, "scaid": 10}
