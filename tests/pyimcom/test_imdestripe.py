@@ -1365,3 +1365,7 @@ def test_diffimage(tmp_path):
     assert 0.4 < np.std(grad[0, :]) < 0.5
     assert 0.4 < np.std(grad[1, :]) < 0.5
     assert 0.01 < np.std(grad[0, 10:] + grad[1, :-10]) < 0.1
+
+    # remove old files
+    os.remove(str(tmp_path) + "/fits/tempimage_H158_670_01.fits")
+    os.remove(str(tmp_path) + "/fits/tempimage_H158_670_02.fits")
