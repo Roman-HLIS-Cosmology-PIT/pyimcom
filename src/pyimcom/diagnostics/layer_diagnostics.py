@@ -50,9 +50,7 @@ def _percentiles_and_delete(arr, pctiles, target, delete_arr):
     nsize = arr.size
     for k in range(npc):
         pos = (nsize - 1) * pctiles[k] / 100.0
-        p1 = int(np.floor(pos))
-        if p1 < 0:
-            p1 = 0
+        p1 = max(int(np.floor(pos)), 0)
         if p1 >= nsize - 1:
             p1 = nsize - 2
         frac = np.clip(pos - p1, 0.0, 1.0)
