@@ -1,7 +1,8 @@
 """A few linear algebra tests."""
 
 import numpy as np
-from pyimcom.lakernel import CholKernel, EigenKernel, _assign_subvector, _extract_subvector
+from pyimcom.config import Settings as Stn
+from pyimcom.lakernel import CholKernel, EigenKernel, IterKernel, _assign_subvector, _extract_subvector
 
 
 def test_incr():
@@ -156,4 +157,74 @@ def test_eigen2():
         else:
             assert 0.05 < e.outst.UC.ravel()[j] < 0.2
             assert 5e-6 < e.outst.kappa.ravel()[j] < 1.5e-5
+        assert 0.6 < e.outst.Sigma.ravel()[j] < 1.0
+
+
+def test_iter2():
+    """Test function for IterKernel."""
+
+    N = 6
+    A = np.zeros((N, N))
+    d = np.zeros((N, N))
+    for i in range(N):
+        for j in range(N):
+            d[i, j] = 2 * np.pi * (i - j) / N
+    for k in range(1, N // 2 + 1):
+        A += np.cos(k * d) / k / N
+    mBhalf = np.zeros((1, 16, N))
+    for i in range(N):
+        for j in range(16):
+            _d = 2 * np.pi * (i - 0.4 * j) / N
+            for k in range(1, N // 2 + 1):
+                mBhalf[0, j, i] += np.cos(k * _d) / k / N
+    C = A[0, 0]
+
+    # make dummy configuration + stamp
+    cfg = EmptyClass()
+    cfg.n2f = 4
+    cfg.n_out = 1
+    cfg.kappaC_arr = np.array([1e-3, 1e-2])
+    cfg.uctarget = 1e-4
+    cfg.sigmamax = 1.0
+    cfg.instamp_pad = 2.0 * Stn.arcsec
+    cfg.dtheta = 0.11 / 3600.0
+    cfg.iter_rtol = 1e-2
+    cfg.iter_max = 8
+    blk = EmptyClass()
+    blk.cfg = cfg
+    outst = EmptyClass()
+    outst.blk = blk
+    outst.inpix_cumsum = np.array(
+        [
+            N,
+        ]
+    )
+    outst.sysmata = A
+    outst.mhalfb = mBhalf
+    outst.outovlc = np.array(
+        [
+            C,
+        ]
+    )
+
+    # positions
+    outst.yx_val = [np.linspace(0, 6, 16), np.zeros(16)]
+    outst.iny_val = np.zeros(N)
+    outst.inx_val = np.linspace(0, N - 1, N)
+
+    e = IterKernel(outst)
+    e()
+
+    assert np.all(e.outst.UC >= 0)
+    print(e.outst.UC)
+    print(e.outst.Sigma)
+    print(e.outst.kappa)
+
+    for j in range(16):
+        if j % 5 == 0:
+            assert e.outst.UC.ravel()[j] < 1.0e-4
+            assert 2e-3 < e.outst.kappa.ravel()[j] < 4e-3
+        else:
+            assert 0.05 < e.outst.UC.ravel()[j] < 0.2
+            assert 2e-4 < e.outst.kappa.ravel()[j] < 4e-4
         assert 0.6 < e.outst.Sigma.ravel()[j] < 1.0
