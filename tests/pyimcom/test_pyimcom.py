@@ -666,6 +666,7 @@ def setup(tmp_path):
     for j in range(nrun):
         assert (s.outimages[j].ibx, s.outimages[j].iby) == indices[j]
     s.get_consump_map()
+    s.get_star_catalog(layer="gsstar14", overwrite=True)
     t = np.load(str(tmp_path) + "/out/testout_F_Consump.npy")
     assert np.all(t >= 0)
     s.clear()
@@ -677,6 +678,13 @@ def setup(tmp_path):
     t = np.load(str(tmp_path) + "/out/testout_F_empirpad_Consump.npy")
     assert np.all(np.isnan(t))  # we didn't save these so should get nan
     s.clear()
+
+    # see if Suite.get_star_catalog made the right catalog
+    with open(str(tmp_path) + "/out/testout_F_StarCat.npy", "rb") as f:
+        star_cat = np.load(f)
+        print(np.shape(star_cat))
+        print(star_cat)
+    assert star_cat == 0  # will fail
 
     # remove stuff we don't need
     for iobs in range(len(obs)):
