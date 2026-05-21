@@ -416,12 +416,11 @@ def split_psf_to_fits(psf_file, wcs_format, pars, outfile):
     print("K2int:", K2int)
 
 
-# ### MAIN DRIVER ### #
-if __name__ == "__main__":
-    # Call with python3 -m pyimcom.splitpsf [config_file]
+def main(cfgfile):
+    """Drives splitpsf from a configuration file."""
 
     # Extract the information we need from the config file
-    with open(sys.argv[1]) as f:
+    with open(cfgfile) as f:
         cfg_dict = json.load(f)
 
     if "INLAYERCACHE" not in cfg_dict:
@@ -491,3 +490,8 @@ if __name__ == "__main__":
             sys.stdout.flush()
             count = count + 1
             # if count==1: exit() # <-- for testing: exit after one file
+
+
+if __name__ == "__main__":
+    # Call with python3 -m pyimcom.splitpsf [config_file]
+    main(sys.argv[1])
