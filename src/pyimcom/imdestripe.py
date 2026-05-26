@@ -209,7 +209,7 @@ class Sca_img:
             file = fits.open(tempdir + "interpolations/" + obsid + "_" + scaid + "_interp.fits", memmap=True)
             image_hdu = "PRIMARY"
             self.w = wcs.WCS(file[image_hdu].header)
-            self.image = np.copy(file[image_hdu].data).astype(np.float64)
+            self.image = file[image_hdu].data.astype(use_output_float)
             self.header = file[image_hdu].header
             self.shape = np.shape(self.image)
             self._file_handle = None
@@ -222,7 +222,7 @@ class Sca_img:
                 )
                 image_hdu = "PRIMARY"
                 self.w = wcs.WCS(file[image_hdu].header)
-                self.image = np.copy(file[image_hdu].data).astype(np.float64)
+                self.image = file[image_hdu].data.astype(use_output_float)
                 self.header = file[image_hdu].header
                 self.shape = np.shape(self.image)
                 self._file_handle = None
@@ -232,7 +232,7 @@ class Sca_img:
                 fp = cfg.ds_obsfile + filters[cfg.use_filter] + "_" + obsid + "_" + scaid + ".asdf"
                 self._file_handle = asdf.open(fp, memmap=True, lazy_load=True)
                 self.w = PyIMCOM_WCS(self._file_handle["roman"]["meta"]["wcs"])
-                self.image = np.array(self._file_handle["roman"]["data"], dtype=np.float64)
+                self.image = np.array(self._file_handle["roman"]["data"], dtype=use_output_float)
                 self.header = None
                 self.shape = np.shape(self.image)
                 # Note: keep _file_handle open to maintain memmap
@@ -247,7 +247,7 @@ class Sca_img:
         if cfg.gaindir is False:
             if not os.path.isfile(tempdir + obsid + "_" + scaid + "_geff.dat"):
                 g_eff = np.memmap(
-                    tempdir + obsid + "_" + scaid + "_geff.dat", dtype="float64", mode="w+", shape=self.shape
+                    tempdir + obsid + "_" + scaid + "_geff.dat", dtype=use_output_float, mode="w+", shape=self.shape
                 )
                 ra, dec = self.get_coordinates(pad=2.0)
                 ra = ra.reshape((Settings.sca_nside + 2, Settings.sca_nside + 2))
@@ -270,14 +270,13 @@ class Sca_img:
                 del g_eff
 
             self.g_eff = np.memmap(
-                tempdir + obsid + "_" + scaid + "_geff.dat", dtype="float64", mode="r", shape=self.shape
+                tempdir + obsid + "_" + scaid + "_geff.dat", dtype=use_output_float, mode="r", shape=self.shape
             )
         else:
             # PLACEHOLDER for reading in real flat fields as gain
             # Needs to be adapted once actual file format is known
-            g_eff_file = asdf.open(cfg.gaindir + cfg.use_filter + "_geff.fits", memmap=True)
-            self.g_eff = g_eff_file[int(scaid) - 1].data.astype(np.float64)
-            g_eff_file.close()
+            with fits.open(cfg.gaindir + cfg.use_filter + "_geff.fits", memmap=True) as g_eff_file:
+                self.g_eff = g_eff_file[int(scaid) - 1].data.astype(use_output_float)
 
         # Add a noise frame if specified in config file
         if cfg.ds_noisefile is not False:
@@ -422,7 +421,7 @@ class Sca_img:
 
         Parameters
         --------
-        pad : Float64
+        pad : int
             N pixels of padding to add to the array. Default 0.0
 
         Returns
@@ -463,12 +462,12 @@ class Sca_img:
              Effective coverage needed for a pixel to contribute to the interpolation
 
         """
-        this_interp = np.zeros(self.shape)
+        this_interp = np.zeros(self.shape, dtype=use_output_float)
 
         if not os.path.isfile(tempdir + self.obsid + "_" + self.scaid + "_Neff.dat"):
             N_eff = np.memmap(
                 tempdir + self.obsid + "_" + self.scaid + "_Neff.dat",
-                dtype="float32",
+                dtype=use_output_float,
                 mode="w+",
                 shape=self.shape,
             )
@@ -476,7 +475,7 @@ class Sca_img:
         else:
             N_eff = np.memmap(
                 tempdir + self.obsid + "_" + self.scaid + "_Neff.dat",
-                dtype="float32",
+                dtype=use_output_float,
                 mode="r",
                 shape=self.shape,
             )
@@ -814,10 +813,9 @@ def get_scas(filter_, obsfile, cfg, indata_type="fits", of=None):
                 n_scas += 1
                 this_obsfile = str(m.group(0))
                 all_scas.append(this_obsfile)
-                this_file = fits.open(f, memmap=True)
-                this_wcs = wcs.WCS(this_file["PRIMARY"].header)
-                all_wcs.append(this_wcs)
-                this_file.close()
+                with fits.open(f, memmap=True) as this_file
+                    this_wcs = wcs.WCS(this_file["PRIMARY"].header)
+                    all_wcs.append(this_wcs)
             elif indata_type == "asdf":
                 if ("noise" not in f) and ("mask" not in f):
                     n_scas += 1
@@ -923,13 +921,13 @@ def get_effective_gain(sca, tempdir=tempdir):
     scaid = m.group(2)
     g_eff = np.memmap(
         tempdir + obsid + "_" + scaid + "_geff.dat",
-        dtype="float64",
+        dtype=use_output_float,
         mode="r",
         shape=(Settings.sca_nside, Settings.sca_nside),
     )
     N_eff = np.memmap(
         tempdir + obsid + "_" + scaid + "_Neff.dat",
-        dtype="float32",
+        dtype=use_output_float,
         mode="r",
         shape=(Settings.sca_nside, Settings.sca_nside),
     )
@@ -1202,7 +1200,7 @@ def residual_function_single(k, sca_a, wcs_a, psi_a, f_prime, scalist, neighbors
         obsid_B, scaid_B = get_ids(sca_b)
 
         I_B = Sca_img(obsid_B, scaid_B, cfg)
-        gradient_original = np.zeros(I_B.shape)
+        gradient_original = np.zeros(I_B.shape, dtype=use_output_float)
 
         transpose_interpolate(gradient_interpolated, wcs_a, I_B, gradient_original)
         gradient_original *= I_B.g_eff
@@ -1273,7 +1271,7 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg, of=Non
     J_A_image, J_A_mask = I_A.make_interpolated(j, scalist, neighbors, params=p)
     J_A_mask *= I_A.mask
 
-    psi = np.where(J_A_mask, I_A.image - J_A_image, 0).astype("float32")
+    psi = np.where(J_A_mask, I_A.image - J_A_image, 0).astype(use_output_float)
     result = f(psi, thresh) if thresh is not None else f(psi)
     local_epsilon = np.sum(result)
 
