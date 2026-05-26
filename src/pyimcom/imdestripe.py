@@ -77,6 +77,7 @@ import sys
 import time
 import traceback
 import uuid
+import warnings
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import asdf
@@ -90,8 +91,6 @@ from scipy.ndimage import binary_dilation
 from .config import Config, Settings
 from .utils import compareutils
 from .wcsutil import PyIMCOM_WCS
-
-import warnings
 
 try:
     from furry_parakeet.pyimcom_interface import bilinear_interpolation, bilinear_transpose
@@ -860,20 +859,11 @@ def interpolate_image_bilinear(image_B, image_A, interpolated_image, mask=None):
     cols = int(image_B.shape[1])
     num_coords = coords.shape[0]
 
-    sys.stdout.flush()
-    sys.stderr.flush()
     if mask is not None and isinstance(mask, np.ndarray):
         mask_geff = np.ones_like(image_A.image)
-        bilinear_interpolation(
-            mask, mask_geff, coords, interpolated_image
-        )
+        bilinear_interpolation(mask, mask_geff, coords, interpolated_image)
     else:
-        bilinear_interpolation(
-            image_B.image, image_B.g_eff, coords, interpolated_image
-        )
-
-    sys.stdout.flush()
-    sys.stderr.flush()
+        bilinear_interpolation(image_B.image, image_B.g_eff, coords, interpolated_image)
 
 
 def transpose_interpolate(image_A, wcs_A, image_B, original_image):
