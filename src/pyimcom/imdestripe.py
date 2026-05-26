@@ -91,12 +91,12 @@ from .config import Config, Settings
 from .utils import compareutils
 from .wcsutil import PyIMCOM_WCS
 
-try:
-    import furry_parakeet.pyimcom_croutines as pyimcom_croutines
-except ImportError:
-    import pyimcom_croutines
-
 import warnings
+
+try:
+    from furry_parakeet.pyimcom_interface import bilinear_interpolation, bilinear_transpose
+except ImportError:
+    warnings.warn("furry_parakeet not available, won't be able to run imdestripe.")
 
 from asdf.exceptions import AsdfConversionWarning, AsdfPackageVersionWarning
 
@@ -838,9 +838,6 @@ def get_scas(filter_, obsfile, cfg, indata_type="fits", of=None):
 def interpolate_image_bilinear(image_B, image_A, interpolated_image, mask=None):
     """
     Interpolate values from a "reference" SCA image onto a "target" SCA coordinate grid
-    Uses pyimcom_croutines.bilinear_interpolation(
-        float* image, float* g_eff, int rows, int cols, float* coords,
-        int num_coords, float* interpolated_image)
 
     Parameters
     --------
@@ -867,12 +864,12 @@ def interpolate_image_bilinear(image_B, image_A, interpolated_image, mask=None):
     sys.stderr.flush()
     if mask is not None and isinstance(mask, np.ndarray):
         mask_geff = np.ones_like(image_A.image)
-        pyimcom_croutines.bilinear_interpolation(
-            mask, mask_geff, rows, cols, coords, num_coords, interpolated_image
+        bilinear_interpolation(
+            mask, mask_geff, coords, interpolated_image
         )
     else:
-        pyimcom_croutines.bilinear_interpolation(
-            image_B.image, image_B.g_eff, rows, cols, coords, num_coords, interpolated_image
+        bilinear_interpolation(
+            image_B.image, image_B.g_eff, coords, interpolated_image
         )
 
     sys.stdout.flush()
@@ -882,9 +879,6 @@ def interpolate_image_bilinear(image_B, image_A, interpolated_image, mask=None):
 def transpose_interpolate(image_A, wcs_A, image_B, original_image):
     """
     Interpolate backwards from image_A to image_B space.
-    Uses bilinear_transpose(
-        float* image, int rows, int cols, float* coords, int num_coords,
-        float* original_image)
 
      Parameters
      --------
@@ -906,7 +900,7 @@ def transpose_interpolate(image_A, wcs_A, image_B, original_image):
     cols = int(image_B.shape[1])
     num_coords = coords.shape[0]
 
-    pyimcom_croutines.bilinear_transpose(image_A, rows, cols, coords, num_coords, original_image)
+    bilinear_transpose(image_A, coords, original_image)
 
 
 def transpose_par(img):
