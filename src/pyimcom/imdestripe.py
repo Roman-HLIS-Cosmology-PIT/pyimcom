@@ -249,8 +249,8 @@ class Sca_img:
                 g_eff = np.memmap(
                     tempdir + obsid + "_" + scaid + "_geff.dat",
                     dtype=use_output_float,
-                     mode="w+",
-                     shape=self.shape,
+                    mode="w+",
+                    shape=self.shape,
                 )
                 ra, dec = self.get_coordinates(pad=2.0)
                 ra = ra.reshape((Settings.sca_nside + 2, Settings.sca_nside + 2))
@@ -274,9 +274,9 @@ class Sca_img:
 
             self.g_eff = np.memmap(
                 tempdir + obsid + "_" + scaid + "_geff.dat",
-                 dtype=use_output_float,
-                 mode="r",
-                 shape=self.shape,
+                dtype=use_output_float,
+                mode="r",
+                shape=self.shape,
             )
         else:
             # PLACEHOLDER for reading in real flat fields as gain
