@@ -247,7 +247,10 @@ class Sca_img:
         if cfg.gaindir is False:
             if not os.path.isfile(tempdir + obsid + "_" + scaid + "_geff.dat"):
                 g_eff = np.memmap(
-                    tempdir + obsid + "_" + scaid + "_geff.dat", dtype=use_output_float, mode="w+", shape=self.shape
+                    tempdir + obsid + "_" + scaid + "_geff.dat",
+                    dtype=use_output_float,
+                     mode="w+",
+                     shape=self.shape,
                 )
                 ra, dec = self.get_coordinates(pad=2.0)
                 ra = ra.reshape((Settings.sca_nside + 2, Settings.sca_nside + 2))
@@ -270,7 +273,10 @@ class Sca_img:
                 del g_eff
 
             self.g_eff = np.memmap(
-                tempdir + obsid + "_" + scaid + "_geff.dat", dtype=use_output_float, mode="r", shape=self.shape
+                tempdir + obsid + "_" + scaid + "_geff.dat",
+                 dtype=use_output_float,
+                 mode="r",
+                 shape=self.shape,
             )
         else:
             # PLACEHOLDER for reading in real flat fields as gain
@@ -813,7 +819,7 @@ def get_scas(filter_, obsfile, cfg, indata_type="fits", of=None):
                 n_scas += 1
                 this_obsfile = str(m.group(0))
                 all_scas.append(this_obsfile)
-                with fits.open(f, memmap=True) as this_file
+                with fits.open(f, memmap=True) as this_file:
                     this_wcs = wcs.WCS(this_file["PRIMARY"].header)
                     all_wcs.append(this_wcs)
             elif indata_type == "asdf":
