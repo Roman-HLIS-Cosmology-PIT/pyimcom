@@ -9,6 +9,7 @@ from unittest import mock
 import numpy as np
 import pytest
 from astropy import wcs
+from astropy.io import fits
 from pyimcom import imdestripe
 
 # Tools for tests: create WCS, create config, create simple SCA-like object
@@ -64,7 +65,7 @@ class MinimalConfig:
         self.ds_obsfile = ""
         self.ds_outpath = ""
         self.ds_outstem = ""
-        self.use_filter = "H158"
+        self.use_filter = 2
         self.permanent_mask = None
         self.ds_noisefile = False
         self.gaindir = False
@@ -99,22 +100,39 @@ class SimpleSCA:
         self.obsid = "00001"
         self.scaid = "01"
 
+    def to_file(self, fname, gname=None):
+        """Simple utility to dump to a file. Includes a place to put the gain file if requested."""
 
-def make_simple_sca(type="constant", offset=False):
+        f = fits.PrimaryHDU(self.image.astype(np.float32), header=self.w.to_header())
+        m = fits.ImageHDU(np.logical_not(self.mask).astype(np.int8), name="MASK")
+        fits.HDUList([f, m]).writeto(fname, overwrite=True)
+        del f
+        if gname is not None:
+            g = np.memmap(gname, dtype="float64", mode="w+", shape=np.shape(self.g_eff))
+            g[:, :] = self.g_eff
+            g.flush()
+            del g
+
+
+def make_simple_sca(type="constant", offset=False, test_size=100):
     """
     Create a simple SCA-like object for testing.
+
     Parameters
     ----------
-    type : str
+    type : str, optional
         Type of test image to create. Options are "constant", "gradient", "random".
-    offset : bool
+    offset : bool, optional
         Whether to offset the WCS center pixel.
+    test_size : int, optional
+        Size of the SCA image.
+
     Returns
     -------
     SimpleSCA
         A simple SCA-like object with test image and WCS.
+
     """
-    test_size = 100
 
     if type == "constant":
         test_image = np.ones((test_size, test_size), dtype=np.float64) * 13.0
@@ -1290,3 +1308,64 @@ class TestConjugateGradient:
                     neighbors,
                     cfg=small_cfg,
                 )
+
+
+#####################################
+# Tests not using the parallel mode
+#####################################
+
+
+def test_diffimage(tmp_path):
+    """Test function for building the difference image (psi)."""
+
+    # make the directories we need
+    os.makedirs(str(tmp_path) + "/fits", exist_ok=True)
+    os.makedirs(str(tmp_path) + "/ds", exist_ok=True)
+
+    # build the SCAs
+    sca_A = make_simple_sca(type="random", test_size=4088)
+    sca_B = make_simple_sca(type="random", offset=True, test_size=4088)
+    sca_A.image *= 0.005
+    sca_B.image *= 0.005
+    cfg = create_test_config(ds_rows=4088)
+    cfg.ds_obsfile = str(tmp_path) + "/fits/tempimage_"
+    cfg.ds_outpath = str(tmp_path) + "/ds/"
+    cfg.ds_outstem = "_ds_out.txt"
+    sca_A.to_file(str(tmp_path) + "/fits/tempimage_H158_670_01.fits")
+    sca_B.to_file(str(tmp_path) + "/fits/tempimage_H158_670_02.fits")
+
+    # Keep naming consistent with get_ids() parser: _<obsid>_<scaid>
+    scalist = ["H158_670_01", "H158_670_02"]
+    wcslist = [sca_A.w, sca_B.w]
+    neighbors = {0: [1], 1: [0]}
+
+    # build interpolations
+    im1 = imdestripe.Sca_img("670", "01", cfg, add_objmask=False)
+    j1, j1m = im1.make_interpolated(0, scalist, neighbors)
+    im2 = imdestripe.Sca_img("670", "02", cfg, add_objmask=False)
+    j2, j2m = im2.make_interpolated(1, scalist, neighbors)
+
+    print(im1.w)
+    print(im2.w)
+
+    # Create two psi difference images with known values
+    psi = np.zeros((2, im1.image.shape[0], im1.image.shape[1]), dtype=np.float32)
+    psi[0, :, :] = np.where(j1m, im1.image - j1, 0.0)
+    psi[1, :, :] = np.where(j2m, im2.image - j2, 0.0)
+
+    # Analytical gradient
+    grad = imdestripe.residual_function(
+        psi, imdestripe.quad_prime, scalist, wcslist, neighbors, thresh=None, workers=2, cfg=cfg
+    )
+
+    print(np.std(grad[0, :]))
+    print(np.std(grad[1, :]))
+    print(np.std(grad[0, 10:] + grad[1, :-10]))
+
+    assert 0.4 < np.std(grad[0, :]) < 0.5
+    assert 0.4 < np.std(grad[1, :]) < 0.5
+    assert 0.01 < np.std(grad[0, 10:] + grad[1, :-10]) < 0.1
+
+    # remove old files
+    os.remove(str(tmp_path) + "/fits/tempimage_H158_670_01.fits")
+    os.remove(str(tmp_path) + "/fits/tempimage_H158_670_02.fits")
