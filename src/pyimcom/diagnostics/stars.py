@@ -52,7 +52,7 @@ def _starplot_diagnostic(datastem):
 
     Writes the files::
 
-    * `datastem` + ``_SimulatedStar_etmap.pdf``
+    * `datastem` + ``_SimulatedStar_all.pdf``
 
     This replaces a perl + gnuplot script that was used in the OpenUniverse 2024 run.
 
