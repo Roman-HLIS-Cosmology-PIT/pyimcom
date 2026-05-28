@@ -61,5 +61,4 @@ if __name__ == "__main__":
         del s
     rpt.compile()
 
-    print("--> pdflatex log -->")
     print(str(rpt.compileproc.stdout))
