@@ -1986,7 +1986,12 @@ def main(cfg_file=None, overlaponly=False, of=None):
 
     t0 = time.time()
 
-    workers = os.cpu_count() // int(os.environ["OMP_NUM_THREADS"]) if "OMP_NUM_THREADS" in os.environ else 12
+    if "SLURM_CPUS_PER_TASK" in os.environ:
+        workers = int(os.environ["SLURM_CPUS_PER_TASK"])
+    elif "OMP_NUM_THREADS" in os.environ:
+        workers = os.cpu_count() // int(os.environ["OMP_NUM_THREADS"])
+    else:
+        workers = 12
     write_to_file(f"## Using {workers} workers for parallel processing.", of)
 
     all_scas, all_wcs = get_scas(filter_, CFG.ds_obsfile, CFG, indata_type="fits", of=of)
