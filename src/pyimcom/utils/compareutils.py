@@ -16,6 +16,7 @@ str2dirstem
 
 import re
 import sys
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 
@@ -109,7 +110,7 @@ def map_sca2sca(target_wcs, ref_wcs, pad=0, dtype=np.float64, subsamp=1):
     return xf.astype(dtype, copy=False), yf.astype(dtype, copy=False), is_in_ref
 
 
-def get_overlap_matrix(list_of_wcs, pad=0, verbose=False, subsamp=1):
+def get_overlap_matrix(list_of_wcs, pad=0, verbose=False, subsamp=1, max_workers=None):
     """
     Computes the fractional overlap matrix of a list of WCSs.
 
@@ -125,6 +126,9 @@ def get_overlap_matrix(list_of_wcs, pad=0, verbose=False, subsamp=1):
         Whether to print details to the terminal.
     subsamp : int, optional
         Samples every subsamp-th pixel (allows overlap to be computed faster).
+    max_workers : int, optional
+        Maximum number of threads. (You might use this if you are memory-limited.)
+        Set to 0 to turn of multithreading.
 
     Returns
     -------
@@ -161,19 +165,27 @@ def get_overlap_matrix(list_of_wcs, pad=0, verbose=False, subsamp=1):
     sep2 = np.sum((x[:, None, :] - x[None, :, :]) ** 2, axis=2)
     ov = np.where(sep2 < sep2max, np.float32(1), np.float32(0))
 
+    def _get_overlap(args):
+        # Simple tool to compute overlaps --- note `ov[i, j]` won't have a collision since
+        # we won't call with the same i, j.
+        i, j = args
+        if ov[i, j]:
+            _, _, m_ = map_sca2sca(list_of_wcs[i], list_of_wcs[j], pad=pad, dtype=np.float32, subsamp=subsamp)
+            ov[i, j] = np.count_nonzero(m_) / np.size(m_)
+            ov[j, i] = ov[i, j]
+            if verbose:
+                print("get_overlap_matrix: ->", i, j, ov[i, j])
+                sys.stdout.flush()
+
     # check candidate overlaps
-    for i in range(1, N):
-        for j in range(i):
-            if ov[i, j]:
-                x_, y_, m_ = map_sca2sca(
-                    list_of_wcs[i], list_of_wcs[j], pad=pad, dtype=np.float32, subsamp=subsamp
-                )
-                del x_, y_
-                ov[i, j] = np.count_nonzero(m_) / np.size(m_)
-                ov[j, i] = ov[i, j]
-                if verbose:
-                    print("get_overlap_matrix: ->", i, j, ov[i, j])
-                    sys.stdout.flush()
+    pairlist = [(i, j) for i in range(1, N) for j in range(i)]
+
+    if max_workers == 0:
+        for pair in pairlist:
+            _get_overlap(pair)
+    else:
+        with ThreadPoolExecutor(max_workers=max_workers) as e:
+            e.map(_get_overlap, pairlist)
 
     return ov
 

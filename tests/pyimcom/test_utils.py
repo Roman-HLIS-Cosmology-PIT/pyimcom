@@ -132,6 +132,11 @@ def test_overlap():
     matrix4 = get_overlap_matrix(wcslist, subsamp=4)
     assert np.amax(np.abs(matrix - matrix4) < 0.01)
 
+    # compare matrix without multiprocessing
+    # (should be the same except for rounding)
+    matrix_nm = get_overlap_matrix(wcslist, max_workers=0)
+    assert np.amax(np.abs(matrix - matrix_nm) < 5.0e-5)
+
 
 def test_str2dirstem():
     """Simple test of parsing a filename."""
