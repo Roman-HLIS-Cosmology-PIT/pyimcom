@@ -260,12 +260,12 @@ def gen_dynrange_data(inpath, outstem, rpix_try=50, nblockmax=100):
     return output
 
 
-if __name__ == "__main__":
-    """
-    Command line driver.
+"""
+Command line driver.
+Format: python3 -m dynrange <file stem> <output filename>
+"""
 
-    Format: python3 -m dynrange <file stem> <output filename>
-    """
+if __name__ == "__main__":
 
     def fn(ibx, iby):  # noqa: D103
         return sys.argv[1] + f"_{ibx:02d}_{iby:02d}.fits"
