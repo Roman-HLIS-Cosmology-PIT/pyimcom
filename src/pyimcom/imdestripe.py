@@ -2009,7 +2009,7 @@ def main(cfg_file=None, overlaponly=False, of=None):
     else:
         ovmat_t0 = time.time()
         write_to_file("Overlap matrix computing start", of)
-        ov_mat = compareutils.get_overlap_matrix(all_wcs, verbose=True, subsamp=4)
+        ov_mat = compareutils.get_overlap_matrix(all_wcs, verbose=True, subsamp=8)
         np.save(outpath + "ovmat.npy", ov_mat)
         write_to_file(f"Overlap matrix complete. Duration: {(time.time() - ovmat_t0) / 60} Minutes", of)
         write_to_file(f"Overlap matrix saved to: {outpath}ovmat.npy", of)
