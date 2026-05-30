@@ -11,6 +11,7 @@ import asdf
 import numpy as np
 from astropy.io import fits
 from pyimcom import imdestripe
+from pyimcom.config import Config
 from pyimcom.config import Settings as Stn
 from pyimcom.wcsutil import LocWCS
 
@@ -281,6 +282,30 @@ def test_integrated(tmp_path):
     assert ratio[0] < 1.02
     assert ratio[1] < 0.6
     assert ratio[2] < 0.6
+
+    # subtraction test
+    sca = imdestripe.Sca_img("1433", "11", Config(tmp_path + "/cfg.txt"))
+    x = np.median(sca.image, axis=1)[7:10]
+
+    # make container for an empty function that acts like a parameter
+    class _EmptyClass:
+        pass
+
+    p = _EmptyClass()
+
+    def _f(q):
+        im = np.zeros((4088, 4088), dtype=np.float32)
+        im[8, :] = 0.03
+        return im
+
+    p.forward_par = _f
+    sca.subtract_parameters(p, 0)
+    x2 = x - np.median(sca.image, axis=1)[7:10]
+    print(x2)
+    assert -0.001 < x2[0] < 0.001
+    assert 0.029 < x2[1] < 0.031
+    assert -0.001 < x2[2] < 0.001
+    assert sca.params_subtracted
 
     # now clear old files (this part also asserts that they exist!)
     delfiles = [
