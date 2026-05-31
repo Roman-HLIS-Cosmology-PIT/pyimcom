@@ -1,5 +1,6 @@
 """Tests for parallel compression utilities."""
 
+import os
 import re
 import urllib.request
 
@@ -88,6 +89,9 @@ def runcprs(tmp_path, allfiles=False):
         with fits.open(floc) as fi, ReadFile(fout, layers=[j]) as fo:
             diff = fi[0].data[0, j, :, :] - fo[0].data[0, j, :, :]
             assert np.amax(np.abs(diff)) <= maxdiff_ref[j]
+
+    # cleanup
+    os.remove(floc)
 
 
 def test_i24():

@@ -1,5 +1,6 @@
 import os
 import re
+import shutil
 import subprocess
 import urllib.request
 
@@ -334,6 +335,9 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
         "r1_00013912_17_subI.fits",
     ]:
         os.remove(str(tmp_imsub) + "/" + fl)
+    shutil.rmtree(tmp_imsub)
+    shutil.rmtree(tmp_mmap)
+    shutil.rmtree(tmp_figs)
 
 
 def test_staticmethods():
