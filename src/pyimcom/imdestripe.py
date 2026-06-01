@@ -1460,7 +1460,8 @@ def compute_boundary_continuity_penalty(
     penalty = 0.0
 
     write_to_file(
-        f"Computing boundary continuity penalty for {n_col_blocks} column blocks with chunks of size {chunk_width}x{chunk_height} (yielding N chunks per boundary: {n_rows // (4 * chunk_height) } )"
+        f"Computing boundary continuity penalty for {n_col_blocks} column blocks with chunks of size"
+        f" {chunk_width}x{chunk_height} (yielding N chunks per boundary: {n_rows // (4 * chunk_height) } )"
     )
 
     # Loop over each column-block boundary
