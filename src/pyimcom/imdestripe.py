@@ -118,6 +118,11 @@ t0_global = time.time()  # after imports
 use_output_float = np.float32
 tempdir = str(os.environ["TMPDIR"]) if "TMPDIR" in os.environ else "./"
 
+# For test outputs: set sca=0 to not produce test outputs.
+img_full_output = {"obsid": 670, "scaid": 10}
+if not testoutputs["testing"]:
+    img_full_output = {"obsid": -1, "scaid": -1}  # don't do these big outputs
+
 
 class Cost_models:
     """
