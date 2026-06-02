@@ -86,9 +86,9 @@ from astropy import wcs
 from astropy.io import fits
 from filelock import FileLock, Timeout
 from memory_profiler import memory_usage
-from scipy.ndimage import binary_dilation
+from scipy.ndimage import binary_dilation, binary_propagation
 
-from .config import Config, Settings
+from .config import JWST, Config, Settings
 from .utils import compareutils
 from .wcsutil import PyIMCOM_WCS
 
@@ -110,7 +110,8 @@ testoutputs = {
 warnings.filterwarnings("ignore", category=AsdfConversionWarning)
 warnings.filterwarnings("ignore", category=AsdfPackageVersionWarning)
 
-# from Config.Settings import RomanFilters as filters
+if JWST:
+    Settings.jwst()
 filters = Settings.RomanFilters
 t0_global = time.time()  # after imports
 
@@ -215,6 +216,7 @@ class Sca_img:
             self.header = file[image_hdu].header
             self.shape = np.shape(self.image)
             self._file_handle = None
+            self.type = "interpolated"
             file.close()
         else:
             if indata_type == "fits":
@@ -228,6 +230,8 @@ class Sca_img:
                 self.header = file[image_hdu].header
                 self.shape = np.shape(self.image)
                 self._file_handle = None
+                self.type = "fits"
+                self.mask_threshold = [0, 0.3]  # m, c for object masking
                 file.close()
 
             elif indata_type == "asdf":
@@ -237,7 +241,25 @@ class Sca_img:
                 self.image = np.array(self._file_handle["roman"]["data"], dtype=np.float64)
                 self.header = None
                 self.shape = np.shape(self.image)
+                self.type = "asdf"
+                self.mask_threshold = [0, 0.3]  # m, c for object masking
                 # Note: keep _file_handle open to maintain memmap
+            elif indata_type == "jwst":
+                file = fits.open(
+                    cfg.ds_obsfile + obsid + "_" + scaid + "_crf.fits",
+                    memmap=True,
+                )  # ds_obsfile is 'path/to/jw'
+                # obsid is <ppppp><ooo><vvv>_<gg><s><aa>_<eeeee>
+                # scaid is nrcb<n>
+                image_hdu = "SCI"
+                self.w = wcs.WCS(file[image_hdu].header)
+                self.image = np.copy(file[image_hdu].data).astype(np.float64)
+                self.header = file[image_hdu].header
+                self.shape = np.shape(self.image)
+                self._file_handle = None
+                self.type = "jwst"
+                self.mask_threshold = [15, 5]  # m, c for object masking
+                file.close()
 
         self.obsid = obsid
         self.scaid = scaid
@@ -286,11 +308,18 @@ class Sca_img:
             self.apply_noise()
 
         if add_objmask:
-            _, object_mask = apply_object_mask(self.image)
             if indata_type == "asdf":
                 self.apply_asdf_mask()
             elif indata_type == "fits":
                 self.apply_permanent_mask()
+            elif indata_type == "jwst":
+                self.apply_jwst_mask()
+            _, object_mask = apply_object_mask(
+                self.image,
+                threshold_m=self.mask_threshold[0],
+                threshold_c=self.mask_threshold[1],
+                type=self.type,
+            )
             self.mask *= np.logical_not(
                 object_mask
             )  # self.mask = True for good pixels, so set object_mask'ed pixels to False
@@ -373,29 +402,23 @@ class Sca_img:
         self.image *= ~mask
         self.mask *= ~mask
 
-    def get_permanent_mask(self):
+    def apply_jwst_mask(self):
         """
-        Apply permanent pixel mask.
-        Updates self.image and self.mask
+        Apply JWST data quality mask. Updates self.image and self.mask
         """
-        pm = fits.open(
-            self.cfg.ds_obsfile
-            + filters[self.cfg.use_filter]
-            + "_"
-            + self.obsid
-            + "_"
-            + self.scaid
-            + ".fits",
-        )["MASK"].data
-        pm_array = np.copy(pm)
-        return pm_array
+        # JWST bad pixels are represented as NaN in SCI; map them to zero and mark as masked.
+        valid = ~np.isnan(self.image)
+        self.image = np.where(valid, self.image, 0.0)
+        self.mask = np.logical_and(self.mask, valid)
 
     def apply_all_mask(self):
         """
         Apply permanent pixel mask.
         Updates self.image in-place
         """
-        self.image *= self.mask
+        # Multiply by mask but set Nans to zero
+        self.image = np.where(np.isnan(self.image), 0, self.image * self.mask)
+        # self.image *= self.mask
 
     def subtract_parameters(self, p, j):
         """
@@ -490,10 +513,10 @@ class Sca_img:
 
         for k in sca_b_list:
             sca_b = scalist[k]
-            obsid_B, scaid_B = get_ids(sca_b)
+            obsid_B, scaid_B = get_ids(sca_b, indata_type=self.type)
 
             N_BinA += 1
-            I_B = Sca_img(obsid_B, scaid_B, self.cfg)  # Initialize image B
+            I_B = Sca_img(obsid_B, scaid_B, self.cfg, indata_type=self.type)  # Initialize image B
 
             if params:
                 I_B.subtract_parameters(params, k)
@@ -607,8 +630,25 @@ class Parameters:
             raise ValueError(f"Model {cfg.ds_model} not in model_params dictionary.")
         self.model = cfg.ds_model
         self.n_rows = cfg.ds_rows
+        self.n_cols = getattr(cfg, "sca_nside", Settings.sca_nside)
         self.params_per_row = model_params[self.model]
-        self.params = np.zeros((len(scalist), self.n_rows * self.params_per_row))
+
+        if cfg.amp_cols is not None and cfg.amp_cols > 0:
+            if self.n_cols % cfg.amp_cols != 0:
+                raise ValueError(
+                    f"Column width (amp_cols={cfg.amp_cols}) does not evenly divide "
+                    f"image columns ({self.n_cols}). Ensure n_cols % amp_cols == 0."
+                )
+            self.amp_cols = cfg.amp_cols
+            self.n_col_blocks = self.n_cols // cfg.amp_cols
+        else:
+            self.amp_cols = None
+            self.n_col_blocks = 0
+
+        params_per_row = self.n_rows * self.params_per_row
+        params_per_sca = params_per_row + self.n_col_blocks
+
+        self.params = np.zeros((len(scalist), params_per_sca))
         self.current_shape = "2D"
         self.scalist = scalist
 
@@ -622,7 +662,8 @@ class Parameters:
 
     def forward_par(self, sca_i):
         """
-        Takes one SCA row (n_rows) from the params and casts it into 2D (n_rows x n_rows)
+        Takes one SCA row (n_rows) from the params and casts it into 2D (n_rows x n_cols)
+        with additive row and column-block offsets.
 
         Parameters
         --------
@@ -631,11 +672,28 @@ class Parameters:
 
         Returns
         --------
-         2D np.array, the image of SCA_i's parameters
+         2D np.array, the image of SCA_i's parameters (stripe image)
         """
         if self.current_shape != "2D":
             self.params_2_images()
-        return np.array(self.params[sca_i, :])[:, np.newaxis] * np.ones((self.n_rows, self.n_rows))
+
+        params_row_len = self.n_rows * self.params_per_row
+
+        # Build row image using existing per-row logic
+        row_params = np.array(self.params[sca_i, :params_row_len])[:, np.newaxis]
+        row_image = row_params * np.ones((self.n_rows, self.n_cols))
+
+        # Build column-block image if enabled
+        if self.n_col_blocks > 0:
+            col_params = self.params[sca_i, params_row_len : params_row_len + self.n_col_blocks]
+            col_image = np.zeros((self.n_rows, self.n_cols))
+            for b in range(self.n_col_blocks):
+                j_start = b * self.amp_cols
+                j_end = j_start + self.amp_cols
+                col_image[:, j_start:j_end] = col_params[b]  # Broadcast over rows
+            return row_image + col_image
+        else:
+            return row_image
 
 
 def write_to_file(text, filename=None):
@@ -713,7 +771,14 @@ def save_fits(image, filename, dir=None, overwrite=True, s=False, header=None, r
                 raise RuntimeError(f"Failed to write {fp} after {retries} attempts. Last error: {e}") from e
 
 
-def apply_object_mask(image, mask=None, threshold_m=0, threshold_c=0.3, inplace=False):
+def apply_object_mask(
+    image,
+    mask=None,
+    threshold_m=0,
+    threshold_c=0.3,
+    inplace=False,
+    type="fits",
+):
     """
     Apply a bright object mask to an image.
 
@@ -729,6 +794,8 @@ def apply_object_mask(image, mask=None, threshold_m=0, threshold_c=0.3, inplace=
         constant to add to the threshold.
     inplace : Bool
         Whether to modify the input image directly.
+    type : Str
+        Type of the input image. Options: 'fits', 'asdf', 'jwst'. Default: 'fits'
 
     Returns
     --------
@@ -741,7 +808,53 @@ def apply_object_mask(image, mask=None, threshold_m=0, threshold_c=0.3, inplace=
         neighbor_mask = mask
     else:
         median_val = np.median(image)
-        high_value_mask = image >= threshold_m * median_val + threshold_c
+        if type == "jwst":
+            # Use robust background/noise estimation + seeded region growing for JWST scenes.
+            valid = np.isfinite(image)
+            if not np.any(valid):
+                high_value_mask = np.zeros_like(image, dtype=bool)
+                seed_threshold = 0.0
+                grow_threshold = 0.0
+            else:
+                work = np.array(image, copy=True)
+                vals = work[valid]
+
+                # Iterative clipping to estimate sky background robustly.
+                clip_vals = vals
+                for _ in range(3):
+                    bkg = np.median(clip_vals)
+                    mad = np.median(np.abs(clip_vals - bkg))
+                    sigma = 1.4826 * mad
+                    if sigma <= 0:
+                        break
+                    keep = np.abs(clip_vals - bkg) < (3.0 * sigma)
+                    if np.count_nonzero(keep) < 100:
+                        break
+                    clip_vals = clip_vals[keep]
+
+                bkg = np.median(clip_vals)
+                mad = np.median(np.abs(clip_vals - bkg))
+                sigma = 1.4826 * mad
+                if not np.isfinite(sigma) or sigma <= 0:
+                    sigma = np.std(clip_vals) if clip_vals.size > 1 else 0.0
+
+                residual = np.zeros_like(work)
+                residual[valid] = work[valid] - bkg
+
+                # Two-level thresholding: bright seeds + lower-threshold growth.
+                seed_threshold = max(threshold_c, 6.0 * sigma)
+                grow_threshold = max(0.5 * threshold_c, 2.5 * sigma)
+
+                seed_mask = np.logical_and(valid, residual >= seed_threshold)
+                grow_candidates = np.logical_and(valid, residual >= grow_threshold)
+                grown_mask = binary_propagation(seed_mask, mask=grow_candidates)
+                high_value_mask = binary_dilation(
+                    grown_mask, structure=np.ones((3, 3), dtype=bool), iterations=2
+                )
+
+        else:
+            high_value_mask = image >= threshold_m * median_val + threshold_c
+
         neighbor_mask = binary_dilation(high_value_mask, structure=np.ones((5, 5), dtype=bool))
 
     if inplace:
@@ -809,25 +922,39 @@ def get_scas(filter_, obsfile, cfg, indata_type="fits", of=None):
     n_scas = 0
     all_scas = []
     all_wcs = []
-    for f in sorted(glob.glob(obsfile + filter_ + "_*")):
-        m = re.search(r"(\w\d+)_(\d+)_(\d+)", f)
-        if m:
-            if indata_type == "fits":
+
+    if indata_type == "jwst":
+        for f in sorted(glob.glob(obsfile + "*_crf.fits")):
+            # example to match: jw04793001001_02101_00001_nrcb1_crf.fits
+            m = re.search(r"(jw\d+_\d+_\d+_nrcb\d+)", f)
+            if m:
                 n_scas += 1
-                this_obsfile = str(m.group(0))
+                this_obsfile = str(m.group(1))
                 all_scas.append(this_obsfile)
                 this_file = fits.open(f, memmap=True)
-                this_wcs = wcs.WCS(this_file["PRIMARY"].header)
+                this_wcs = wcs.WCS(this_file["SCI"].header)
                 all_wcs.append(this_wcs)
                 this_file.close()
-            elif indata_type == "asdf":
-                if ("noise" not in f) and ("mask" not in f):
+    else:
+        for f in sorted(glob.glob(obsfile + filter_ + "_*")):
+            m = re.search(r"(\w\d+)_(\d+)_(\d+)", f)
+            if m:
+                if indata_type == "fits":
                     n_scas += 1
                     this_obsfile = str(m.group(0))
                     all_scas.append(this_obsfile)
-                    with asdf.open(f, memmap=False, lazy_load=True) as this_file:
-                        this_wcs = PyIMCOM_WCS(this_file["roman"]["meta"]["wcs"])
-                        all_wcs.append(this_wcs)
+                    this_file = fits.open(f, memmap=True)
+                    this_wcs = wcs.WCS(this_file["PRIMARY"].header)
+                    all_wcs.append(this_wcs)
+                    this_file.close()
+                elif indata_type == "asdf":
+                    if ("noise" not in f) and ("mask" not in f):
+                        n_scas += 1
+                        this_obsfile = str(m.group(0))
+                        all_scas.append(this_obsfile)
+                        with asdf.open(f, memmap=False, lazy_load=True) as this_file:
+                            this_wcs = PyIMCOM_WCS(this_file["roman"]["meta"]["wcs"])
+                            all_wcs.append(this_wcs)
 
     write_to_file(f"N SCA images in this mosaic: {str(n_scas)}", of)
     write_to_file("------- SCA List -------", of)
@@ -910,23 +1037,42 @@ def transpose_interpolate(image_A, wcs_A, image_B, original_image):
     pyimcom_croutines.bilinear_transpose(image_A, rows, cols, coords, num_coords, original_image)
 
 
-def transpose_par(img):
+def transpose_par(img, cfg=None):
     """
-    Sum up the values of an image across rows
+    Extract parameter contributions from an image via adjoint of forward_par.
+
+    For row-only model: sums each row across columns.
+    For row+column model: also sums each column-block across rows.
 
     Parameters
     --------
     img : 2D np.array
-        Input array
+        Input gradient/residual image
+    cfg : Config object or None
+        If provided and amp_cols is enabled, returns concatenated
+        [row_contributions, col_block_contributions]. If None, returns only row sums.
 
-     Returns
+    Returns
     --------
-       1D np.array, the sum across each row of I
+       1D np.array, concatenation of [row sums, column-block sums] if cfg enables col_blocks,
+       otherwise just row sums (backward compatible)
     """
-    return np.sum(img, axis=1)
+    row_contrib = np.sum(img, axis=1)
+
+    if cfg is not None and hasattr(cfg, "amp_cols") and cfg.amp_cols is not None and cfg.amp_cols > 0:
+        n_cols = img.shape[1]  # Use actual image width, not Settings.sca_nside
+        n_col_blocks = n_cols // cfg.amp_cols
+        col_contrib = np.zeros(n_col_blocks)
+        for b in range(n_col_blocks):
+            j_start = b * cfg.amp_cols
+            j_end = j_start + cfg.amp_cols
+            col_contrib[b] = np.sum(img[:, j_start:j_end])  # Sum over all rows in this block
+        return np.concatenate([row_contrib, col_contrib])
+    else:
+        return row_contrib
 
 
-def get_effective_gain(sca, tempdir=tempdir):
+def get_effective_gain(sca, tempdir=tempdir, indata_type="fits"):
     """
     Retrieve the effective gain and n_eff of the image. valid only for already-interpolated images
 
@@ -936,6 +1082,8 @@ def get_effective_gain(sca, tempdir=tempdir):
         format like "<prefix>_<obsid>_<scaid>" describing which SCA to get the effective gain for
     tempdir : Str
         directory where the effective gain files are stored
+    indata_type : Str
+        The type of input data; default "fits"
 
     Returns
     --------
@@ -944,9 +1092,15 @@ def get_effective_gain(sca, tempdir=tempdir):
     N_eff : memmap 2D np.array
         how many image "B"s contributed to that interpolated image
     """
-    m = re.search(r"_(\d+)_(\d+)", sca)
-    obsid = m.group(1)
-    scaid = m.group(2)
+    if indata_type == "fits":
+        m = re.search(r"_(\d+)_(\d+)", sca)
+        obsid = m.group(1)
+        scaid = m.group(2)
+    elif indata_type == "jwst":
+        m = re.search(r"jw(\d+_\d+_\d+)_(nrcb\d+)", sca)
+        obsid = m.group(1)
+        scaid = m.group(2)
+
     g_eff = np.memmap(
         tempdir + obsid + "_" + scaid + "_geff.dat",
         dtype="float64",
@@ -962,7 +1116,7 @@ def get_effective_gain(sca, tempdir=tempdir):
     return g_eff, N_eff
 
 
-def get_ids(sca):
+def get_ids(sca, indata_type="fits"):
     """
     Take an SCA label and parse it out to get the Obsid and SCA id strings.
 
@@ -970,6 +1124,8 @@ def get_ids(sca):
     --------
     sca : Str
         The sca name from all_scas list, formatted like <obsid>_<scaid>
+    indata_type : Str
+        The type of input data; default "fits"
 
     Returns
     --------
@@ -978,9 +1134,14 @@ def get_ids(sca):
     scaid : Str
         the SCA ID (position in focal plane)
     """
-    m = re.search(r"_(\d+)_(\d+)", sca)
-    obsid = m.group(1)
-    scaid = m.group(2)
+    if indata_type == "fits":
+        m = re.search(r"_(\d+)_(\d+)", sca)
+        obsid = m.group(1)
+        scaid = m.group(2)
+    elif indata_type == "jwst":
+        m = re.search(r"jw(\d+_\d+_\d+)_(nrcb\d+)", sca)
+        obsid = m.group(1)
+        scaid = m.group(2)
     return obsid, scaid
 
 
@@ -1082,7 +1243,17 @@ def get_neighbors(scalist, ov_mat, overlap_thresh=0.1):
 
 
 def residual_function(
-    psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg, extrareturn=False, of=None
+    psi,
+    f_prime,
+    scalist,
+    wcslist,
+    neighbors,
+    thresh,
+    workers,
+    cfg,
+    extrareturn=False,
+    of=None,
+    indata_type="fits",
 ):
     """
     Calculate the residual image, = grad(epsilon)
@@ -1111,6 +1282,8 @@ def residual_function(
             in addition to full residuals. returns resids, resids1, resids2
     of : Str
         filename to write output info to, or if None, output is directed to stdout
+    indata_type : Str
+        input data type: One of 'fits', 'asdf', 'jwst'. Default 'fits'
 
     Returns
     --------
@@ -1142,6 +1315,7 @@ def residual_function(
                 thresh,
                 cfg,
                 of=of,
+                indata_type=indata_type,
             )
             for k, sca_a in enumerate(scalist)
         ]
@@ -1167,7 +1341,9 @@ def residual_function(
     return resids
 
 
-def residual_function_single(k, sca_a, wcs_a, psi_a, f_prime, scalist, neighbors, thresh, cfg, of=None):
+def residual_function_single(
+    k, sca_a, wcs_a, psi_a, f_prime, scalist, neighbors, thresh, cfg, of=None, indata_type="fits"
+):
     """
     Calculate the residual for a single SCA image
 
@@ -1193,6 +1369,8 @@ def residual_function_single(k, sca_a, wcs_a, psi_a, f_prime, scalist, neighbors
         the configuration for this run
     of : Str
         filename to write output info to, or if None, output is directed to stdout
+    indata_type : Str
+        input data type: One of 'fits', 'asdf', 'jwst'. Default 'fits'
 
     Returns
     --------
@@ -1205,15 +1383,15 @@ def residual_function_single(k, sca_a, wcs_a, psi_a, f_prime, scalist, neighbors
         for each SCA j that overlaps with this one
     """
     # Go and get the WCS object for image A
-    obsid_A, scaid_A = get_ids(sca_a)
+    obsid_A, scaid_A = get_ids(sca_a, indata_type=indata_type)
 
     # Calculate and then transpose the gradient of I_A-J_A
     gradient_interpolated = f_prime(psi_a, thresh) if thresh is not None else f_prime(psi_a)
 
-    term_1 = transpose_par(gradient_interpolated)
+    term_1 = transpose_par(gradient_interpolated, cfg=cfg)
 
     # Retrieve the effective gain and N_eff to normalize the gradient before transposing back
-    g_eff_A, n_eff_A = get_effective_gain(sca_a)
+    g_eff_A, n_eff_A = get_effective_gain(sca_a, indata_type=indata_type)
 
     # Avoid dividing by zero
     valid_mask = n_eff_A != 0
@@ -1227,15 +1405,15 @@ def residual_function_single(k, sca_a, wcs_a, psi_a, f_prime, scalist, neighbors
 
     for j in neighbors[k]:
         sca_b = scalist[j]
-        obsid_B, scaid_B = get_ids(sca_b)
+        obsid_B, scaid_B = get_ids(sca_b, indata_type=indata_type)
 
-        I_B = Sca_img(obsid_B, scaid_B, cfg)
+        I_B = Sca_img(obsid_B, scaid_B, cfg, indata_type=indata_type)  # Initialize image B
         gradient_original = np.zeros(I_B.shape)
 
         transpose_interpolate(gradient_interpolated, wcs_a, I_B, gradient_original)
         gradient_original *= I_B.g_eff
 
-        term_2 = transpose_par(gradient_original)
+        term_2 = transpose_par(gradient_original, cfg=cfg)
         term_2_list.append((j, term_2))
 
     #     I_B.close()
@@ -1246,7 +1424,86 @@ def residual_function_single(k, sca_a, wcs_a, psi_a, f_prime, scalist, neighbors
     return k, term_1, term_2_list
 
 
-def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg, of=None):
+def compute_boundary_continuity_penalty(
+    destriped_image, mask, amp_cols, col_boundary_const, chunk_width=50, chunk_height=100
+):
+    """
+    Penalize large discontinuities in the destriped image across amp-width
+    boundaries, pushing the final destriped image towards being continuous.
+
+    The discontinuity is measured as the mean absolute difference in destriped values
+    across boundaries, computed over non-masked pixels in chunks of 100 rows x 100 columns (50 on each side).
+
+    Parameters
+    ----------
+    destriped_image : 2D np.array
+        The destriped image I_A, already masked
+    mask : 2D bool array
+        The mask (True = good pixels), same shape as destriped_image
+    amp_cols : int or None
+        Column-block width. If None or <= 0, no penalty.
+    col_boundary_const : int
+        Strength of the column boundary penalty. If <= 0, no penalty.
+    chunk_width : int
+        HALF width of the chunks to consider for the penalty. Mean is over this many cols on each side.
+        (Default: 50)
+    chunk_height : int
+        Height of the chunks to consider for the penalty. This is a number of rows.
+        (Default: 100)
+
+    Returns
+    -------
+    penalty : float
+        Scalar penalty value to add to cost function
+    """
+    if amp_cols is None or amp_cols <= 0:
+        return 0.0
+
+    lambda_reg = col_boundary_const
+    if lambda_reg <= 0:
+        return 0.0
+
+    n_rows, n_cols = destriped_image.shape
+    n_col_blocks = n_cols // amp_cols
+    penalty = 0.0
+
+    write_to_file(
+        f"Computing boundary continuity penalty for {n_col_blocks} column blocks with chunks of size"
+        f" {chunk_width}x{chunk_height} (yielding N chunks per boundary: {n_rows // (4 * chunk_height) } )"
+    )
+
+    # Loop over each column-block boundary
+    for b in range(1, n_col_blocks):
+        left_col_lower = b * amp_cols - chunk_width
+        right_col_upper = b * amp_cols + chunk_width
+        col_chunk_lower = slice(left_col_lower, b * amp_cols)
+        col_chunk_upper = slice(b * amp_cols, right_col_upper)
+
+        # Loop over chunks
+        for chunk_start in range(0, n_rows, 4 * chunk_height):
+            chunk_end = min(chunk_start + chunk_height, n_rows)
+            row_chunk = slice(chunk_start, chunk_end)
+
+            # Extract left and right columns for this chunk
+            left_vals = destriped_image[row_chunk, col_chunk_lower]
+            right_vals = destriped_image[row_chunk, col_chunk_upper]
+            left_mask = mask[row_chunk, col_chunk_lower]
+            right_mask = mask[row_chunk, col_chunk_upper]
+
+            # Compute the means of the left and right chunks, but only count pixels that are nonzero
+            left_mean = np.mean(left_vals[left_mask])
+            right_mean = np.mean(right_vals[right_mask])
+
+            # Compute the difference between the means
+            mean_diff = left_mean - right_mean
+
+            # Square and accumulate (penalizes both positive and negative differences equally)
+            penalty += mean_diff**2
+
+    return lambda_reg * penalty
+
+
+def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg, of=None, indata_type="fits"):
     """
     Calculate the cost function for a single SCA image
 
@@ -1270,6 +1527,8 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg, of=Non
         the configuration for this run
     of : Str
         filename to write output info to, or if None, output is directed to stdout
+    indata_type : Str
+        input data type: One of 'fits', 'asdf', 'jwst'. Default 'fits'
 
     Returns
     --------
@@ -1280,21 +1539,21 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg, of=Non
     local_epsilon : Float
         the cost function value for this SCA
     """
-    m = re.search(r"_(\d+)_(\d+)", sca_a)
-    obsid_A, scaid_A = m.group(1), m.group(2)
+    full_output = globals().get("img_full_output", {"scaid": 0, "obsid": -1})
+    obsid_A, scaid_A = get_ids(sca_a, indata_type=indata_type)
 
-    I_A = Sca_img(obsid_A, scaid_A, cfg)
+    I_A = Sca_img(obsid_A, scaid_A, cfg, indata_type=indata_type)
     I_A.subtract_parameters(p, j)
     I_A.apply_all_mask()
 
-    if img_full_output["scaid"] != 0 and testoutputs["testing"]:
-        example_obs = obsid_A == str(img_full_output["obsid"])
-        example_sca = scaid_A == str(img_full_output["scaid"])
+    if full_output["scaid"] != 0 and testoutputs["testing"]:
+        example_obs = obsid_A == str(full_output["obsid"])
+        example_sca = scaid_A == str(full_output["scaid"])
         if example_obs and example_sca:
             hdu = fits.PrimaryHDU(I_A.image)
             hdu.writeto(
                 testoutputs["test_image_dir"]
-                + f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_I_A_sub_masked.fits',
+                + f'{full_output["obsid"]}_{full_output["scaid"]}_I_A_sub_masked.fits',
                 overwrite=True,
             )
 
@@ -1305,21 +1564,33 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg, of=Non
     result = f(psi, thresh) if thresh is not None else f(psi)
     local_epsilon = np.sum(result)
 
-    if img_full_output["scaid"] != 0 and testoutputs["testing"] and example_obs and example_sca:
+    # Add boundary continuity penalty if column-block offsets are enabled
+    if cfg.amp_cols is not None and cfg.amp_cols > 0 and cfg.col_boundary_const > 0:
+        # Build the full destriped image with mask applied (True = good pixels to evaluate)
+        boundary_penalty = compute_boundary_continuity_penalty(
+            I_A.image, I_A.mask, cfg.amp_cols, cfg.col_boundary_const
+        )
+        local_epsilon += boundary_penalty
+
+    if full_output["scaid"] != 0 and testoutputs["testing"] and example_obs and example_sca:
+        write_to_file(
+            f"SCA {j}: boundary continuity penalty = {boundary_penalty:.2e}, "
+            f"total cost = {local_epsilon:.2e}",
+            of,
+        )
         hdu = fits.PrimaryHDU(J_A_image * J_A_mask)
         hdu.writeto(
-            testoutputs["test_image_dir"]
-            + f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_J_A_masked.fits',
+            testoutputs["test_image_dir"] + f'{full_output["obsid"]}_{full_output["scaid"]}_J_A_masked.fits',
             overwrite=True,
         )
 
         hdu = fits.PrimaryHDU(psi)
         hdu.writeto(
-            testoutputs["test_image_dir"] + f'{img_full_output["obsid"]}_{img_full_output["scaid"]}_Psi.fits',
+            testoutputs["test_image_dir"] + f'{full_output["obsid"]}_{full_output["scaid"]}_Psi.fits',
             overwrite=True,
         )
 
-        write_to_file(f"Sample stats for SCA {img_full_output}:", of)
+        write_to_file(f"Sample stats for SCA {full_output}:", of)
         write_to_file(f"Image A mean: {np.mean(I_A.image)}", of)
         write_to_file(f"Image B mean: {np.mean(J_A_image)}", of)
         write_to_file(f"Psi mean: {np.mean(psi)}", of)
@@ -1329,7 +1600,9 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg, of=Non
     return j, psi, local_epsilon
 
 
-def cost_function(p, f, thresh, workers, scalist, neighbors, cfg, tempdir=tempdir, of=None):
+def cost_function(
+    p, f, thresh, workers, scalist, neighbors, cfg, tempdir=tempdir, of=None, indata_type="fits"
+):
     """
     Calculate the cost function with the current de-striping parameters.
 
@@ -1353,6 +1626,8 @@ def cost_function(p, f, thresh, workers, scalist, neighbors, cfg, tempdir=tempdi
         directory to store temporary files
     of : Str
         filename to write output info to, or if None, output is directed to stdout
+    indata_type : Str
+        input data type: One of 'fits', 'asdf', 'jwst'. Default 'fits'
 
     Returns
     --------
@@ -1376,7 +1651,19 @@ def cost_function(p, f, thresh, workers, scalist, neighbors, cfg, tempdir=tempdi
     ctx = mp.get_context(start_method)
     with ProcessPoolExecutor(max_workers=workers, mp_context=ctx) as executor:
         futures = [
-            executor.submit(cost_function_single, j, sca_a, p, f, scalist, neighbors, thresh, cfg, of=of)
+            executor.submit(
+                cost_function_single,
+                j,
+                sca_a,
+                p,
+                f,
+                scalist,
+                neighbors,
+                thresh,
+                cfg,
+                of=of,
+                indata_type=indata_type,
+            )
             for j, sca_a in enumerate(scalist)
         ]
 
@@ -1415,6 +1702,7 @@ def linear_search_general(
     n_iter=100,
     tol=10**-4,
     of=None,
+    indata_type="fits",
 ):
     """
     Linear search via combination bisection and secant methods for parameters that minimize the function
@@ -1456,6 +1744,8 @@ def linear_search_general(
          absolute value of d_cost at which to converge
     of : Str
         filename to write output info to, or if None, output is directed to stdout
+    indata_type : Str
+        input data type: One of 'fits', 'asdf', 'jwst'. Default 'fits'
 
     Returns
     --------
@@ -1499,15 +1789,23 @@ def linear_search_general(
     write_to_file("### Calculating min and max epsilon and cost", of)
     max_params = p.params + alpha_max * direction
     max_p.params = max_params
-    max_epsilon, max_psi = cost_function(max_p, f, thresh, workers, scalist, neighbors, cfg)
-    max_resids = residual_function(max_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg)
+    max_epsilon, max_psi = cost_function(
+        max_p, f, thresh, workers, scalist, neighbors, cfg, indata_type=indata_type
+    )
+    max_resids = residual_function(
+        max_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg, indata_type=indata_type
+    )
     del max_psi
     d_cost_max = np.sum(max_resids * direction)
 
     min_params = p.params + alpha_min * direction
     min_p.params = min_params
-    min_epsilon, min_psi = cost_function(min_p, f, thresh, workers, scalist, neighbors, cfg)
-    min_resids = residual_function(min_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg)
+    min_epsilon, min_psi = cost_function(
+        min_p, f, thresh, workers, scalist, neighbors, cfg, indata_type=indata_type
+    )
+    min_resids = residual_function(
+        min_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg, indata_type=indata_type
+    )
     del min_psi
     d_cost_min = np.sum(min_resids * direction)
 
@@ -1544,10 +1842,12 @@ def linear_search_general(
         working_params = p.params + alpha_test * direction
         working_p.params = working_params
 
-        working_epsilon, working_psi = cost_function(working_p, f, thresh, workers, scalist, neighbors, cfg)
+        working_epsilon, working_psi = cost_function(
+            working_p, f, thresh, workers, scalist, neighbors, cfg, indata_type=indata_type
+        )
         print(f"Global elapsed t = {(time.time()-t0_global)/60:8.1f}")
         working_resids = residual_function(
-            working_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg
+            working_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg, indata_type=indata_type
         )
         print(f"Global elapsed t = {(time.time()-t0_global)/60:8.1f}")
         d_cost = np.sum(working_resids * direction)
@@ -1594,7 +1894,19 @@ def linear_search_general(
 
 
 def linear_search_quadratic(
-    p, direction, f, f_prime, grad_current, thresh, workers, scalist, wcslist, neighbors, cfg, of=None
+    p,
+    direction,
+    f,
+    f_prime,
+    grad_current,
+    thresh,
+    workers,
+    scalist,
+    wcslist,
+    neighbors,
+    cfg,
+    of=None,
+    indata_type="fits",
 ):
     """
     For the quadratic cost function, direct calculation of alpha that minimizes the function
@@ -1629,6 +1941,8 @@ def linear_search_quadratic(
         the configuration for this run
     of : Str
         filename to write output info to, or if None, output is directed to stdout
+    indata_type : Str
+        input data type: One of 'fits', 'asdf', 'jwst'. Default '
 
     Returns
     --------
@@ -1656,8 +1970,12 @@ def linear_search_quadratic(
     # Calculate
     trial_params = p.params + alpha_max * direction
     trial_p.params = trial_params
-    trial_epsilon, trial_psi = cost_function(trial_p, f, thresh, workers, scalist, neighbors, cfg)
-    trial_resids = residual_function(trial_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg)
+    trial_epsilon, trial_psi = cost_function(
+        trial_p, f, thresh, workers, scalist, neighbors, cfg, indata_type=indata_type
+    )
+    trial_resids = residual_function(
+        trial_psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg, indata_type=indata_type
+    )
     del trial_psi, trial_epsilon
 
     alpha_new = (
@@ -1668,7 +1986,9 @@ def linear_search_quadratic(
 
     new_params = p.params + alpha_new * direction
     new_p.params = new_params
-    new_epsilon, new_psi = cost_function(new_p, f, thresh, workers, scalist, neighbors, cfg)
+    new_epsilon, new_psi = cost_function(
+        new_p, f, thresh, workers, scalist, neighbors, cfg, indata_type=indata_type
+    )
     new_resids = grad_current + (alpha_new / alpha_max) * (trial_resids - grad_current)
     write_to_file(f"(Inside LS) Global elapsed t = {(time.time()-t0_global)/60:8.1f}", of)
     sys.stdout.flush()
@@ -1703,6 +2023,7 @@ def conjugate_gradient(
     time_limit=None,
     cfg=None,
     of=None,
+    indata_type="fits",
 ):
     """
     Algorithm to use conjugate gradient descent to optimize the parameters for destriping.
@@ -1733,7 +2054,9 @@ def conjugate_gradient(
     cfg : config object
         containing all config parameters
     of : Str
-        output file to write log messages to
+        output file to write log messages to. If None, messages are printed to stdout
+    indata_type : Str
+        the type of input data; default "fits"
 
     Returns
     --------
@@ -1778,7 +2101,7 @@ def conjugate_gradient(
         grad = None
         direction = None  # No initial direction
         write_to_file("### Starting initial cost function", of)
-        epsilon, psi = cost_function(p, f, thresh, workers, scalist, neighbors, cfg)
+        epsilon, psi = cost_function(p, f, thresh, workers, scalist, neighbors, cfg, indata_type=indata_type)
         print(f"Global elapsed t = {(time.time()-t0_global)/60:8.1f}")
 
         with open(log_file, "w", newline="") as csvfile:
@@ -1809,7 +2132,9 @@ def conjugate_gradient(
 
         # Compute the gradient
         if grad is None:
-            grad = residual_function(psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg)
+            grad = residual_function(
+                psi, f_prime, scalist, wcslist, neighbors, thresh, workers, cfg, indata_type=indata_type
+            )
             write_to_file(
                 f"Minutes spent in initial residual function: {(time.time() - t_start_CG_iter) / 60}", of
             )
@@ -1863,7 +2188,19 @@ def conjugate_gradient(
 
         if cost_model == "quadratic":
             p_new, psi_new, grad_new, epsilon_new = linear_search_quadratic(
-                p, direction, f, f_prime, grad, thresh, workers, scalist, wcslist, neighbors, cfg, of=of
+                p,
+                direction,
+                f,
+                f_prime,
+                grad,
+                thresh,
+                workers,
+                scalist,
+                wcslist,
+                neighbors,
+                cfg,
+                of=of,
+                indata_type=indata_type,
             )
 
         else:
@@ -1883,6 +2220,7 @@ def conjugate_gradient(
                 neighbors,
                 cfg,
                 of=of,
+                indata_type=indata_type,
             )
 
         write_to_file(f"Global elapsed t = {(time.time()-t0_global)/60:8.1f}", of)
@@ -1968,7 +2306,7 @@ def conjugate_gradient(
     return p
 
 
-def main(cfg_file=None, overlaponly=False, of=None):
+def main(cfg_file=None, overlaponly=False, of=None, testing=False):
     """
     Main function to run destriping via conjugate gradient descent.
 
@@ -1978,8 +2316,10 @@ def main(cfg_file=None, overlaponly=False, of=None):
         Configuration file (if not provided, reads from command line arguments).
     overlaponly : bool, optional
         Only compute the overlap matrix, then stop.
-    of : str, optional
+    of : str, optionals
         Output file for logging. If None, logs are printed to stdout.
+    testing : bool, optional
+        If True, saves additional diagnostic images and info for testing and validation.
 
     Returns
     -------
@@ -1987,6 +2327,7 @@ def main(cfg_file=None, overlaponly=False, of=None):
         Prefix for destriped images. Add f"_{obsid}_{sca}.fits" to get the full file name.
 
     """
+    global img_full_output
 
     CG_models = {"FR", "PR", "HS", "DY"}
 
@@ -1998,8 +2339,22 @@ def main(cfg_file=None, overlaponly=False, of=None):
     else:
         raise ValueError("Please provide a config file as a command line argument.")
 
-    filter_ = filters[CFG.use_filter]
     outpath = CFG.ds_outpath
+    if JWST:
+        indata_type = "jwst"
+        filter_ = CFG.use_filter
+    else:
+        indata_type = "fits"
+        filter_ = filters[CFG.use_filter]
+    if testing:
+        testoutputs["testing"] = True
+
+    # For test outputs: set sca=0 to not produce test outputs.
+    img_full_output = (
+        {"obsid": "04793009001_02101_00001", "scaid": "nrcb2"} if JWST else {"obsid": 670, "scaid": 10}
+    )
+    if not testoutputs["testing"]:
+        img_full_output = {"obsid": -1, "scaid": -1}  # don't do these big outputs
 
     # Prior on cost function is not yet implemented
     # if CFG.cost_prior != 0:
@@ -2015,7 +2370,7 @@ def main(cfg_file=None, overlaponly=False, of=None):
     workers = os.cpu_count() // int(os.environ["OMP_NUM_THREADS"]) if "OMP_NUM_THREADS" in os.environ else 12
     write_to_file(f"## Using {workers} workers for parallel processing.", of)
 
-    all_scas, all_wcs = get_scas(filter_, CFG.ds_obsfile, CFG, indata_type="fits", of=of)
+    all_scas, all_wcs = get_scas(filter_, CFG.ds_obsfile, CFG, indata_type=indata_type, of=of)
     write_to_file(f"{len(all_scas)} SCAs in this mosaic", of)
     sys.stdout.flush()
 
@@ -2054,6 +2409,7 @@ def main(cfg_file=None, overlaponly=False, of=None):
             time_limit=7200,
             cfg=CFG,
             of=of,
+            indata_type=indata_type,
         )
         hdu = fits.PrimaryHDU(p.params)
         hdu.writeto(outpath + "final_params.fits", overwrite=True)
@@ -2066,8 +2422,8 @@ def main(cfg_file=None, overlaponly=False, of=None):
         write_to_file("Conjugate gradient failed. Restart state saved to cg_restart.pkl\n", of)
 
     for i, sca in enumerate(all_scas):
-        obsid, scaid = get_ids(sca)
-        this_sca = Sca_img(obsid, scaid, CFG, add_objmask=False)
+        obsid, scaid = get_ids(sca, indata_type=indata_type)
+        this_sca = Sca_img(obsid, scaid, CFG, add_objmask=False, indata_type=indata_type)
         this_param_set = p.forward_par(i)
         ds_image = this_sca.image - this_param_set
 
