@@ -361,7 +361,7 @@ class LocWCS:
         d[1, :, :] = ybar.reshape((N, N)) - y
         self.errmap = d
 
-    def err_interp(self, a=4, n_pad=2048):
+    def err_interp(self, a=4, n_pad=2048, use_float32=False):
         """Makes interpolators for the delta x = xbar-x and delta y = ybar-y directions.
 
         The functions returned are of the form dX(arr), where arr is an array of shape (K,2)
@@ -373,6 +373,8 @@ class LocWCS:
             Number of pixels from edge to use for linear extrapolation..
         n_pad : int
             Distance to extrapolate the error map.
+        use_float32 : bool, optional
+            Whether to save in float32.
 
         Returns
         -------
@@ -386,7 +388,11 @@ class LocWCS:
         # spacings
         N = self.N
         coords = np.pad(np.linspace(0, N - 1, N), 1)
-        d_ = np.pad(self.errmap, ((0, 0), (1, 1), (1, 1)))
+        d_ = (
+            np.pad(self.errmap.astype(np.float32), ((0, 0), (1, 1), (1, 1)))
+            if use_float32
+            else np.pad(self.errmap, ((0, 0), (1, 1), (1, 1)))
+        )
 
         # fill in padding values at n_pad values from the edge of the array
         coords[0] = -n_pad
@@ -421,6 +427,12 @@ class PyIMCOM_WCS:
         The input WCS.
     noconvert : bool, optional
         Do not internally convert WCS type.
+    use_float32 : bool, optional
+        Switch error array to float32 for internal storage if converting.
+    niter : int, optional
+        Number of iterations to use in `all_world2pix`. Default of 3 should be
+        good even for precision applications unless you have a pathological error
+        function.
 
     Methods
     -------
@@ -444,7 +456,7 @@ class PyIMCOM_WCS:
 
     """
 
-    def __init__(self, inwcs, noconvert=False):
+    def __init__(self, inwcs, noconvert=False, use_float32=False, niter=3):
         self.array_shape = (Settings.sca_nside, Settings.sca_nside)
 
         if isinstance(inwcs, fits.Header):
@@ -472,7 +484,8 @@ class PyIMCOM_WCS:
             w = LocWCS(inwcs, N=Settings.sca_nside)
             w.wcs_approx_sip(p_order=2)
             self.obj = w.approx_wcs
-            self.err = w.err_interp(a=8, n_pad=Settings.sca_nside // 2)  # dX,dY
+            self.err = w.err_interp(a=8, n_pad=Settings.sca_nside // 2, use_float32=use_float32)  # dX,dY
+            self.niter = niter
             return
 
         # get here if nothing above works
@@ -572,7 +585,7 @@ class PyIMCOM_WCS:
             pos1 = np.copy(pos2)
             # 3 iterations is overkill but we want to be sure.
             # also we want to avoid slight discontinuities
-            for _ in range(3):
+            for _ in range(self.niter):
                 dp = np.vstack((self.err[0](pos1[::-1, :]), self.err[1](pos1[::-1, :]))).T
                 pos1 = pos2 - dp
             return pos1
