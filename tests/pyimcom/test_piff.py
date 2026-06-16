@@ -7,7 +7,6 @@ from unittest.mock import MagicMock, patch
 import galsim
 import numpy as np
 import pytest
-from astropy.io import fits
 from pyimcom.utils.piffutils import piff_to_legendre
 
 EXAMPLE_FILE = "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/ffov_13906_11.piff"
@@ -204,5 +203,4 @@ def test_piff_decomposition(tmp_path):
     assert np.shape(coeffs) == ((p + 1) ** 2, 384, 384)
 
     # writing is to look at the output if you do this locally
-    #fits.PrimaryHDU(coeffs).writeto(tmp_dir + "/coeffs.fits", overwrite=True)
-    
+    # fits.PrimaryHDU(coeffs).writeto(tmp_dir + "/coeffs.fits", overwrite=True)
