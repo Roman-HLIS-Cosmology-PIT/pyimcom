@@ -1,9 +1,10 @@
 import numpy as np
 import piff
+from astropy.io import fits
 from numpy.polynomial import legendre
 
 
-def piff_to_legendre(psf_file, chipnum, stamp_size=128, oversamp=6, legendre_order=5, normbox=None):
+def piff_to_legendre(psf_file, chipnum, stamp_size=128, oversamp=6, legendre_order=5, normbox=None, write_coeffs=False, coeffs_file=None):
     """Convert a PSF file from piff to a Legendre polynomial expansion.
 
     Parameters
@@ -24,11 +25,20 @@ def piff_to_legendre(psf_file, chipnum, stamp_size=128, oversamp=6, legendre_ord
         far wings that are not re-fit by Piff, e.g., from a physical model or fit to scattered
         light in stacked bright stars, etc.).
 
+    write_coeffs : bool, optional
+        Whether to write the coefficients to a file. Default is False.
+    coeffs_file : str, optional
+        The path to the FITS file where the coefficients will be saved. Required if write_coeffs is True.
+        Will overwrite the file if it already exists.
+
     Returns
     -------
     coeffs : np.ndarray of shape ((legendre order + 1)**2, stamp_size*oversamp, stamp_size*oversamp)
         The coefficients of the Legendre polynomial expansion.
     """
+
+    if write_coeffs and not (coeffs_file is not None and coeffs_file.lower().endswith(".fits")):
+        raise ValueError("If you'd like to write the coefficients to a file, please provide a valid file path.")
 
     # First read the psf via piff from given file
     psf = piff.read(psf_file)
@@ -90,4 +100,7 @@ def piff_to_legendre(psf_file, chipnum, stamp_size=128, oversamp=6, legendre_ord
                     )
                     coeffs[idx, :, :] += weight * stamp
                     idx += 1
+    if write_coeffs:
+        fits.PrimaryHDU(coeffs).writeto(coeffs_file, overwrite=True)
     return coeffs
+

@@ -154,5 +154,55 @@ def test_piff_decomposition(tmp_path):
     assert 0.985 <= arr[0] <= 1.0
     assert np.all(np.abs(arr[1:]) < 2.0e-4)
 
+    with pytest.raises(
+        ValueError,
+        match="If you'd like to write the coefficients to a file, please provide a valid file path.",
+    ):
+        piff_to_legendre(
+            floc,
+            11,
+            stamp_size=64,
+            oversamp=6,
+            legendre_order=p,
+            normbox=128,
+            write_coeffs=True,
+        )
+
+    with pytest.raises(
+        ValueError,
+        match="If you'd like to write the coefficients to a file, please provide a valid file path.",
+    ):
+        piff_to_legendre(
+            floc,
+            11,
+            stamp_size=64,
+            oversamp=6,
+            legendre_order=p,
+            normbox=128,
+            write_coeffs=True,
+            coeffs_file=tmp_dir + "/piff_coeffs.npz",
+        )
+
+    try:
+        coeffs = piff_to_legendre(
+            floc,
+            11,
+            stamp_size=64,
+            oversamp=6,
+            legendre_order=p,
+            normbox=128,
+            write_coeffs=True,
+            coeffs_file=tmp_dir + "/piff_coeffs.fits",
+        )
+    except ValueError as ve:
+        # This way, we can catch the specific error if we aren't on the roman branch of Piff.
+        # (This is likely to become obsolete at some point.)
+        assert str(ve) == "psf type RomanOptics is not a valid Piff PSF"
+        warnings.warn("Using an older version of Piff without RomanOptics support.")
+        return  # abort this test
+
+    assert np.shape(coeffs) == ((p + 1) ** 2, 384, 384)
+
     # writing is to look at the output if you do this locally
-    fits.PrimaryHDU(coeffs).writeto(tmp_dir + "/coeffs.fits", overwrite=True)
+    #fits.PrimaryHDU(coeffs).writeto(tmp_dir + "/coeffs.fits", overwrite=True)
+    
