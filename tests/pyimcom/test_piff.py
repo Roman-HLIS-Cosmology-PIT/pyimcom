@@ -7,7 +7,8 @@ from unittest.mock import MagicMock, patch
 import galsim
 import numpy as np
 import pytest
-from pyimcom.utils.piffutils import piff_to_legendre
+from astropy.io import fits
+from pyimcom.utils.piffutils import piff_to_legendre, piff_to_legendre_multi
 
 EXAMPLE_FILE = "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/ffov_13906_11.piff"
 
@@ -204,3 +205,40 @@ def test_piff_decomposition(tmp_path):
 
     # writing is to look at the output if you do this locally
     # fits.PrimaryHDU(coeffs).writeto(tmp_dir + "/coeffs.fits", overwrite=True)
+
+    # Test conversion to multi-HDU format
+    piff_to_legendre_multi(
+        floc,
+        tmp_dir + "/psf_lpolyfit_13906.fits",
+        "L2_2506",
+        chips=[i for i in range(1, 15)],
+        stamp_size=128,
+        oversamp=6,
+        legendre_order=2,
+    )
+    with fits.open(tmp_dir + "/psf_lpolyfit_13906.fits") as f:
+        assert f[0].header["PORDER"] == 2
+        assert f[0].header["NSCA"] == 18
+        assert f[0].header["OVSAMP"] == 6
+
+        for i in range(1, 19):
+            assert np.shape(f[i].data) == (9, 768, 768)
+
+            moms = galsim.Image(f[i].data[0, :, :]).FindAdaptiveMom()
+            pars = np.array(
+                [
+                    moms.moments_amp,
+                    moms.moments_centroid.x - 384.5,
+                    moms.moments_centroid.y - 384.5,
+                    moms.moments_sigma,
+                    moms.observed_shape.g1,
+                    moms.observed_shape.g2,
+                ]
+            )
+
+            # the ones we actually filled in in this test!
+            if i < 15:
+                assert 0.6 < pars[0] < 0.9
+                assert np.hypot(pars[1], pars[2]) < 0.6
+                assert 3.5 < pars[3] < 4.5
+                assert np.hypot(pars[4], pars[5]) < 0.03
