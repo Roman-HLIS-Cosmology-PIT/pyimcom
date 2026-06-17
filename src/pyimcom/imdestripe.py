@@ -968,7 +968,9 @@ def get_scas(filter_, obsfile, cfg, indata_type="fits", of=None):
 
 def interpolate_image_bilinear(image_B, image_A, interpolated_image, mask=None):
     """
-    Interpolate values from a "reference" SCA image onto a "target" SCA coordinate grid
+    Interpolate values from a "reference" SCA image onto a "target" SCA coordinate grid.
+
+    Calls ``furry_parakeet.pyimcom_interface.bilinear_interpolation``.
 
     Parameters
     --------
@@ -997,15 +999,17 @@ def transpose_interpolate(image_A, wcs_A, image_B, original_image):
     """
     Interpolate backwards from image_A to image_B space.
 
-     Parameters
-     --------
-     image_A : 2D np array
+    Calls ``furry_parakeet.pyimcom_interface.bilinear_transpose``.
+
+    Parameters
+    --------
+    image_A : 2D np array
         the already-interpolated gradient image
-     wcs_A : wcs.WCS object
+    wcs_A : wcs.WCS object
         image A's WCS object
-     image_B : SCA object
+    image_B : SCA object
         the image we're interpolating the gradient back onto
-     original_image : 2D np array
+    original_image : 2D np array
         the gradient image re-interpolated into image B space
         Updated in place
 
