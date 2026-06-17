@@ -1,14 +1,16 @@
 """Test functions for the Piff interface."""
 
+import importlib
 import urllib.request
 import warnings
 from unittest.mock import MagicMock, patch
 
 import galsim
 import numpy as np
+import pyimcom.utils.piffutils
 import pytest
 from astropy.io import fits
-from pyimcom.utils.piffutils import piff_to_legendre, piff_to_legendre_multi
+from pyimcom.utils.piffutils import piff_to_legendre
 
 EXAMPLE_FILE = "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/ffov_13906_11.piff"
 
@@ -32,6 +34,9 @@ def mock_piff_read():
         mock_psf.draw.return_value = mock_image
 
         yield mock_read, mock_psf, mock_image
+
+    # reload to help with the coverage tracking
+    importlib.reload(pyimcom.utils.piffutils)
 
 
 def test_output_shape(mock_piff_read):
@@ -115,6 +120,10 @@ def test_psf_draw_arguments(mock_piff_read):
 
 def test_piff_decomposition(tmp_path):
     """Test decomposition of a PIFF file into Legendre polynomials."""
+
+    # reload to help with the coverage tracking
+    importlib.reload(pyimcom.utils.piffutils)
+    from pyimcom.utils.piffutils import piff_to_legendre, piff_to_legendre_multi
 
     # Download the test file to `floc`
     tmp_dir = str(tmp_path)
