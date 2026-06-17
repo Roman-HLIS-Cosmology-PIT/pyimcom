@@ -2,6 +2,7 @@
 
 import os
 import re
+import shutil
 import urllib.request
 
 import numpy as np
@@ -134,3 +135,7 @@ def test_allpsfsplit(tmp_path):
             assert 0.85 < np.sum(f[i + 18].data[0, :, :]) < 0.91
             e = np.sum(f[i].data[0, :, :]) - np.sum(f[i + 18].data[0, :, :]) - np.sum(f[i + 36].data[0, :, :])
             assert -0.0009 < e < -0.0004
+
+    # cleanup
+    shutil.rmtree(tmp_path / "cache")
+    shutil.rmtree(tmp_path / "psf")

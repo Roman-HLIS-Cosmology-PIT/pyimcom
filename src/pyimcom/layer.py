@@ -811,7 +811,7 @@ class CplxNoise:
 
         """
 
-        this_array = np.zeros((4096, 4096))
+        this_array = np.zeros((4096, 4096), dtype=np.float32)
         rng = np.random.default_rng(seed)
         len_ = 8192 * 128
 
@@ -837,7 +837,7 @@ class CplxNoise:
             else:
                 this_array[:, xmin:xmax] = block.reshape((4096, 128))[:, ::-1]
 
-        return this_array[4:4092, 4:4092].astype(np.float32)
+        return this_array[4:4092, 4:4092]
 
 
 class Mask:

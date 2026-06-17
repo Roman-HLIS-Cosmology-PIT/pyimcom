@@ -78,6 +78,7 @@ import sys
 import time
 import traceback
 import uuid
+import warnings
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import asdf
@@ -93,11 +94,9 @@ from .utils import compareutils
 from .wcsutil import PyIMCOM_WCS
 
 try:
-    import furry_parakeet.pyimcom_croutines as pyimcom_croutines
+    from furry_parakeet.pyimcom_interface import bilinear_interpolation, bilinear_transpose
 except ImportError:
-    import pyimcom_croutines
-
-import warnings
+    warnings.warn("furry_parakeet not available, won't be able to run imdestripe.")
 
 from asdf.exceptions import AsdfConversionWarning, AsdfPackageVersionWarning
 
@@ -212,7 +211,7 @@ class Sca_img:
             file = fits.open(tempdir + "interpolations/" + obsid + "_" + scaid + "_interp.fits", memmap=True)
             image_hdu = "PRIMARY"
             self.w = wcs.WCS(file[image_hdu].header)
-            self.image = np.copy(file[image_hdu].data).astype(np.float64)
+            self.image = file[image_hdu].data.astype(use_output_float)
             self.header = file[image_hdu].header
             self.shape = np.shape(self.image)
             self._file_handle = None
@@ -226,7 +225,7 @@ class Sca_img:
                 )
                 image_hdu = "PRIMARY"
                 self.w = wcs.WCS(file[image_hdu].header)
-                self.image = np.copy(file[image_hdu].data).astype(np.float64)
+                self.image = file[image_hdu].data.astype(use_output_float)
                 self.header = file[image_hdu].header
                 self.shape = np.shape(self.image)
                 self._file_handle = None
@@ -238,7 +237,7 @@ class Sca_img:
                 fp = cfg.ds_obsfile + filters[cfg.use_filter] + "_" + obsid + "_" + scaid + ".asdf"
                 self._file_handle = asdf.open(fp, memmap=True, lazy_load=True)
                 self.w = PyIMCOM_WCS(self._file_handle["roman"]["meta"]["wcs"])
-                self.image = np.array(self._file_handle["roman"]["data"], dtype=np.float64)
+                self.image = np.array(self._file_handle["roman"]["data"], dtype=use_output_float)
                 self.header = None
                 self.shape = np.shape(self.image)
                 self.type = "asdf"
@@ -271,7 +270,10 @@ class Sca_img:
         if cfg.gaindir is False:
             if not os.path.isfile(tempdir + obsid + "_" + scaid + "_geff.dat"):
                 g_eff = np.memmap(
-                    tempdir + obsid + "_" + scaid + "_geff.dat", dtype="float64", mode="w+", shape=self.shape
+                    tempdir + obsid + "_" + scaid + "_geff.dat",
+                    dtype=use_output_float,
+                    mode="w+",
+                    shape=self.shape,
                 )
                 ra, dec = self.get_coordinates(pad=2.0)
                 ra = ra.reshape((Settings.sca_nside + 2, Settings.sca_nside + 2))
@@ -294,14 +296,16 @@ class Sca_img:
                 del g_eff
 
             self.g_eff = np.memmap(
-                tempdir + obsid + "_" + scaid + "_geff.dat", dtype="float64", mode="r", shape=self.shape
+                tempdir + obsid + "_" + scaid + "_geff.dat",
+                dtype=use_output_float,
+                mode="r",
+                shape=self.shape,
             )
         else:
             # PLACEHOLDER for reading in real flat fields as gain
             # Needs to be adapted once actual file format is known
-            g_eff_file = asdf.open(cfg.gaindir + cfg.use_filter + "_geff.fits", memmap=True)
-            self.g_eff = g_eff_file[int(scaid) - 1].data.astype(np.float64)
-            g_eff_file.close()
+            with fits.open(cfg.gaindir + cfg.use_filter + "_geff.fits", memmap=True) as g_eff_file:
+                self.g_eff = g_eff_file[int(scaid) - 1].data.astype(use_output_float)
 
         # Add a noise frame if specified in config file
         if cfg.ds_noisefile is not False:
@@ -447,7 +451,7 @@ class Sca_img:
 
         Parameters
         --------
-        pad : Float64
+        pad : int
             N pixels of padding to add to the array. Default 0.0
 
         Returns
@@ -488,12 +492,12 @@ class Sca_img:
              Effective coverage needed for a pixel to contribute to the interpolation
 
         """
-        this_interp = np.zeros(self.shape)
+        this_interp = np.zeros(self.shape, dtype=use_output_float)
 
         if not os.path.isfile(tempdir + self.obsid + "_" + self.scaid + "_Neff.dat"):
             N_eff = np.memmap(
                 tempdir + self.obsid + "_" + self.scaid + "_Neff.dat",
-                dtype="float32",
+                dtype=use_output_float,
                 mode="w+",
                 shape=self.shape,
             )
@@ -501,7 +505,7 @@ class Sca_img:
         else:
             N_eff = np.memmap(
                 tempdir + self.obsid + "_" + self.scaid + "_Neff.dat",
-                dtype="float32",
+                dtype=use_output_float,
                 mode="r",
                 shape=self.shape,
             )
@@ -931,10 +935,9 @@ def get_scas(filter_, obsfile, cfg, indata_type="fits", of=None):
                 n_scas += 1
                 this_obsfile = str(m.group(1))
                 all_scas.append(this_obsfile)
-                this_file = fits.open(f, memmap=True)
-                this_wcs = wcs.WCS(this_file["SCI"].header)
-                all_wcs.append(this_wcs)
-                this_file.close()
+                with fits.open(f, memmap=True) as this_file:
+                    this_wcs = wcs.WCS(this_file["PRIMARY"].header)
+                    all_wcs.append(this_wcs)
     else:
         for f in sorted(glob.glob(obsfile + filter_ + "_*")):
             m = re.search(r"(\w\d+)_(\d+)_(\d+)", f)
@@ -965,10 +968,9 @@ def get_scas(filter_, obsfile, cfg, indata_type="fits", of=None):
 
 def interpolate_image_bilinear(image_B, image_A, interpolated_image, mask=None):
     """
-    Interpolate values from a "reference" SCA image onto a "target" SCA coordinate grid
-    Uses pyimcom_croutines.bilinear_interpolation(
-        float* image, float* g_eff, int rows, int cols, float* coords,
-        int num_coords, float* interpolated_image)
+    Interpolate values from a "reference" SCA image onto a "target" SCA coordinate grid.
+
+    Calls ``furry_parakeet.pyimcom_interface.bilinear_interpolation``.
 
     Parameters
     --------
@@ -986,43 +988,28 @@ def interpolate_image_bilinear(image_B, image_A, interpolated_image, mask=None):
     x_target, y_target, is_in_ref = compareutils.map_sca2sca(image_A.w, image_B.w, pad=0)
     coords = np.column_stack((y_target.ravel(), x_target.ravel()))
 
-    # Verify data just before C call
-    rows = int(image_B.shape[0])
-    cols = int(image_B.shape[1])
-    num_coords = coords.shape[0]
-
-    sys.stdout.flush()
-    sys.stderr.flush()
     if mask is not None and isinstance(mask, np.ndarray):
         mask_geff = np.ones_like(image_A.image)
-        pyimcom_croutines.bilinear_interpolation(
-            mask, mask_geff, rows, cols, coords, num_coords, interpolated_image
-        )
+        bilinear_interpolation(mask, mask_geff, coords, interpolated_image)
     else:
-        pyimcom_croutines.bilinear_interpolation(
-            image_B.image, image_B.g_eff, rows, cols, coords, num_coords, interpolated_image
-        )
-
-    sys.stdout.flush()
-    sys.stderr.flush()
+        bilinear_interpolation(image_B.image, image_B.g_eff, coords, interpolated_image)
 
 
 def transpose_interpolate(image_A, wcs_A, image_B, original_image):
     """
     Interpolate backwards from image_A to image_B space.
-    Uses bilinear_transpose(
-        float* image, int rows, int cols, float* coords, int num_coords,
-        float* original_image)
 
-     Parameters
-     --------
-     image_A : 2D np array
+    Calls ``furry_parakeet.pyimcom_interface.bilinear_transpose``.
+
+    Parameters
+    --------
+    image_A : 2D np array
         the already-interpolated gradient image
-     wcs_A : wcs.WCS object
+    wcs_A : wcs.WCS object
         image A's WCS object
-     image_B : SCA object
+    image_B : SCA object
         the image we're interpolating the gradient back onto
-     original_image : 2D np array
+    original_image : 2D np array
         the gradient image re-interpolated into image B space
         Updated in place
 
@@ -1030,11 +1017,7 @@ def transpose_interpolate(image_A, wcs_A, image_B, original_image):
     x_target, y_target, is_in_ref = compareutils.map_sca2sca(wcs_A, image_B.w, pad=0)
     coords = np.column_stack((y_target.ravel(), x_target.ravel()))
 
-    rows = int(image_B.shape[0])
-    cols = int(image_B.shape[1])
-    num_coords = coords.shape[0]
-
-    pyimcom_croutines.bilinear_transpose(image_A, rows, cols, coords, num_coords, original_image)
+    bilinear_transpose(image_A, coords, original_image)
 
 
 def transpose_par(img, cfg=None):
@@ -1103,13 +1086,13 @@ def get_effective_gain(sca, tempdir=tempdir, indata_type="fits"):
 
     g_eff = np.memmap(
         tempdir + obsid + "_" + scaid + "_geff.dat",
-        dtype="float64",
+        dtype=use_output_float,
         mode="r",
         shape=(Settings.sca_nside, Settings.sca_nside),
     )
     N_eff = np.memmap(
         tempdir + obsid + "_" + scaid + "_Neff.dat",
-        dtype="float32",
+        dtype=use_output_float,
         mode="r",
         shape=(Settings.sca_nside, Settings.sca_nside),
     )
@@ -1408,7 +1391,7 @@ def residual_function_single(
         obsid_B, scaid_B = get_ids(sca_b, indata_type=indata_type)
 
         I_B = Sca_img(obsid_B, scaid_B, cfg, indata_type=indata_type)  # Initialize image B
-        gradient_original = np.zeros(I_B.shape)
+        gradient_original = np.zeros(I_B.shape, dtype=use_output_float)
 
         transpose_interpolate(gradient_interpolated, wcs_a, I_B, gradient_original)
         gradient_original *= I_B.g_eff
@@ -1560,7 +1543,7 @@ def cost_function_single(j, sca_a, p, f, scalist, neighbors, thresh, cfg, of=Non
     J_A_image, J_A_mask = I_A.make_interpolated(j, scalist, neighbors, params=p)
     J_A_mask *= I_A.mask
 
-    psi = np.where(J_A_mask, I_A.image - J_A_image, 0).astype("float32")
+    psi = np.where(J_A_mask, I_A.image - J_A_image, 0).astype(use_output_float)
     result = f(psi, thresh) if thresh is not None else f(psi)
     local_epsilon = np.sum(result)
 
@@ -2367,7 +2350,12 @@ def main(cfg_file=None, overlaponly=False, of=None, testing=False):
 
     t0 = time.time()
 
-    workers = os.cpu_count() // int(os.environ["OMP_NUM_THREADS"]) if "OMP_NUM_THREADS" in os.environ else 12
+    if "SLURM_CPUS_PER_TASK" in os.environ:
+        workers = int(os.environ["SLURM_CPUS_PER_TASK"])
+    elif "OMP_NUM_THREADS" in os.environ:
+        workers = os.cpu_count() // int(os.environ["OMP_NUM_THREADS"])
+    else:
+        workers = 12
     write_to_file(f"## Using {workers} workers for parallel processing.", of)
 
     all_scas, all_wcs = get_scas(filter_, CFG.ds_obsfile, CFG, indata_type=indata_type, of=of)
@@ -2380,7 +2368,7 @@ def main(cfg_file=None, overlaponly=False, of=None, testing=False):
     else:
         ovmat_t0 = time.time()
         write_to_file("Overlap matrix computing start", of)
-        ov_mat = compareutils.get_overlap_matrix(all_wcs, verbose=True, subsamp=4)
+        ov_mat = compareutils.get_overlap_matrix(all_wcs, verbose=True, subsamp=8)
         np.save(outpath + "ovmat.npy", ov_mat)
         write_to_file(f"Overlap matrix complete. Duration: {(time.time() - ovmat_t0) / 60} Minutes", of)
         write_to_file(f"Overlap matrix saved to: {outpath}ovmat.npy", of)
