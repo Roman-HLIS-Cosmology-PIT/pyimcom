@@ -1,9 +1,19 @@
+"""Utilities for interacting with Piff files."""
+
+
 import numpy as np
-import piff
 from astropy.io import fits
 from numpy.polynomial import legendre
 
 from ..config import Settings as Stn
+
+# this is so that you can still import pyimcom and read images if you don't have piff installed
+try:
+    import piff
+
+    HAS_PIFF = True
+except ModuleNotFoundError:
+    HAS_PIFF = False
 
 
 def piff_to_legendre(
@@ -52,6 +62,9 @@ def piff_to_legendre(
         raise ValueError(
             "If you'd like to write the coefficients to a file, please provide a valid file path."
         )
+
+    if not HAS_PIFF:
+        raise ModuleNotFoundError("piff isn't installed. Please install it using 'pip install piff'.")
 
     # First read the psf via piff from given file
     psf = piff.read(psf_file)

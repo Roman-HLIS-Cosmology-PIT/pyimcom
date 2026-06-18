@@ -1,6 +1,5 @@
 """Test functions for the Piff interface."""
 
-import importlib
 import urllib.request
 import warnings
 from unittest.mock import MagicMock, patch
@@ -10,7 +9,7 @@ import numpy as np
 import pyimcom.utils.piffutils
 import pytest
 from astropy.io import fits
-from pyimcom.utils.piffutils import piff_to_legendre
+from pyimcom.utils.piffutils import piff_to_legendre, piff_to_legendre_multi
 
 EXAMPLE_FILE = "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/ffov_13906_17.piff"
 
@@ -51,7 +50,6 @@ def test_output_shape():
     expected_shape = ((legendre_order + 1) ** 2, stamp_size * oversamp, stamp_size * oversamp)
     assert coeffs.shape == expected_shape
     assert coeffs.dtype == np.float32
-    importlib.reload(pyimcom.utils.piffutils)
 
 
 def test_constant_psf_orthogonality():
@@ -89,8 +87,6 @@ def test_constant_psf_orthogonality():
         # For any order > 0, the integral of a constant function should be 0.
         # We use np.allclose to account for tiny floating-point inaccuracies.
         assert np.allclose(coeffs[1:, :, :], 0.0, atol=1e-6)
-
-    importlib.reload(pyimcom.utils.piffutils)
 
 
 def test_psf_draw_arguments():
@@ -136,15 +132,9 @@ def test_psf_draw_arguments():
         assert 0 <= first_call_kwargs["x"] <= 4088
         assert 0 <= first_call_kwargs["y"] <= 4088
 
-    importlib.reload(pyimcom.utils.piffutils)
-
 
 def test_piff_decomposition(tmp_path):
     """Test decomposition of a PIFF file into Legendre polynomials."""
-
-    # reload to help with the coverage tracking
-    importlib.reload(pyimcom.utils.piffutils)
-    from pyimcom.utils.piffutils import piff_to_legendre, piff_to_legendre_multi
 
     # Download the test file to `floc`
     tmp_dir = str(tmp_path)

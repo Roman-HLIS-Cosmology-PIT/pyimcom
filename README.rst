@@ -23,9 +23,12 @@ Conda
 
 Pip
 ^^^
+
 .. code-block:: bash
 
     pip install .
+
+If you want to read Piff files as inputs, you will need to install `piff <https://github.com/rmjarvis/Piff/>`_. (This is needed for the Roman PIT image coaddition workflow; but we made it optional so that you don't need to install `piff` to use the PyIMCOM reader classes.)
 
 
 Overview of PyIMCOM concepts
