@@ -152,15 +152,7 @@ def test_piff_decomposition(tmp_path):
     urllib.request.urlretrieve(EXAMPLE_FILE, floc)
 
     p = 3  # polynomial order
-    try:
-        coeffs = piff_to_legendre(floc, 12, stamp_size=64, oversamp=6, legendre_order=p, normbox=128)
-    except ValueError as ve:
-        # This way, we can catch the specific error if we aren't on the roman branch of Piff.
-        # (This is likely to become obsolete at some point.)
-        assert str(ve) == "psf type RomanOptics is not a valid Piff PSF"
-        warnings.warn("Using an older version of Piff without RomanOptics support.")
-        return  # abort this test
-
+    coeffs = piff_to_legendre(floc, 12, stamp_size=64, oversamp=6, legendre_order=p, normbox=128)
     assert np.shape(coeffs) == ((p + 1) ** 2, 384, 384)
 
     # center of image
