@@ -12,7 +12,7 @@ import pytest
 from astropy.io import fits
 from pyimcom.utils.piffutils import piff_to_legendre
 
-EXAMPLE_FILE = "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/ffov_13906_11.piff"
+EXAMPLE_FILE = "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/ffov_13906_17.piff"
 
 
 def test_output_shape():
