@@ -6,7 +6,6 @@ from unittest.mock import MagicMock, patch
 
 import galsim
 import numpy as np
-import pyimcom.utils.piffutils
 import pytest
 from astropy.io import fits
 from pyimcom.utils.piffutils import piff_to_legendre, piff_to_legendre_multi
