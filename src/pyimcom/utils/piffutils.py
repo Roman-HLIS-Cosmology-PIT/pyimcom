@@ -8,7 +8,7 @@ from ..config import Settings as Stn
 
 def piff_to_legendre(
     psf_file,
-    chipnum,
+    sca,
     stamp_size=128,
     oversamp=6,
     legendre_order=5,
@@ -22,8 +22,8 @@ def piff_to_legendre(
     ----------
     psf_file : str
         The path to the PSF file.
-    chipnum: int
-        The sca/chip number at which to draw the PSF.
+    sca: int
+        The sca number at which to draw the PSF (range: 1 to 18, inclusive).
     stamp_size: int, optional
         The size of the PSF stamp. Default is 128.
     oversamp: int, optional
@@ -81,19 +81,19 @@ def piff_to_legendre(
             for j in range(oversamp):
                 for i in range(oversamp):
                     stamp[j::oversamp, i::oversamp] = psf.draw(
-                        chipnum=chipnum,
+                        chipnum=sca - 1,
                         x=x,
                         y=y,
                         center=True,
                         offset=(-s[i], -s[j]),
                         stamp_size=stamp_size,
-                        sca=chipnum,
+                        sca=sca,
                     ).array
 
             # normalization
             if normbox is not None:
                 stamp[:, :] /= np.sum(
-                    psf.draw(chipnum=chipnum, x=x, y=y, center=True, stamp_size=normbox, sca=chipnum).array
+                    psf.draw(chipnum=sca - 1, x=x, y=y, center=True, stamp_size=normbox, sca=sca).array
                 )
 
             # For each pair of Legendre orders, update the corresponding coefficient image
