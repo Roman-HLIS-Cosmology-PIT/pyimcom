@@ -277,7 +277,7 @@ class MetaMosaic:
 
         """
 
-        self.in_mask = np.logical_or(self.in_noise < noisemax, self.in_mask)
+        self.in_mask = np.logical_or(self.in_noise > noisemax, self.in_mask)
 
     def mask_caps(self, ra, dec, radius):
         """
