@@ -373,7 +373,7 @@ class OutImage:
         if not data_loaded:
             self.hdu_list = ReadFile(self.fpath)
 
-        coef = int(self.hdu_list[outmap].header.comments["UNIT"].partition("*")[0])
+        coef = 1.0 / HDU_to_bels(self.hdu_list[outmap])
         slice_ = np.s_[j_out] if j_out is not None else np.s_[:]
         data = np.power(10.0, self.hdu_list[outmap].data[slice_] / coef).astype(np.float32)
 
