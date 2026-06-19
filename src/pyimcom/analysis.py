@@ -910,8 +910,8 @@ class StarsAnal:
         map_ = f[0].data[0, use_slice, :, :]
         wt = np.sum(np.where(f["INWEIGHT"].data[0, :, :, :] > 0.01, 1, 0), axis=0)
         fmap = (
-            f["FIDELITY"].data[0, :, :].astype(np.float32) * HDU_to_bels(f["FIDELITY"]) / 0.1
-        )  # convert to dB
+            f["FIDELITY"].data[0, :, :].astype(np.float32) * HDU_to_bels(f["FIDELITY"]) / (-0.1)
+        )  # convert to dB, inverse scale
         fmap = np.floor(fmap).astype(np.int16)  # and round to integer
         del f
 

@@ -197,7 +197,7 @@ class MetaMosaic:
                         self.in_fidelity[symin + cy : symax + cy, sxmin + cx : sxmax + cx] = (
                             f["FIDELITY"].data[0, symin:symax, sxmin:sxmax].astype(np.float32)
                             * HDU_to_bels(f["FIDELITY"])
-                            / 0.1
+                            / (-0.1)
                         )
                         # noise, converted to dB
                         self.in_noise[symin + cy : symax + cy, sxmin + cx : sxmax + cx] = (

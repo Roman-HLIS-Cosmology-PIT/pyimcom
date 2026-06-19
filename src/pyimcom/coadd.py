@@ -2222,7 +2222,7 @@ class Block:
                     np.uint16,
                     my_header,
                     "FIDELITY",
-                    ("0.2mB", "-5000*log10(U/C)"),
+                    ("-0.2mB", "-5000*log10(U/C)"),
                 )
             )
 
@@ -2234,7 +2234,7 @@ class Block:
                     np.int16,
                     my_header,
                     "SIGMA",
-                    ("0.1mB", "-10000*log10(Sigma)"),
+                    ("-0.1mB", "-10000*log10(Sigma)"),
                 )
             )
 
@@ -2246,7 +2246,7 @@ class Block:
                     np.uint16,
                     my_header,
                     "KAPPA",
-                    ("0.2mB", "-5000*log10(kappa)"),
+                    ("-0.2mB", "-5000*log10(kappa)"),
                 )
             )
 
