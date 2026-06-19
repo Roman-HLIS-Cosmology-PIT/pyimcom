@@ -1,17 +1,39 @@
+"""Utilities for interacting with Piff files."""
+
+
 import numpy as np
-import piff
+from astropy.io import fits
 from numpy.polynomial import legendre
 
+from ..config import Settings as Stn
 
-def piff_to_legendre(psf_file, chipnum, stamp_size=128, oversamp=6, legendre_order=5, normbox=None):
+# this is so that you can still import pyimcom and read images if you don't have piff installed
+try:
+    import piff
+
+    HAS_PIFF = True
+except ModuleNotFoundError:
+    HAS_PIFF = False
+
+
+def piff_to_legendre(
+    psf_file,
+    sca,
+    stamp_size=128,
+    oversamp=6,
+    legendre_order=5,
+    normbox=None,
+    write_coeffs=False,
+    coeffs_file=None,
+):
     """Convert a PSF file from piff to a Legendre polynomial expansion.
 
     Parameters
     ----------
     psf_file : str
         The path to the PSF file.
-    chipnum: int
-        The sca/chip number at which to draw the PSF.
+    sca: int
+        The sca number at which to draw the PSF (range: 1 to 18, inclusive).
     stamp_size: int, optional
         The size of the PSF stamp. Default is 128.
     oversamp: int, optional
@@ -24,11 +46,25 @@ def piff_to_legendre(psf_file, chipnum, stamp_size=128, oversamp=6, legendre_ord
         far wings that are not re-fit by Piff, e.g., from a physical model or fit to scattered
         light in stacked bright stars, etc.).
 
+    write_coeffs : bool, optional
+        Whether to write the coefficients to a file. Default is False.
+    coeffs_file : str, optional
+        The path to the FITS file where the coefficients will be saved. Required if write_coeffs is True.
+        Will overwrite the file if it already exists.
+
     Returns
     -------
     coeffs : np.ndarray of shape ((legendre order + 1)**2, stamp_size*oversamp, stamp_size*oversamp)
         The coefficients of the Legendre polynomial expansion.
     """
+
+    if write_coeffs and not (coeffs_file is not None and coeffs_file.lower().endswith(".fits")):
+        raise ValueError(
+            "If you'd like to write the coefficients to a file, please provide a valid file path."
+        )
+
+    if not HAS_PIFF:
+        raise ModuleNotFoundError("piff isn't installed. Please install it using 'pip install piff'.")
 
     # First read the psf via piff from given file
     psf = piff.read(psf_file)
@@ -58,19 +94,19 @@ def piff_to_legendre(psf_file, chipnum, stamp_size=128, oversamp=6, legendre_ord
             for j in range(oversamp):
                 for i in range(oversamp):
                     stamp[j::oversamp, i::oversamp] = psf.draw(
-                        chipnum=chipnum,
+                        chipnum=sca - 1,
                         x=x,
                         y=y,
                         center=True,
                         offset=(-s[i], -s[j]),
                         stamp_size=stamp_size,
-                        sca=chipnum,
+                        sca=sca,
                     ).array
 
             # normalization
             if normbox is not None:
                 stamp[:, :] /= np.sum(
-                    psf.draw(chipnum=chipnum, x=x, y=y, center=True, stamp_size=normbox, sca=chipnum).array
+                    psf.draw(chipnum=sca - 1, x=x, y=y, center=True, stamp_size=normbox, sca=sca).array
                 )
 
             # For each pair of Legendre orders, update the corresponding coefficient image
@@ -90,4 +126,98 @@ def piff_to_legendre(psf_file, chipnum, stamp_size=128, oversamp=6, legendre_ord
                     )
                     coeffs[idx, :, :] += weight * stamp
                     idx += 1
+    if write_coeffs:
+        fits.PrimaryHDU(coeffs).writeto(coeffs_file, overwrite=True)
     return coeffs
+
+
+def piff_to_legendre_multi(
+    psf_file,
+    out_file,
+    format,
+    chips=None,
+    stamp_size=128,
+    oversamp=6,
+    legendre_order=5,
+    normbox=None,
+):
+    """
+    Convert a PSF file from piff to a Legendre polynomial expansion and save as a PyIMCOM
+    PSF input file.
+
+    Parameters
+    ----------
+    psf_file : str
+        The path to the PSF file.
+    out_file : str
+        The path to the FITS file where the coefficients will be saved.
+        Will overwrite the file if it already exists.
+    format : str
+        The PSF file format; currently only ``"L2_2506"`` is an option.
+    chips : list of int, optional
+        The sca/chip numbers at which to draw the PSF; default is all.
+    stamp_size: int, optional
+        The size of the PSF stamp. Default is 128.
+    oversamp: int, optional
+        The oversampling factor for the PSF stamp. Default is 6.
+    legendre_order : int, optional
+        Polynomial order for Legendre polynomial expansion. Default is 5.
+    normbox : int, optional
+        If given, normalizes the PSF to integrate to 1 in the specified box size (which may be
+        different from the region size used in Piff; we envision it will be larger if the PSF has
+        far wings that are not re-fit by Piff, e.g., from a physical model or fit to scattered
+        light in stacked bright stars, etc.).
+
+    Returns
+    -------
+    None
+
+    """
+
+    # placeholder image - just a tophat
+    ns = stamp_size * oversamp
+    xmin = (ns - oversamp) // 2
+    xmax = xmin + oversamp
+    placeholder_cube = np.zeros(((legendre_order + 1) ** 2, ns, ns), dtype=np.float32)
+    placeholder_cube[0, xmin:xmax, xmin:xmax] = 1.0 / oversamp**2
+
+    # SCA list
+    nsca = np.shape(Stn.SCAFov)[0]  # number of chips
+    chips = [i for i in range(1, nsca + 1)] if chips is None else chips
+    coefs = [placeholder_cube] * nsca
+
+    # now populate the array
+    for i in chips:
+        coefs[i - 1] = piff_to_legendre(
+            psf_file,
+            i,
+            stamp_size=stamp_size,
+            oversamp=oversamp,
+            legendre_order=legendre_order,
+            normbox=normbox,
+        ).astype(np.float32, copy=False)
+
+    # make an output file -- select format
+    if format == "L2_2506":
+        # Primary HDU
+        h = fits.Header()
+        h["CFORMAT"] = "Legengre basis"
+        h["PORDER"] = (legendre_order, "bivariate polynomial order")
+        h["ABSCISSA"] = ("u=(x-2044.5)/2044, v=(y-2044.5)/2044", "x, y start at 1")
+        h["NCOEF"] = ((legendre_order + 1) ** 2, "(PORDER+1)**2")
+        h["SEQ"] = "for n=0..PORDER { for m=0..PORDER { coef P_m(u) P_n(v) }}"
+        h["SRC"] = (psf_file, "Input file")
+        h["NSCA"] = nsca
+        h["OVSAMP"] = oversamp
+        hdulist = [fits.PrimaryHDU(header=h)]
+
+        # one HDU per SCA
+        for i in range(1, nsca + 1):
+            h = fits.Header()
+            h["SCA"] = i
+            hdulist.append(fits.ImageHDU(coefs[i - 1], header=h))
+
+        fits.HDUList(hdulist).writeto(out_file, overwrite=True)
+
+    else:
+        raise ValueError(f"piff_to_legendre_multi: Bad format: {format}")
