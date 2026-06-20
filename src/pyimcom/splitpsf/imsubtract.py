@@ -647,7 +647,7 @@ def run_imsubtract_single(
 
         # subtract from the input image (using less memory)
         I_img[n, :, :] -= KH[first_index:-first_index:oversamp, first_index:-first_index:oversamp]
-        print(f"Subtracted layer {n+1}/{nlayer}, t = {time.time()-t0:6.2f}", flush=True)
+        print(f"Subtracted layer {n+1}/{nlayer}", flush=True)
 
     # not needed anymore
     del KH
