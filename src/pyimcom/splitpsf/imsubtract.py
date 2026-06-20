@@ -180,7 +180,7 @@ def pltshow(plt, display, pars={}):
         plt.savefig(display + f"_{obsid}_{sca}_{ix:02d}_{iy:02d}.png")
 
 
-def get_wcs(cachefile):
+def get_wcs(cachefile, use_float32=True, niter=2):
     """
     Gets the WCS from a cached FITS file.
 
@@ -190,6 +190,10 @@ def get_wcs(cachefile):
     ----------
     cachefile : str
         Name of the cached file.
+    use_float32 : bool, optional
+        Whether to represent the WCS error map in float32.
+    niter : int, optional
+        Number of iterations for WCS error map.
 
     Returns
     -------
@@ -201,8 +205,8 @@ def get_wcs(cachefile):
     with fits.open(cachefile) as hdul:
         if "WCSTYPE" in hdul[1].header and hdul[1].header["WCSTYPE"][:4].lower() == "gwcs":
             with asdf.open(cachefile[:-5] + "_wcs.asdf") as f2:
-                return PyIMCOM_WCS(f2["wcs"])
-        return PyIMCOM_WCS(hdul["SCIWCS"].header)
+                return PyIMCOM_WCS(f2["wcs"], use_float32=use_float32, niter=niter)
+        return PyIMCOM_WCS(hdul["SCIWCS"].header, use_float32=use_float32, niter=niter)
 
 
 def get_wcs_from_infile(infile):
