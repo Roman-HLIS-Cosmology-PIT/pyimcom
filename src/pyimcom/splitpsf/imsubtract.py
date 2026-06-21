@@ -117,6 +117,8 @@ def fftconvolve_multi(in1, in2, out, mode="full", nb=4, workers=None, verbose=Fa
         dy = ytop - ybottom
         in2_ = np.zeros((leny, lenx))
         in2_[: dy + s1y - 1, :s2x] = in2[ybottom : ytop + s1y - 1, :]
+        if not np.any(in2_):
+            continue  # no point in doing FFTs if we're off the edge of the mosaic and this is all zeros
         in2_ft = rfft2(in2_, workers=workers, overwrite_x=True)
         del in2_  # corrupted, remove
         in2_ft *= in1_ft
@@ -129,15 +131,15 @@ def fftconvolve_multi(in1, in2, out, mode="full", nb=4, workers=None, verbose=Fa
         # B = fftconvolve(in1, in2[ybottom : ytop + s1y - 1, :], mode="valid")
         # print(np.shape(A), np.shape(B))
         # print(np.amax(np.abs(A)), np.amax(np.abs(B)), np.amax(np.abs(A-B)))
-        print(
-            f"t = {time.time()-t0:6.3f} s, j={j} shape =",
-            (leny, lenx),
-            "ft =",
-            np.shape(in1_ft),
-            "workers =",
-            workers,
-        )
-        sys.stdout.flush()
+        if verbose:
+            print(
+                f"t = {time.time()-t0:6.3f} s, j={j} shape =",
+                (leny, lenx),
+                "ft =",
+                np.shape(in1_ft),
+                "workers =",
+                workers,
+            )
 
     del in1_ft
     gc.collect()
