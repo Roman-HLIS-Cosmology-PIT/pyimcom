@@ -7,7 +7,7 @@ import urllib.request
 import numpy as np
 from astropy.io import fits
 from pyimcom.config import Config
-from pyimcom.splitpsf.imsubtract import fftconvolve_multi, run_imsubtract
+from pyimcom.splitpsf.imsubtract import fftconvolve_multi, pltshow, run_imsubtract
 from pyimcom.splitpsf.imsubtract_wrapper import run_imsubtract_all, run_imsubtract_single
 from pyimcom.splitpsf.splitpsf import SplitPSF, split_psf_to_fits
 from pyimcom.splitpsf.splitpsf_wrapper import split_psf_single
@@ -356,3 +356,24 @@ def test_staticmethods():
     assert np.allclose(arr[6, :], arr[:, 6], rtol=0, atol=1.0e-6)
     for x in [arr[0, 0], arr[0, -1], arr[-1, 0], arr[-1, -1]]:
         assert np.abs(x - u**2) < 1.0e-6
+
+
+def test_pltshow():
+    """Test the other options for pltshow."""
+
+    class _Plt:
+        """Test class to count calls."""
+
+        def __init__(self):
+            self.calls = 0
+
+        def show(self):
+            """Mock show method."""
+            self.calls += 1
+
+    plot = _Plt()
+    assert plot.calls == 0
+    pltshow(plot, None)
+    assert plot.calls == 1
+    pltshow(plot, "/dev/null")
+    assert plot.calls == 1
