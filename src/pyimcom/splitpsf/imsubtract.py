@@ -188,7 +188,7 @@ def pltshow(plt, display, pars={}):
         plt.savefig(display + f"_{obsid}_{sca}_{ix:02d}_{iy:02d}.png")
 
 
-def get_wcs(cachefile, use_float32=True, niter=2):
+def get_wcs(cachefile, use_float32=False, niter=3):
     """
     Gets the WCS from a cached FITS file.
 
