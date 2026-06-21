@@ -107,31 +107,39 @@ def fftconvolve_multi(in1, in2, out, mode="full", nb=4, workers=None, verbose=Fa
     lenx = next_fast_len(s1x + s2x)
     leny = next_fast_len(s1y + height)
     in1_ = np.zeros((leny, lenx))
-    in2_ = np.zeros((leny, lenx))
     in1_[:s1y, :s1x] = in1
-    in1_ft = rfft2(in1_, workers=workers)
+    in1_ft = rfft2(in1_, workers=workers, overwrite_x=True)
     del in1_
     for j in range(nb):
         gc.collect()
         ybottom = j * height
         ytop = min((j + 1) * height, Ly)
         dy = ytop - ybottom
-        in2_[:, :] = 0.0
+        in2_ = np.zeros((leny, lenx))
         in2_[: dy + s1y - 1, :s2x] = in2[ybottom : ytop + s1y - 1, :]
-        in2_ft = rfft2(in2_, workers=workers)
+        in2_ft = rfft2(in2_, workers=workers, overwrite_x=True)
+        del in2_  # corrupted, remove
         in2_ft *= in1_ft
         if verbose:
             print("y =", ybottom, ytop, "of Ly =", Ly)
-        out[ybottom:ytop, :] += irfft2(in2_ft, s=(leny, lenx), workers=workers)[
+        out[ybottom:ytop, :] += irfft2(in2_ft, s=(leny, lenx), workers=workers, overwrite_x=True)[
             s1y - 1 : dy + s1y - 1, s1x - 1 : Lx + s1x - 1
         ]
+        del in2_ft  # corrupted, remove
         # B = fftconvolve(in1, in2[ybottom : ytop + s1y - 1, :], mode="valid")
         # print(np.shape(A), np.shape(B))
         # print(np.amax(np.abs(A)), np.amax(np.abs(B)), np.amax(np.abs(A-B)))
-        print(f"t = {time.time()-t0:6.3f} s, shape =", (leny, lenx), "ft =", np.shape(in1_ft))
+        print(
+            f"t = {time.time()-t0:6.3f} s, j={j} shape =",
+            (leny, lenx),
+            "ft =",
+            np.shape(in1_ft),
+            "workers =",
+            workers,
+        )
         sys.stdout.flush()
 
-    del in2_, in1_ft, in2_ft
+    del in1_ft
     gc.collect()
 
 
@@ -635,14 +643,15 @@ def run_imsubtract_single(
 
         # apply convolution to canvas
         for lu in range(Nl):
-            # save first multiplication
-            Hlu = H_canvas * eval_legendre(lu, u_canvas).astype(np.float32)[None, :]
             for lv in range(Nl):
                 print("Convolve", lu, lv)
                 sys.stdout.flush()
+                arr = np.copy(H_canvas)
+                arr *= eval_legendre(lu, u_canvas).astype(np.float32)[None, :]
+                arr *= eval_legendre(lv, u_canvas).astype(np.float32)[:, None]
                 fftconvolve_multi(
                     K[lu + lv * Nl, :, :],
-                    Hlu * eval_legendre(lv, u_canvas).astype(np.float32)[:, None],
+                    arr,
                     KH,
                     mode="valid",
                     nb=6,
