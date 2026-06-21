@@ -121,7 +121,7 @@ Re-insertion into PyIMCOM
 
 The subtracted images are re-inserted as the cached files by the command:
 
-.. code-block:: python
+.. code-block:: bash
 
   python3 -m pyimcom.splitpsf.update_cube config.json
 
