@@ -7,7 +7,7 @@ import urllib.request
 import numpy as np
 from astropy.io import fits
 from pyimcom.config import Config
-from pyimcom.splitpsf.imsubtract import fftconvolve_multi, pltshow, run_imsubtract
+from pyimcom.splitpsf.imsubtract import fftconvolve_multi, get_wcs, pltshow, run_imsubtract
 from pyimcom.splitpsf.imsubtract_wrapper import run_imsubtract_all, run_imsubtract_single
 from pyimcom.splitpsf.splitpsf import SplitPSF, split_psf_to_fits
 from pyimcom.splitpsf.splitpsf_wrapper import split_psf_single
@@ -16,6 +16,35 @@ from scipy.signal import fftconvolve
 PSF_FILE = "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/psf_test.fits"
 IMSUBTRACT_CONFIG = "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/imsubtract/test_imsubtract_config.json"
 IMSUBTRACT_INPUT_PATH = "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/imsubtract"
+
+
+def test_altwcs(tmp_path):
+    """Test reading from SCIWCS."""
+
+    fn = str(tmp_path) + "/altwcs.fits"
+
+    # Make the image (including WCS header)
+    im = fits.ImageHDU(np.zeros((4088, 4088), dtype=np.int16), name="SCIWCS")
+    im.header["CRPIX1"] = 2030
+    im.header["CDELT1"] = -0.0001
+    im.header["CTYPE1"] = "RA---TAN"
+    im.header["CRVAL1"] = 32.0
+    im.header["CUNIT1"] = "deg"
+    im.header["CRPIX2"] = 2030
+    im.header["CDELT2"] = 0.0001
+    im.header["CTYPE2"] = "DEC--TAN"
+    im.header["CRVAL2"] = 15.0
+    im.header["CUNIT2"] = "deg"
+    im.header["EQUINOX"] = 2000.0
+    fits.HDUList([fits.PrimaryHDU(), im]).writeto(fn)
+
+    # get the WCS and clear the old file
+    mywcs = get_wcs(fn)
+    os.remove(fn)
+
+    # now tests on the WCS we got
+    out = mywcs.all_pix2world(np.array([[2029, 1979], [2029, 2029], [2029, 2079]]), 0)
+    assert np.allclose(out, np.array([[32.0, 14.995], [32.0, 15.0], [32.0, 15.005]]))
 
 
 def test_psfsplit(tmp_path):
