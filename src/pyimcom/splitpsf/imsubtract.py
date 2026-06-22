@@ -83,8 +83,8 @@ def fftconvolve_multi(in1, in2, out, mode="full", nb=4, workers=None, verbose=Fa
 
     t0 = time.time()
 
-    # if we're not using valid, or not in 2D, use standard fftconvolve
-    if mode != "valid" or len(np.shape(in1)) != 2:
+    # if we're not using valid, or not in 2D, or invalid band number, use standard fftconvolve
+    if mode != "valid" or len(np.shape(in1)) != 2 or nb < 1:
         out += fftconvolve(in1, in2, mode=mode)
         return
 
@@ -100,10 +100,7 @@ def fftconvolve_multi(in1, in2, out, mode="full", nb=4, workers=None, verbose=Fa
         return
 
     # loop over horizontal bands
-    height = (Ly + nb - 1) // nb
-    if height <= s1y:
-        out += fftconvolve(in1, in2, mode=mode)  # also return if the strip is too narrow
-        return
+    height = (Ly + nb - 1) // nb  # note we are guaranteed height > s1y
     lenx = next_fast_len(s1x + s2x)
     leny = next_fast_len(s1y + height)
     in1_ = np.zeros((leny, lenx))
@@ -782,23 +779,13 @@ def run_imsubtract(
             return
 
 
+"""Calling program is here.
+
+python3 -m pyimcom.splitpsf.imsubtract  <config> <sca> [<output images>]
+(uses plt.show() if output stem not specified; output image directory is relative to cache file)
+"""
 if __name__ == "__main__":
-    """Calling program is here.
-
-    python3 -m pyimcom.splitpsf.imsubtract  <config> <sca> [<output images>]
-    (uses plt.show() if output stem not specified; output image directory is relative to cache file)
-
-    """
-
-    # get the json file
-    config_file = sys.argv[1]
-
     # get the SCA (0 for all of them)
-    sca = int(sys.argv[2])
-    if sca == 0:
-        sca = None
-
-    display = "/dev/null"
-    if len(sys.argv) > 3:
-        display = sys.argv[3]
-    run_imsubtract(config_file, display=display, scanum=sca, workers=4)
+    sca = None if int(sys.argv[2]) == 0 else int(sys.argv[2])
+    display = sys.argv[3] if len(sys.argv) > 3 else "/dev/null"
+    run_imsubtract(sys.argv[1], display=display, scanum=sca, workers=4)

@@ -184,6 +184,12 @@ def test_fftconvolve_multi():
     fftconvolve_multi(arr1, arr2, x2, mode="same")
     assert np.allclose(x1, x2)
 
+    # another test defaulting to fftconvolve
+    x1 = fftconvolve(arr1, arr2, mode="valid")
+    x2 = np.zeros_like(x1)
+    fftconvolve_multi(arr1, arr2, x2, mode="valid", nb=24)
+    assert np.allclose(x1, x2)
+
 
 def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
     """
