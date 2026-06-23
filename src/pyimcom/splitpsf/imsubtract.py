@@ -83,8 +83,8 @@ def fftconvolve_multi(in1, in2, out, mode="full", nb=4, workers=None, verbose=Fa
 
     t0 = time.time()
 
-    # if we're not using valid, or not in 2D, use standard fftconvolve
-    if mode != "valid" or len(np.shape(in1)) != 2:
+    # if we're not using valid, or not in 2D, or invalid band number, use standard fftconvolve
+    if mode != "valid" or len(np.shape(in1)) != 2 or nb < 1:
         out += fftconvolve(in1, in2, mode=mode)
         return
 
@@ -100,38 +100,45 @@ def fftconvolve_multi(in1, in2, out, mode="full", nb=4, workers=None, verbose=Fa
         return
 
     # loop over horizontal bands
-    height = (Ly + nb - 1) // nb
-    if height <= s1y:
-        out += fftconvolve(in1, in2, mode=mode)  # also return if the strip is too narrow
-        return
+    height = (Ly + nb - 1) // nb  # note we are guaranteed height > s1y
     lenx = next_fast_len(s1x + s2x)
     leny = next_fast_len(s1y + height)
     in1_ = np.zeros((leny, lenx))
-    in2_ = np.zeros((leny, lenx))
     in1_[:s1y, :s1x] = in1
-    in1_ft = rfft2(in1_, workers=workers)
+    in1_ft = rfft2(in1_, workers=workers, overwrite_x=True)
     del in1_
     for j in range(nb):
         gc.collect()
         ybottom = j * height
         ytop = min((j + 1) * height, Ly)
         dy = ytop - ybottom
-        in2_[:, :] = 0.0
+        in2_ = np.zeros((leny, lenx))
         in2_[: dy + s1y - 1, :s2x] = in2[ybottom : ytop + s1y - 1, :]
-        in2_ft = rfft2(in2_, workers=workers)
+        if not np.any(in2_):
+            continue  # no point in doing FFTs if we're off the edge of the mosaic and this is all zeros
+        in2_ft = rfft2(in2_, workers=workers, overwrite_x=True)
+        del in2_  # corrupted, remove
         in2_ft *= in1_ft
         if verbose:
             print("y =", ybottom, ytop, "of Ly =", Ly)
-        out[ybottom:ytop, :] += irfft2(in2_ft, s=(leny, lenx), workers=workers)[
+        out[ybottom:ytop, :] += irfft2(in2_ft, s=(leny, lenx), workers=workers, overwrite_x=True)[
             s1y - 1 : dy + s1y - 1, s1x - 1 : Lx + s1x - 1
         ]
+        del in2_ft  # corrupted, remove
         # B = fftconvolve(in1, in2[ybottom : ytop + s1y - 1, :], mode="valid")
         # print(np.shape(A), np.shape(B))
         # print(np.amax(np.abs(A)), np.amax(np.abs(B)), np.amax(np.abs(A-B)))
-        print(f"t = {time.time()-t0:6.3f} s, shape =", (leny, lenx), "ft =", np.shape(in1_ft))
-        sys.stdout.flush()
+        if verbose:
+            print(
+                f"t = {time.time()-t0:6.3f} s, j={j} shape =",
+                (leny, lenx),
+                "ft =",
+                np.shape(in1_ft),
+                "workers =",
+                workers,
+            )
 
-    del in2_, in1_ft, in2_ft
+    del in1_ft
     gc.collect()
 
 
@@ -180,7 +187,7 @@ def pltshow(plt, display, pars={}):
         plt.savefig(display + f"_{obsid}_{sca}_{ix:02d}_{iy:02d}.png")
 
 
-def get_wcs(cachefile):
+def get_wcs(cachefile, use_float32=False, niter=3):
     """
     Gets the WCS from a cached FITS file.
 
@@ -190,6 +197,10 @@ def get_wcs(cachefile):
     ----------
     cachefile : str
         Name of the cached file.
+    use_float32 : bool, optional
+        Whether to represent the WCS error map in float32.
+    niter : int, optional
+        Number of iterations for WCS error map.
 
     Returns
     -------
@@ -201,8 +212,8 @@ def get_wcs(cachefile):
     with fits.open(cachefile) as hdul:
         if "WCSTYPE" in hdul[1].header and hdul[1].header["WCSTYPE"][:4].lower() == "gwcs":
             with asdf.open(cachefile[:-5] + "_wcs.asdf") as f2:
-                return PyIMCOM_WCS(f2["wcs"])
-        return PyIMCOM_WCS(hdul["SCIWCS"].header)
+                return PyIMCOM_WCS(f2["wcs"], use_float32=use_float32, niter=niter)
+        return PyIMCOM_WCS(hdul["SCIWCS"].header, use_float32=use_float32, niter=niter)
 
 
 def get_wcs_from_infile(infile):
@@ -631,14 +642,15 @@ def run_imsubtract_single(
 
         # apply convolution to canvas
         for lu in range(Nl):
-            # save first multiplication
-            Hlu = H_canvas * eval_legendre(lu, u_canvas).astype(np.float32)[None, :]
             for lv in range(Nl):
                 print("Convolve", lu, lv)
                 sys.stdout.flush()
+                arr = np.copy(H_canvas)
+                arr *= eval_legendre(lu, u_canvas).astype(np.float32)[None, :]
+                arr *= eval_legendre(lv, u_canvas).astype(np.float32)[:, None]
                 fftconvolve_multi(
                     K[lu + lv * Nl, :, :],
-                    Hlu * eval_legendre(lv, u_canvas).astype(np.float32)[:, None],
+                    arr,
                     KH,
                     mode="valid",
                     nb=6,
@@ -647,7 +659,7 @@ def run_imsubtract_single(
 
         # subtract from the input image (using less memory)
         I_img[n, :, :] -= KH[first_index:-first_index:oversamp, first_index:-first_index:oversamp]
-        print(f"Subtracted layer {n+1}/{nlayer}, t = {time.time()-t0:6.2f}", flush=True)
+        print(f"Subtracted layer {n+1}/{nlayer}", flush=True)
 
     # not needed anymore
     del KH
@@ -769,23 +781,13 @@ def run_imsubtract(
             return
 
 
+"""Calling program is here.
+
+python3 -m pyimcom.splitpsf.imsubtract  <config> <sca> [<output images>]
+(uses plt.show() if output stem not specified; output image directory is relative to cache file)
+"""
 if __name__ == "__main__":
-    """Calling program is here.
-
-    python3 -m pyimcom.splitpsf.imsubtract  <config> <sca> [<output images>]
-    (uses plt.show() if output stem not specified; output image directory is relative to cache file)
-
-    """
-
-    # get the json file
-    config_file = sys.argv[1]
-
     # get the SCA (0 for all of them)
-    sca = int(sys.argv[2])
-    if sca == 0:
-        sca = None
-
-    display = "/dev/null"
-    if len(sys.argv) > 3:
-        display = sys.argv[3]
-    run_imsubtract(config_file, display=display, scanum=sca, workers=4)
+    sca = None if int(sys.argv[2]) == 0 else int(sys.argv[2])
+    display = sys.argv[3] if len(sys.argv) > 3 else "/dev/null"
+    run_imsubtract(sys.argv[1], display=display, scanum=sca, workers=4)

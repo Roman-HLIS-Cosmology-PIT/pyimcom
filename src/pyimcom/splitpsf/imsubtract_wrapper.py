@@ -9,7 +9,9 @@ from ..config import Config
 from .imsubtract import run_imsubtract_single
 
 
-def run_imsubtract_all(cfg_file, workers=4, max_imgs=None, display=None, local_output=False, mmap=None):
+def run_imsubtract_all(
+    cfg_file, workers=4, fft_workers=None, max_imgs=None, display=None, local_output=False, mmap=None
+):
     """
     Main routine to run imsubtract on all images in the cache.
 
@@ -19,6 +21,8 @@ def run_imsubtract_all(cfg_file, workers=4, max_imgs=None, display=None, local_o
         Path to the config file.
     workers: int, optional
         Number of workers to use for parallel processing. Default is 4.
+    fft_workers: int, optional
+        Number of workers to use for FFT parallelism (if requested).
     max_imgs: int, optional
         If provided, does computations for a maximum number of SCAs. Most users will
         want the default of None; this is provided mainly for testing.
@@ -80,7 +84,7 @@ def run_imsubtract_all(cfg_file, workers=4, max_imgs=None, display=None, local_o
                         path,
                         exp,
                         display=display,
-                        fft_workers=None,
+                        fft_workers=fft_workers,
                         local_output=local_output,
                         max_layers=max_imgs,
                         mmap=mmap,
