@@ -7,4 +7,3 @@ ruff # Used for static linting of files
 sphinx-autoapi
 sphinx-copybutton
 sphinx-rtd-theme
-piff @ git+https://github.com/rmjarvis/Piff@main # optional
