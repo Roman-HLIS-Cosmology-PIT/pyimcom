@@ -10,6 +10,17 @@ Documentation on this site
 
 See also the `readthedocs page <https://pyimcom.readthedocs.io/en/latest/autoapi/index.html>`_.
 
+Requirements
+------------
+
+PyIMCOM runs with Python 3.12 and higher.
+
+Required dependencies should install when you run ``pip``. Pip will automatically install the C kernel `furry-parakeet <https://github.com/Roman-HLIS-Cosmology-PIT/furry-parakeet>`_. There are optional dependencies for some features:
+
+- If you are running coaddition with PyIMCOM with Piff input files for the PSF (instead of FITS images), you need to install `piff <https://github.com/rmjarvis/Piff>`_. Roman (including interfacing with PyIMCOM) is supported from the main branch (starting June 2026), or starting with v1.7 (when available).
+
+  (Note that Piff is **not** required to *read* PyIMCOM output files, even if they were made using Piff.)
+
 Installing PyIMCOM
 ------------------
 
@@ -28,9 +39,6 @@ Pip
 
     pip install .
 
-If you want to read Piff files as inputs, you will need to install `piff <https://github.com/rmjarvis/Piff/>`_. (This is needed for the Roman PIT image coaddition workflow; but we made it optional so that you don't need to install `piff` to use the PyIMCOM reader classes.)
-
-
 Overview of PyIMCOM concepts
 ----------------------------
 
@@ -38,8 +46,6 @@ Overview of PyIMCOM concepts
 
 Running PyIMCOM
 ---------------
-
-- You will want to install the C kernel `furry-parakeet <https://github.com/hirata10/furry-parakeet>`_ for best performance and for some of the advanced features. (``pip`` will install this as a dependency.)
 
 - `How to build a mosaic in PyIMCOM <docs/run_README.rst>`_
 
@@ -82,6 +88,6 @@ References
 
 - OpenUniverse2024: A shared, simulated view of the sky for the next generation of cosmological surveys. `OpenUniverse et al. MNRAS 544:3799 (2025) <https://ui.adsabs.harvard.edu/abs/2025MNRAS.544.3799O/abstract>`_
 
-- Simulating image coaddition with the Nancy Grace Roman Space Telescope. IV. Hyperparameter Optimization and Experimental Features. `Cao et al. ApJ, accepted, arXiv:2509.18286 <https://ui.adsabs.harvard.edu/abs/2025arXiv250918286C/abstract>`_
+- Simulating image coaddition with the Nancy Grace Roman Space Telescope. IV. Hyperparameter Optimization and Experimental Features. `Cao et al. ApJ, 998:304 (2026) <https://ui.adsabs.harvard.edu/abs/2026ApJ...998..304C/abstract>`_
 
-- Removing correlated noise stripes from the Nancy Grace Roman Space Telescope survey images. `Laliotis et al. PASJ, submitted, arXiv:2512.05949 <https://ui.adsabs.harvard.edu/abs/2025arXiv251205949L/abstract>`_
+- Removing correlated noise stripes from the Nancy Grace Roman Space Telescope survey images. `Laliotis et al. PASJ, 78:810 (2026) <https://ui.adsabs.harvard.edu/abs/2026PASJ...78..810L/abstract>`_
