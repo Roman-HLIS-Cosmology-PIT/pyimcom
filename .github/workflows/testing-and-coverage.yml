@@ -50,7 +50,7 @@ jobs:
     - name: Numba settings only for one Python version
       if: matrix.python-version == '3.14'
       run: |
-        export NUMBA_DISABLE_JIT=1
+        echo "NUMBA_DISABLE_JIT=1" >> $GITHUB_ENV
     - name: Run unit tests with pytest
       run: |
         python -m pytest --cov=pyimcom --cov-report=xml
