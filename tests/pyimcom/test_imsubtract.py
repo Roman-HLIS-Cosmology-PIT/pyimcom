@@ -7,7 +7,7 @@ import urllib.request
 import numpy as np
 from astropy.io import fits
 from pyimcom.config import Config
-from pyimcom.splitpsf.imsubtract import fftconvolve_multi, get_wcs, pltshow, run_imsubtract
+from pyimcom.splitpsf.imsubtract import fftconvolve_multi, get_wcs, pltshow, reinterp, run_imsubtract
 from pyimcom.splitpsf.imsubtract_wrapper import run_imsubtract_all, run_imsubtract_single
 from pyimcom.splitpsf.splitpsf import SplitPSF, split_psf_to_fits
 from pyimcom.splitpsf.splitpsf_wrapper import split_psf_single
@@ -16,6 +16,26 @@ from scipy.signal import fftconvolve
 PSF_FILE = "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/psf_test.fits"
 IMSUBTRACT_CONFIG = "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/imsubtract/test_imsubtract_config.json"
 IMSUBTRACT_INPUT_PATH = "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/imsubtract"
+
+
+def test_reinterp():
+    """Test interpolation function."""
+
+    n = 40
+    u = 2
+    v = 5
+    s_ = np.linspace(0, 2.0 * np.pi * (1 - 1 / n), n)
+    s2_ = np.linspace(2.0 * np.pi * 1.5 / n, 2.0 * np.pi * (1 - 2.5 / n), n // 2 - 1)
+    x, y = np.meshgrid(s_, s_)
+    x2, y2 = np.meshgrid(s2_, s2_)
+    arr = np.cos(u * x + v * y)
+    arr2 = reinterp(arr)
+    arr2_alt = np.sum(arr[1:-1, 1:-1].reshape((n // 2 - 1, 2, n // 2 - 1, 2)), axis=(-3, -1))
+    target = 4 * np.cos(u * x2 + v * y2)
+    er2_alt = np.amax(np.abs(arr2_alt - target))
+    er2 = np.amax(np.abs(arr2 - target))
+    assert er2 < 0.04
+    assert er2 < 0.2 * er2_alt
 
 
 def test_altwcs(tmp_path):

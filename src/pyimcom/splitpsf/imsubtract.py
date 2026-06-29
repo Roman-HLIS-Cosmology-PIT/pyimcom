@@ -31,7 +31,7 @@ from furry_parakeet import (
     pyimcom_croutines,
 )
 from scipy.fft import irfft2, next_fast_len, rfft2
-from scipy.signal import fftconvolve
+from scipy.signal import convolve, fftconvolve
 from scipy.signal.windows import tukey
 from scipy.special import eval_legendre
 
@@ -238,6 +238,30 @@ def get_wcs_from_infile(infile):
     return block_wcs
 
 
+def reinterp(arr):
+    """
+    Interpolates and rescales an array.
+
+    The array `arr[1:-1, 1:-1]` is interpolated onto a new grid at double the spacing.
+    (This is equivalent to 2x2 binning, except that we don't grow the pixel tophat.)
+
+    Parameters
+    ----------
+    arr : np.ndarray
+        The input array; must be 2D, even size, shape (2*N+2, 2*N+2).
+
+    Returns
+    -------
+    np.ndarray
+        The output array, shape (N, N).
+
+    """
+
+    _f = np.array([-0.125, 1.125, 1.125, -0.125]).astype(np.float32)
+    f2d = np.outer(_f, _f)
+    return convolve(arr, f2d, mode="valid", method="direct")[::2, ::2]
+
+
 def run_imsubtract_single(
     cfgdata,
     scaid,
@@ -349,8 +373,15 @@ def run_imsubtract_single(
             if oversamp % 2 and not axis_num // oversamp % 2:
                 # need to trim 1 native pixel so axis_num / oversamp is odd
                 axis_num -= oversamp
-                K = K[:, oversamp:-oversamp, oversamp:-oversamp]
-            K = np.sum(K.reshape((Ncoeff, axis_num, 2, axis_num, 2)), axis=(-3, -1))
+                K = K[:, oversamp - 1 : 1 - oversamp, oversamp - 1 : 1 - oversamp]
+            else:
+                K = np.pad(K, ((0, 0), (1, 1), (1, 1)), mode="edge")
+            for j in range(Ncoeff):
+                Kslice = reinterp(K[j, :, :])
+                if j == 0:
+                    _K = np.zeros((Ncoeff,) + np.shape(Kslice), dtype=np.float32)
+                _K[j, :, :] = Kslice
+            K = _K
 
     # SCA padding
     I_pad = int(np.ceil(axis_num / 2 / oversamp))  # native pixels
