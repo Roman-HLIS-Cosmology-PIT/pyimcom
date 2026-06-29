@@ -10,7 +10,14 @@ from .imsubtract import run_imsubtract_single
 
 
 def run_imsubtract_all(
-    cfg_file, workers=4, fft_workers=None, max_imgs=None, display=None, local_output=False, mmap=None
+    cfg_file,
+    workers=4,
+    fft_workers=None,
+    max_imgs=None,
+    display=None,
+    local_output=False,
+    mmap=None,
+    bin2x2=False,
 ):
     """
     Main routine to run imsubtract on all images in the cache.
@@ -32,6 +39,9 @@ def run_imsubtract_all(
         Whether to direct the file to local output instead of the cache directory.
     mmap : str or str-like, optional
         Directory to put temporary mmap files.
+    bin2x2 : bool, optional
+        If True, bin the kernel 2x2 for speed.
+
     """
 
     # Additional imports
@@ -88,6 +98,7 @@ def run_imsubtract_all(
                         local_output=local_output,
                         max_layers=max_imgs,
                         mmap=mmap,
+                        bin2x2=bin2x2,
                     )
                 )
                 count += 1

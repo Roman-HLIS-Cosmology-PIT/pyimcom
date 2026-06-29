@@ -5,15 +5,21 @@ import os
 import re
 import shutil
 import sys
+import warnings
 from urllib.request import urlretrieve
 
 import asdf
 import numpy as np
+from asdf.exceptions import AsdfConversionWarning, AsdfPackageVersionWarning
 from astropy.io import fits
 from pyimcom import imdestripe
 from pyimcom.config import Config
 from pyimcom.config import Settings as Stn
 from pyimcom.wcsutil import LocWCS
+
+# disable some asdf warnings
+warnings.filterwarnings("ignore", category=AsdfConversionWarning)
+warnings.filterwarnings("ignore", category=AsdfPackageVersionWarning)
 
 # Example configuration file.
 # Note that we will replace $TMPDIR.

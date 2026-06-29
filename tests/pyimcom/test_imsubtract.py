@@ -220,7 +220,7 @@ def test_fftconvolve_multi():
     assert np.allclose(x1, x2)
 
 
-def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
+def _run_imsubtract_all(tmp_path, config_file, test2x2=False):
     """
     Test the run_imsubtract_all function.
     This test runs the imsubtract pipeline on a small set of images specified in the config file,
@@ -298,6 +298,7 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
         display="/dev/null",
         max_layers=1,
         mmap=tmp_mmap,
+        bin2x2=test2x2,
     )
     with fits.open(f"{tmp_imsub}/r1_00013912_17_subI.fits") as f:
         single_run = np.copy(f[0].data[0, :, :])
@@ -305,7 +306,7 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
     # full multi run
     # I set the number of workers to 1 (which is kind of silly) to stay within the footprint of
     # the free GitHub runner during tests.
-    run_imsubtract_all(config_file, workers=1, max_imgs=2, display="/dev/null", mmap=tmp_mmap)
+    run_imsubtract_all(config_file, workers=1, max_imgs=2, display="/dev/null", mmap=tmp_mmap, bin2x2=test2x2)
 
     # Check for outputs:
     expected_files = [f"{tmp_imsub}/r1_00013912_17_subI.fits", f"{tmp_imsub}/r1_00000670_12_subI.fits"]
@@ -313,6 +314,7 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
         assert os.path.isfile(fname), f"Expected output file {fname} not found."
 
     # Check that the output files have the expected properties
+    ik = 0
     for fname in expected_files:
         m = re.search(r"r1_(\d{8})_(\d{2})_subI\.fits", fname)
         obsid = int(m.group(1))
@@ -342,11 +344,19 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
             expected_diff_cutout = f[0].data
             ymin, ymax = f[0].header["YSTART"], f[0].header["YSTOP"]
             xmin, xmax = f[0].header["XSTART"], f[0].header["XSTOP"]
+            print(f[0].header)
 
         diff_cutout = diff[ymin:ymax, xmin:xmax]
+        atol = np.array([1.1e-3, 2.0e-2])[ik] if test2x2 else 1.0e-6
         assert np.allclose(
-            diff_cutout, expected_diff_cutout, atol=1e-6
+            diff_cutout, expected_diff_cutout, atol=atol
         ), f"Diff cutout for {fname} does not match expected values."
+        if test2x2:
+            print(np.amax(np.abs(diff_cutout[8:-8, 8:-8] - expected_diff_cutout[8:-8, 8:-8])))
+            assert np.allclose(
+                diff_cutout[8:-8, 8:-8], expected_diff_cutout[8:-8, 8:-8], atol=np.array([9.0e-4, 1.2e-2])[ik]
+            ), f"Diff cutout for {fname} does not match expected values."
+        ik += 1  # noqa: SIM113
 
     # compare "single" to "all" case
     with fits.open(f"{tmp_imsub}/r1_00013912_17_subI.fits") as f:
@@ -356,7 +366,7 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
 
     # original wrapper
     os.remove(str(tmp_imsub) + "/r1_00013912_17_subI.fits")
-    run_imsubtract(config_file, display=f"{tmp_figs}/win", scanum=17, max_layers=1)
+    run_imsubtract(config_file, display=f"{tmp_figs}/win", scanum=17, max_layers=1, bin2x2=test2x2)
     with fits.open(f"{tmp_imsub}/r1_00013912_17_subI.fits") as f:
         assert np.allclose(f[0].data[0, :, :], multi_run, rtol=1.0e-6, atol=1.0e-6)
     fname = f"{tmp_figs}/win_13912_17_35_02.png"
@@ -373,6 +383,16 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
     shutil.rmtree(tmp_imsub)
     shutil.rmtree(tmp_mmap)
     shutil.rmtree(tmp_figs)
+
+
+def test_run_imsubtract_all2(tmp_path):
+    """Test with 2x2 bin version."""
+    _run_imsubtract_all(tmp_path, IMSUBTRACT_CONFIG, test2x2=True)
+
+
+def test_run_imsubtract_all(tmp_path):
+    """Basic version of test."""
+    _run_imsubtract_all(tmp_path, IMSUBTRACT_CONFIG)
 
 
 def test_staticmethods():

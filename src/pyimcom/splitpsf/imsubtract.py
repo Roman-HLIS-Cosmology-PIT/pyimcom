@@ -250,6 +250,7 @@ def run_imsubtract_single(
     wcs_shortcut=True,
     max_layers=None,
     mmap=None,
+    bin2x2=False,
 ):
     """
     Main routine to run imsubtract on a single image.
@@ -281,6 +282,8 @@ def run_imsubtract_single(
         Maximum number of layers to process. (For testing; default is None, which means no limit.)
     mmap : str or str-like, optional
         Directory to put temporary mmap files.
+    bin2x2 : bool, optional
+        If True, bin the kernel 2x2 for speed.
 
     Notes
     -----
@@ -335,6 +338,19 @@ def run_imsubtract_single(
 
         # get the oversampling factor
         oversamp = hdul2[0].header["OVSAMP"]  # number of kernel pixels / native pixels
+        if axis_num % (2 * oversamp):
+            raise ValueError(f"axis_num={axis_num} must be a multiple of 2*oversamp, oversamp={oversamp}")
+
+        if bin2x2:
+            if oversamp % 2:
+                raise ValueError(f"oversamp={oversamp:d} is odd, not consistent with bin2x2")
+            oversamp //= 2
+            axis_num //= 2
+            if oversamp % 2 and not axis_num // oversamp % 2:
+                # need to trim 1 native pixel so axis_num / oversamp is odd
+                axis_num -= oversamp
+                K = K[:, oversamp:-oversamp, oversamp:-oversamp]
+            K = np.sum(K.reshape((Ncoeff, axis_num, 2, axis_num, 2)), axis=(-3, -1))
 
     # SCA padding
     I_pad = int(np.ceil(axis_num / 2 / oversamp))  # native pixels
@@ -434,7 +450,7 @@ def run_imsubtract_single(
         # define other important quantities for convolution
         Nl = int(np.floor(np.sqrt(Ncoeff + 0.5)))
         KH[:, :] = 0.0
-        x_canvas = np.linspace(-I_pad - 0.5 + 0.5 / oversamp, sca_nside + I_pad - 0.5 + 0.5 / oversamp, A)
+        x_canvas = np.linspace(-I_pad - 0.5 + 0.5 / oversamp, sca_nside + I_pad - 0.5 - 0.5 / oversamp, A)
         u_canvas = (x_canvas - (sca_nside - 1) / 2) / (sca_nside / 2)
 
         # These will be overwritten if the block is not skipped
@@ -690,6 +706,7 @@ def run_imsubtract(
     wcs_shortcut=True,
     max_layers=None,
     mmap=None,
+    bin2x2=False,
 ):
     """
     Main routine to run imsubtract.
@@ -719,6 +736,8 @@ def run_imsubtract(
         Maximum number of layers to process. (For testing; default is None, which means no limit.)
     mmap : str or str-like, optional
         Directory to put temporary mmap files.
+    bin2x2 : bool, optional
+        If True, bin the kernel 2x2 for speed.
 
     Notes
     -----
@@ -773,6 +792,7 @@ def run_imsubtract(
             wcs_shortcut=wcs_shortcut,
             max_layers=max_layers,
             mmap=mmap,
+            bin2x2=bin2x2,
         )
 
         # exit if we've specified a maximum number of SCAs

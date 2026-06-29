@@ -83,6 +83,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import asdf
 import numpy as np
+from asdf.exceptions import AsdfConversionWarning, AsdfPackageVersionWarning
 from astropy import wcs
 from astropy.io import fits
 from filelock import FileLock, Timeout
@@ -98,25 +99,27 @@ try:
 except ImportError:
     warnings.warn("furry_parakeet not available, won't be able to run imdestripe.")
 
-from asdf.exceptions import AsdfConversionWarning, AsdfPackageVersionWarning
-
 testoutputs = {
     "testing": False,  # Is this run for testing only? (usually False)
     "test_image_dir": "./",  # Location for test outputs (gets overwritten)
 }
-
-# Suppress ASDF warnings
-warnings.filterwarnings("ignore", category=AsdfConversionWarning)
-warnings.filterwarnings("ignore", category=AsdfPackageVersionWarning)
 
 if JWST:
     Settings.jwst()
 filters = Settings.RomanFilters
 t0_global = time.time()  # after imports
 
+# disable some asdf warnings
+warnings.filterwarnings("ignore", category=AsdfConversionWarning)
+warnings.filterwarnings("ignore", category=AsdfPackageVersionWarning)
+
 # Module settings
 use_output_float = np.float32
-tempdir = str(os.environ["TMPDIR"]) + "/" if "TMPDIR" in os.environ else "./"
+tempdir = (
+    str(os.environ["IMDESTRIPE_TMPDIR"])
+    if "IMDESTRIPE_TMPDIR" in os.environ
+    else (str(os.environ["TMPDIR"]) + "/" if "TMPDIR" in os.environ else "./")
+)
 
 # For test outputs: set sca=0 to not produce test outputs.
 img_full_output = {"obsid": 670, "scaid": 10}
@@ -1813,7 +1816,7 @@ def linear_search_general(
             )  # secant update
             write_to_file(f"Secant update: alpha_test={alpha_test}", of)
             method = "secant"
-            if np.isnan(alpha_test):
+            if not np.isfinite(alpha_test):
                 write_to_file("Secant update fail-- bisecting instead", of)
                 alpha_test = 0.5 * (alpha_min + alpha_max)  # bisection update
                 write_to_file(f"Bisection update: alpha_test={alpha_test}", of)

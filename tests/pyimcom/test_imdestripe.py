@@ -1112,7 +1112,9 @@ class TestLinearSearchFunctions:
             "pyimcom.imdestripe.cost_function", return_value=(100.0, np.zeros((2, 4, 4), dtype=np.float32))
         ), mock.patch(
             "pyimcom.imdestripe.residual_function", return_value=np.ones_like(p.params)
-        ), mock.patch("pyimcom.imdestripe.t0_global", 0.0):
+        ), mock.patch("pyimcom.imdestripe.t0_global", 0.0), pytest.warns(
+            RuntimeWarning, match=r"divide by zero encountered in scalar divide"
+        ):
             out = imdestripe.linear_search_general(
                 p,
                 direction,
