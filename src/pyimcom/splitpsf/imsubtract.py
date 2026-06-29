@@ -768,7 +768,7 @@ def run_imsubtract(
     mmap : str or str-like, optional
         Directory to put temporary mmap files.
     bin2x2 : bool, optional
-        If True, bin the kernel 2x2 for speed.
+        If True, bin the kernel 2x2 for speed even if `config_file` doesn't tell you to.
 
     Notes
     -----
@@ -782,6 +782,7 @@ def run_imsubtract(
 
     # load the file using Config and get information
     cfgdata = Config(config_file)
+    bin2x2 = bin2x2 or getattr(cfgdata, "psfsplit_bin2x2", False)  # possible override of config
 
     # separate the path from the inlayercache info
     m = re.search(r"^(.*)\/(.*)", cfgdata.inlayercache)

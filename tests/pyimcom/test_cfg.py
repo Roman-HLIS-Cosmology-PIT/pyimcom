@@ -45,7 +45,7 @@ def test_interface(tmp_path):
     # INPSF
     script += tdir + "/psf6 L2_2506 6\n"
     # PSFSPLIT
-    script += "5.5 9.5 0.01\n"
+    script += "5.5 9.5 0.01 False\n"
 
     # SECTION II
     # PMASK

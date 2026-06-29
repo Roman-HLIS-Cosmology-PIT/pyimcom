@@ -309,7 +309,8 @@ class Config:
         "psfsplit",
         "psfsplit_r1",
         "psfsplit_r2",
-        "psfsplit_epsilon",  # SECTION I
+        "psfsplit_epsilon",
+        "psfsplit_bin2x2",  # SECTION I
         "permanent_mask",
         "cr_mask_rate",
         "extrainput",
@@ -412,6 +413,7 @@ class Config:
             self.psfsplit_r1 = float(self.psfsplit[0])
             self.psfsplit_r2 = float(self.psfsplit[1])
             self.psfsplit_epsilon = float(self.psfsplit[2])
+            self.psfsplit_bin2x2 = len(self.psfsplit) > 3 and bool(self.psfsplit[3])
 
         ### SECTION II: MASKS AND LAYERS ###
         self.n_inframe = len(self.extrainput)
@@ -657,11 +659,13 @@ class Config:
 
         print("# PSF splitting", flush=True)
         self._get_attrs_wrapper(
-            "self.psfsplit_r1, self.psfsplit_r2, self.psfsplit_epsilon = input('PSFSPLIT (float float float) "
+            "self.psfsplit_r1, self.psfsplit_r2, self.psfsplit_epsilon, self.psfsplit_bin2x2 = "
+            "input('PSFSPLIT (float float float bool) "
             "[default: no split]: ').split(' ')"
             "\n"
-            "self.psfsplit = [self.psfsplit_r1, self.psfsplit_r2, self.psfsplit_epsilon] if self.psfsplit_r1 "
-            "else ''"
+            "self.psfsplit = [self.psfsplit_r1, self.psfsplit_r2, self.psfsplit_epsilon,"
+            " self.psfsplit_bin2x2] if"
+            " self.psfsplit_r1 else ''"
         )
 
         print("### SECTION II: MASKS AND LAYERS ###\n", flush=True)
@@ -1105,7 +1109,12 @@ class Config:
         cfg_dict["FILTER"] = self.use_filter
         cfg_dict["INPSF"] = [self.inpsf_path, self.inpsf_format, self.inpsf_oversamp]
         if self.psfsplit:
-            cfg_dict["PSFSPLIT"] = [self.psfsplit_r1, self.psfsplit_r2, self.psfsplit_epsilon]
+            cfg_dict["PSFSPLIT"] = [
+                self.psfsplit_r1,
+                self.psfsplit_r2,
+                self.psfsplit_epsilon,
+                self.psfsplit_bin2x2,
+            ]
 
         ### SECTION II: MASKS AND LAYERS ###
         cfg_dict["PMASK"] = self.permanent_mask

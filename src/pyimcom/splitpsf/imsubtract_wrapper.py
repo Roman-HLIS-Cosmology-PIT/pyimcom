@@ -40,7 +40,7 @@ def run_imsubtract_all(
     mmap : str or str-like, optional
         Directory to put temporary mmap files.
     bin2x2 : bool, optional
-        If True, bin the kernel 2x2 for speed.
+        If True, bin the kernel 2x2 for speed even if `config_file` doesn't tell you to.
 
     """
 
