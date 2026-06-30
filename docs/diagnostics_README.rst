@@ -1,4 +1,3 @@
-======================
 Diagnostics in PyIMCOM
 ======================
 
@@ -9,7 +8,9 @@ Process for Generating a Report
 
 **Initializing a new report**
 
-The fundamental object is the ``ValidationReport`` class in the ``diagnostics.report`` module. This is built from a PyIMCOM output file (any block file in a mosaic may be used), and a "stem" for the output files is also given. So for example, one may write::
+The fundamental object is the ``ValidationReport`` class in the ``diagnostics.report`` module. This is built from a PyIMCOM output file (any block file in a mosaic may be used), and a "stem" for the output files is also given. So for example, one may write:
+
+.. code-block:: python
 
   from pyimcom.report import ValidationReport
   rpt=ValidationReport(
@@ -31,16 +32,22 @@ The ``ValidationReport`` class has attributes containing, among other things, th
 
 **Generating sections**
 
-The ``ReportSection`` class in the ``diagnostics.report`` module generates a report. *This is a base class and is not going to be used much by itself, rather each section of the report will be implemented as a subclass.* A report section is initialized by calling it from the report::
+The ``ReportSection`` class in the ``diagnostics.report`` module generates a report. *This is a base class and is not going to be used much by itself, rather each section of the report will be implemented as a subclass.* A report section is initialized by calling it from the report:
+
+.. code-block:: python
 
   from pyimcom.report import ReportSection
   sec = ReportSection(rpt)
 
-The report section has an ``infile`` function that can provide the name of a file with a given (*x*, *y*) block coordinate::
+The report section has an ``infile`` function that can provide the name of a file with a given (*x*, *y*) block coordinate:
+
+.. code-block:: python
 
   my_file = sec.infile(4,6) # returns location of block (4,6)
 
-You almost certainly will never need to override this. It has a ``build`` method that is intended to be overridden in a subclass. The ``build`` method can be of the form::
+You almost certainly will never need to override this. It has a ``build`` method that is intended to be overridden in a subclass. The ``build`` method can be of the form:
+
+.. code-block:: python
 
   sec.build(nblockmax=8) # nblockmax is for testing only
 
@@ -54,7 +61,9 @@ There are three attributes that need to be generated in the ``build`` method (th
 
 * ``result``: A one-line summary (e.g., "PASS" or "FAIL") from that report section, if applicable. (*Default*: "N/A")
 
-You can add your section to the report::
+You can add your section to the report:
+
+.. code-block:: python
 
   rpt.addsections([sec]) # adds one section
   rpt.addsections([sec1,sec2]) # adds two sections, sec1 and sec2
@@ -67,7 +76,9 @@ Comments:
 
 **Compiling the report:**
 
-You can compile the report via::
+You can compile the report via:
+
+.. code-block:: python
 
   rpt.compile(ntimes=3)
 
@@ -89,6 +100,8 @@ Currently Available Reports
     - *(base class)*
   * - ``MosaicImage``
     - Thumbnail of the mosaic
+  * - ``LayerReport``
+    - Percentile distribution of all of the layers
   * - ``SimulatedStar``
     - 1-point statistics of simulated stars
   * - ``NoiseReport``
