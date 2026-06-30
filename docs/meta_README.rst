@@ -1,6 +1,5 @@
-********************
 PyIMCOM + Meta Tools
-********************
+####################
 
 First attempt at meta-ing images in PyIMCOM
 ===========================================
@@ -26,7 +25,9 @@ file using the ``shearimage_to_fits`` function.
 Stand-alone usage
 -----------------
 
-It is possible to call this module in a few different ways. A simple one is the following code, which rotates the image by 30 degrees and grows the PSF by a factor of 1.05::
+It is possible to call this module in a few different ways. A simple one is the following code, which rotates the image by 30 degrees and grows the PSF by a factor of 1.05:
+
+.. code-block:: python
 
   import numpy as np
   from pyimcom.meta import distortimage
@@ -38,17 +39,19 @@ It is possible to call this module in a few different ways. A simple one is the 
 This will work either with the original ``.fits`` files, or with the ``.cpr.fits.gz`` files.
 
 Detailed usage information
-****************************
+**************************
 
 There are several options available and points to keep in mind when working with the ``distortimage.MetaMosaic`` class.
 
 Building a MetaMosaic
-========================
+=====================
 
 Constructor
----------------
+-----------
 
-Construction of a mosaic is in principle quite simple: it is built from a PyIMCOM output file, with the optional ``verbose`` keyword::
+Construction of a mosaic is in principle quite simple: it is built from a PyIMCOM output file, with the optional ``verbose`` keyword:
+
+.. code-block:: python
 
    mosaic = distortimage.MetaMosaic('mymosaic_24_13.fits', verbose=True)
 
@@ -59,7 +62,7 @@ The constructor can work with either the raw ``.fits`` files, or with the compre
 The configuration that generated an object is accessible as an attribute, e.g., you may get the pixel scale in the coated image by asking for ``mosaic.cfg.dtheta``, or the additional layers from ``mosaic.cfg.extrainput``.
 
 Attributes
----------------
+----------
 
 The ``MetaMosaic`` class has the following attributes:
 
@@ -81,16 +84,22 @@ The ``MetaMosaic`` class has the following attributes:
 Masking an image
 ------------------
 
-The most general way to update the mask is with the ``maskpix`` method. For example, to mask pixels that are over 1.0e4 in the science image::
+The most general way to update the mask is with the ``maskpix`` method. For example, to mask pixels that are over 1.0e4 in the science image:
+
+.. code-block:: python
 
     mosaic.maskpix(mosaic.in_image[0,:,:]>1.0e4)
 
-There are also stand-alone masking functions for the fidelity and noise images. For example, you can mask pixels where the PyIMCOM fidelity is worse than 40 dB (i.e., U/C>1e-4) or the noise suppression is less than 3 dB (i.e., output noise variance is more than 10^(-0.3) of an input pixel)::
+There are also stand-alone masking functions for the fidelity and noise images. For example, you can mask pixels where the PyIMCOM fidelity is worse than 40 dB (i.e., U/C>1e-4) or the noise suppression is less than 3 dB (i.e., output noise variance is more than 10^(-0.3) of an input pixel):
+
+.. code-block:: python
 
     mosaic.mask_fidelity_cut(40.)
     mosaic.mask_noise_cut(3.)
 
-Finally, you could mask a bunch of circular regions (e.g., around a star catalog) using the ``mask_caps`` method::
+Finally, you could mask a bunch of circular regions (e.g., around a star catalog) using the ``mask_caps`` method:
+
+.. code-block:: python
 
     ra_mask = np.array([9.60, 9.70, 9.80]) # all coordinates in degrees
     dec_mask = np.array([-44.10, -44.20, -44.30])
@@ -99,9 +108,11 @@ Finally, you could mask a bunch of circular regions (e.g., around a star catalog
     mosaic.mask_caps(ra_mask, dec_mask, radius_mask) # this masks a different radius for each object
 
 Shearing an image
-==================
+=================
 
-A sheared image dictionary is generated from the ``shearimage`` method, e.g.::
+A sheared image dictionary is generated from the ``shearimage`` method, e.g.:
+
+.. code-block:: python
 
   im = mosaic.shearimage(3200,
     jac=[[np.cos(rot),np.sin(rot)],[-np.sin(rot),np.cos(rot)]],
@@ -171,7 +182,9 @@ The output dictionary has the following keys:
 - ``psf_fwhm``: The full width at half maximum of the PSF, in arcsec.
 - ``ref``: The projection center location (x,y) (tuple, 0-offset convention).
 
-You can return an equivalent dictionary without any shearing/reconvolution using ``origimage``::
+You can return an equivalent dictionary without any shearing/reconvolution using ``origimage``:
+
+.. code-block:: python
 
     im = mosaic.origimage(3200) # all layers
     im = mosaic.origimage(3200, select_layers=[0,2]) # select layers 0 (SCI) and 2.
@@ -179,9 +192,11 @@ You can return an equivalent dictionary without any shearing/reconvolution using
 (This will be **much** faster, since it is generating a subarray rather than a grid, but of course then any Meta-like shearing is the responsibility of a downstream module.)
 
 Writing to a file
-====================
+=================
 
-There is a simple function to write a sheared image dictionary to disk::
+There is a simple function to write a sheared image dictionary to disk:
+
+.. code-block:: python
 
   pyimcom.meta.shearimage_to_fits(im, fname, layers=None, overwrite=False)
 
