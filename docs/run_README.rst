@@ -1,5 +1,5 @@
 Workflow to run PyIMCOM
-#############################
+#######################
 
 This is a quick guide for the jobs you will want to submit to build a mosaic in PyIMCOM. To build a mosaic, you will need:
 
@@ -12,7 +12,7 @@ This is a quick guide for the jobs you will want to submit to build a mosaic in 
 - Additional layer information (e.g., laboratory darks) if you are going to be requesting those as layers to coadd.
 
 Overall workflow
-******************
+****************
 
 There are several steps in the workflow:
 
@@ -29,7 +29,7 @@ There are several steps in the workflow:
 We describe each of these in turn below.
 
 Input data
-===================
+==========
 
 The input data may be in one of the following formats (more may be added in the future). Science images and lab darks are in subdirectories of the directory given by the ``INDATA`` keyword (first value); PSFs are in the directory given by the ``INPSF`` keyword (first value). The formats are: 
 
@@ -46,14 +46,16 @@ The input data may be in one of the following formats (more may be added in the 
 If your platform doesn't support putting all those files in one directory, we recommend symbolic links as a workaround.
 
 Generating input layers
-===========================
+=======================
 
 *Optional: only used if you have turned on INLAYERCACHE.*
 
 If ``INLAYERCACHE`` is set, then PyIMCOM will cache all of the input layers it generates itself (e.g., grids of injected objects, synthetic noise fields ...). The ``INLAYERCACHE`` keyword is a stem: if you set it to ``mydir/myprefix``, then all of the cached files will appear in ``mydir`` (or subdirectories) with a file name that starts with ``myprefix``.
 When a PyIMCOM process finds it needs one of these files, it first searches for it: if it is there then it simply reads from disk, otherwise it computes it and then saves to disk.
 
-You can use less computing time if you generate all the input layers first, and then do the coaddition. A simple way to do this if your configuration file is ``config_file`` and you are coadding blocks ``j1`` through ``j2`` (of ``BLOCK**2`` : recall this is the number of blocks in a square mosaic) is a script like ``gen1.py``::
+You can use less computing time if you generate all the input layers first, and then do the coaddition. A simple way to do this if your configuration file is ``config_file`` and you are coadding blocks ``j1`` through ``j2`` (of ``BLOCK**2`` : recall this is the number of blocks in a square mosaic) is a script like ``gen1.py``:
+
+.. code-block:: python
 
    import sys
    from pyimcom.config import Config
@@ -63,7 +65,9 @@ You can use less computing time if you generate all the input layers first, and 
    cfg.stoptile=4
    block = Block(cfg=cfg, this_sub=int(sys.argv[2]))
 
-(the ``stoptile`` tells PyIMCOM not to run through the coalition of the whole block) and then you can write a Perl script like::
+(the ``stoptile`` tells PyIMCOM not to run through the coalition of the whole block) and then you can write a Perl script like:
+
+.. code-block:: perl
 
    for $j ($j1..$j2) {
        system "python3 gen1.py config $j > log-gen.$j";
@@ -74,7 +78,9 @@ You could generate all of the input layers in series with ``$j1=0`` and ``$j2=BL
 Running the coaddition
 ==============================
 
-This is the most time-consuming step. In principle, all the blocks can be run in parallel. So you could run a script like ``run_coaddition.py``::
+This is the most time-consuming step. In principle, all the blocks can be run in parallel. So you could run a script like ``run_coaddition.py``:
+
+.. code-block:: python
 
    import sys
    from pyimcom.config import Config
@@ -85,7 +91,9 @@ This is the most time-consuming step. In principle, all the blocks can be run in
    block = Block(cfg=cfg, this_sub=int(sys.argv[2]))
    if int(sys.argv[2])==0: gen_truthcats_from_cfg(cfg)
 
-and then call::
+and then call:
+
+.. code-block:: bash
 
    python3 run_coaddition.py config $j > log-coadd.$j
 
@@ -94,9 +102,11 @@ You could put this in a loop in a Perl script, but on the Ohio Supercomputer Cen
 The "truth catalog" for the layers that PyIMCOM draws only needs to be generated once in a given mosaic. The above script generates it with the first block.
 
 Generating the diagnostic report
-=====================================
+================================
 
-You can generate a diagnostic report by running the diagnostics module *after* the coaddition has finished::
+You can generate a diagnostic report by running the diagnostics module *after* the coaddition has finished:
+
+.. code-block:: bash
 
    python3 -m pyimcom.diagnostics.run outdir/outstem_00_00.fits writeupdir/writeupstem
 
