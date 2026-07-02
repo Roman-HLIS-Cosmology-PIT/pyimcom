@@ -56,7 +56,9 @@ Details
 Setup
 =====
 
-If PSF splitting is used, then *before* the main PyIMCOM run, one must run PSF splitting, e.g.::
+If PSF splitting is used, then *before* the main PyIMCOM run, one must run PSF splitting, e.g.:
+
+.. code-block:: bash
 
   python3 -m pyimcom.splitpsf.splitpsf config.json
 
@@ -65,11 +67,15 @@ If PSF splitting is used, then *before* the main PyIMCOM run, one must run PSF s
 Configuration options for PSF splitting
 ---------------------------------------
 
-The configuration file can contain an entry that activates PSF splitting, e.g.::
+The configuration file can contain an entry that activates PSF splitting, e.g.:
 
-  "PSFSPLIT": [6, 10, 0.01]
+.. code-block:: json
+
+  "PSFSPLIT": [6, 10, 0.01, true]
 
 Here the first 2 entries are the range of pixels (in this case: the "short range" PSF cuts of 6-10 native pixels from the center); and the last entry (here: 0.01) is the regularization parameter (epsilon) that prevents division by zero in constructing K_i. Smaller values will produce a more accurate PSF (smaller zeta_i) but be noisier (contain more positive and negative lobes).
+
+The field (``true``) is optional; if set to true, then the wing subtraction is run at half the resolution (in the case above: 3 subpixels per native pixel). This is faster (especially with lots of layers), and recommended if it meets your accuracy needs.
 
 PSF split format file
 ---------------------

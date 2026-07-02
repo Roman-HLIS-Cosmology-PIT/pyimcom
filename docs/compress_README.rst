@@ -1,17 +1,19 @@
 PyIMCOM Compression module
-############################
+##########################
 
 This is the compression module for PyIMCOM outputs. It carries out both lossy and lossless compression operations.
 
 Overview
-**********
+********
 
 There are two fundamental operations: compression and decompression. Logically, compression comes first, but because of the many varied uses of PyIMCOM coadds, we expect more users will need to implement decompression.
 
 Compression
-=============
+===========
 
-Compression operations are carried out with the ``pyimcom.compress.compressutils.CompressedOutput`` class. This is initialized with the name of the file you want to compress. Then various compressions can be done, and the output written to a file. A standard code snippet to compress file ``fname`` and write the output to ``fout`` might be::
+Compression operations are carried out with the ``pyimcom.compress.compressutils.CompressedOutput`` class. This is initialized with the name of the file you want to compress. Then various compressions can be done, and the output written to a file. A standard code snippet to compress file ``fname`` and write the output to ``fout`` might be:
+
+.. code-block:: python
 
    from pyimcom.compress.compressutils import CompressedOutput
    with CompressedOutput(fname) as f:
@@ -38,14 +40,18 @@ Metadata on the compression scheme (needed to decompress the data) is stored in 
 It is recommended to use the ``.cpr.fits.gz`` suffix for a compressed PyIMCOM file, e.g., ``itertest2_F_10_04.fits`` compresses to ``itertest2_F_10_04.cpr.fits.gz``. This is not enforced by ``compressutils``, but some analysis tools recognize compressed files by this convention. The .gzipped file can be unzipped (it is a valid .fits.gz file!) but we expect this won't be common; if you need the uncompressed file, you will probably just decompress it.
 
 Decompression
-==================
+=============
 
-To decompress file ``fout`` to a standard fits file ``frec``, you can run::
+To decompress file ``fout`` to a standard fits file ``frec``, you can run:
+
+.. code-block:: python
 
    from pyimcom.compress.compressutils import ReadFile
    ReadFile(fout).writeto(frec, overwrite=True)
 
-The ``ReadFile`` function returns an ``astropy.io.fits.HDUList`` object, so standard reading of the headers and data is then possible, e.g., you could write::
+The ``ReadFile`` function returns an ``astropy.io.fits.HDUList`` object, so standard reading of the headers and data is then possible, e.g., you could write:
+
+.. code-block:: python
 
    from pyimcom.compress.compressutils import ReadFile
    with ReadFile(fout) as f:
@@ -53,12 +59,12 @@ The ``ReadFile`` function returns an ``astropy.io.fits.HDUList`` object, so stan
       ...
 
 Compression schemes
-*********************
+*******************
 
 There are several compression schemes offered.
 
 I24B
-======
+====
 
 The ``I24B`` compression scheme is the most common. For each layer, it generates two HDUs. The compressed data cube is a 3D ``uint8`` array with a name starting with ``HSHX`` and ending with the hexadecimal code for that layer, e.g., ``HSHX000D`` is the compressed cube for layer 13 (=0XD). There is also a binary table (in this case: ``HSHV000D``) containing values that overflowed the minimum and maximum of the compression range (this is common if, e.g., the image to be compressed is mostly dark sky, but there are a few bright objects, and you don't want to set the compression scale to handle the brightest pixels). The naming scheme will fail and the algorithm will refuse to compress if your layer number goes past 0XFFFF=65535, but in practical cases you won't need that many layers.
 
@@ -126,7 +132,9 @@ These steps are controlled by the following keywords. The default is given, unle
 Tools
 *****
 
-A useful utility for exploring compressed files is ``CompressedOutput.get_compression_dict``. You can call it as::
+A useful utility for exploring compressed files is ``CompressedOutput.get_compression_dict``. You can call it as:
+
+.. code-block:: python
 
    with CompressedOutput(fname) as f:
         cprs_dict = CompressedOutput.get_compression_dict(f, ilayer)
