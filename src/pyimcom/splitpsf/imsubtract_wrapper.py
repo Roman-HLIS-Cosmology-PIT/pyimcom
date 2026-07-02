@@ -70,6 +70,8 @@ def run_imsubtract_all(
 
     # print("List of exposures:", exps)
 
+    bin2x2 = bin2x2 or getattr(cfgdata, "psfsplit_bin2x2", False)  # possible override of config
+
     # Run imsubtract on each exposure in parallel using ProcessPoolExecutor
     count = 0
     start_method = "forkserver" if os.name.lower() == "posix" else "spawn"
