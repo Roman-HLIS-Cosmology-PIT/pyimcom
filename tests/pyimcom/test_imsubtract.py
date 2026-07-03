@@ -5,6 +5,7 @@ import subprocess
 import urllib.request
 
 import numpy as np
+import pytest
 from astropy.io import fits
 from pyimcom.config import Config
 from pyimcom.splitpsf.imsubtract import fftconvolve_multi, get_wcs, pltshow, reinterp, run_imsubtract
@@ -452,3 +453,96 @@ def test_pltshow():
     assert plot.calls == 1
     pltshow(plot, "/dev/null")
     assert plot.calls == 1
+
+
+def test_imsubtract_exceptions(tmp_path):
+    """Test that the correct exceptions are raised in imsubtract."""
+
+    tmp_dir = str(tmp_path)
+    tmp_imsub = tmp_dir + "/temp_imsubtract"
+    tmp_mmap = tmp_dir + "/temp_mmap"
+    tmp_figs = tmp_dir + "/temp_figs"
+    # make temp_imsub directory
+    os.makedirs(tmp_imsub, exist_ok=True)
+    os.makedirs(tmp_imsub + "/blocks", exist_ok=True)
+    os.makedirs(tmp_mmap, exist_ok=True)
+    os.makedirs(tmp_figs, exist_ok=True)
+
+    urllib.request.urlretrieve(IMSUBTRACT_CONFIG, tmp_imsub + "/test_imsubtract_config.json")
+    config_file = tmp_imsub + "/test_imsubtract_config.json"
+
+    # read cache files into tmp_imsub
+    cache_files = [
+        "r1_00013912_17.fits.gz",
+        "r1_00000670_12.fits.gz",
+        "r1_00013912_17_wcs.asdf",
+        "r1_00000670_12_wcs.asdf",
+    ]
+    for filename in cache_files:
+        cf_url = IMSUBTRACT_INPUT_PATH + "/cache/" + filename
+        cf_local = os.path.join(tmp_imsub, filename)
+        urllib.request.urlretrieve(cf_url, cf_local)
+        if cf_local[-3:] == ".gz":
+            subprocess.run(["gunzip", cf_local])  # files on wiki were gzipped
+
+    # psf files
+    tmp_psf = tmp_imsub + "/r1.psf"
+    os.makedirs(tmp_psf, exist_ok=True)
+    for filename in ["psf_13912.fits", "psf_670.fits"]:
+        cf_url = IMSUBTRACT_INPUT_PATH + "/cache/r1.psf/" + filename
+        cf_local = os.path.join(tmp_psf, filename)
+        urllib.request.urlretrieve(cf_url, cf_local)
+
+        # now mess with these files to trigger exceptions
+        with fits.open(cf_local, mode="update") as f:
+            print(f[0].header["OVSAMP"])
+            f[0].header["OVSAMP"] = 7
+
+    with open(config_file, "r") as f:
+        cfg_text = f.read()
+    cfg_text = cfg_text.replace("$TMPDIR", tmp_dir)
+    cfg_text = cfg_text.replace("$CACHE", tmp_imsub + "/r1")
+    cfg_text = cfg_text.replace(
+        "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/imsubtract/blocks/im3x2-H1",
+        tmp_imsub + "/blocks/im3x2-H1",
+    )
+    with open(config_file, "w") as f:
+        f.write(cfg_text)
+
+    # single run (this ensures that the codecov tracking works since it doesn't follow subprocesses)
+    with pytest.raises(ValueError, match=r"oversamp, oversamp=7"):
+        run_imsubtract_single(
+            Config(config_file),
+            17,
+            13912,
+            tmp_imsub,
+            "r1_00013912_17.fits",
+            display="/dev/null",
+            max_layers=1,
+            mmap=tmp_mmap,
+            bin2x2=True,
+        )
+
+    # this will raise a different exception
+    for filename in ["psf_13912.fits", "psf_670.fits"]:
+        cf_local = os.path.join(tmp_psf, filename)
+        with fits.open(cf_local, mode="update") as f:
+            print(f[0].header["OVSAMP"])
+            f[0].header["OVSAMP"] = 3
+    with pytest.raises(ValueError, match=r"oversamp=3 is odd, not consistent with bin2x2"):
+        run_imsubtract_single(
+            Config(config_file),
+            17,
+            13912,
+            tmp_imsub,
+            "r1_00013912_17.fits",
+            display="/dev/null",
+            max_layers=1,
+            mmap=tmp_mmap,
+            bin2x2=True,
+        )
+
+    # remove files from this test to save space
+    shutil.rmtree(tmp_imsub)
+    shutil.rmtree(tmp_mmap)
+    shutil.rmtree(tmp_figs)

@@ -493,10 +493,6 @@ def run_imsubtract_single(
             if (ix, iy) in skipblocks:
                 continue
 
-            if max_layers is not None and block_count > max_layers:  # Max blocks = 5 when testing
-                print(f"Reached max_blocks={max_layers}, stopping early for testing.")
-                break
-
             print("BLOCK: ", ix, iy)
             print(f"Block count: {block_count}/{max_layers if max_layers is not None else len(block_list)}")
             t0 = time.time()
