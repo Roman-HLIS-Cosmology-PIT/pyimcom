@@ -298,7 +298,7 @@ class SplitPSF:
         # end for i
 
         # normalize the Legendre coefficients, i.e. multiply by (2l_x+1)/2 * (2l_y+1)/2
-        l_ = np.array(range(self.lorder)) + 0.5
+        l_ = np.array(range(self.lorder + 1)) + 0.5
         lnorm = np.outer(l_, l_).flatten()
         self.K_Legendre = self.K_Legendre * lnorm[:, None, None]
 
