@@ -416,8 +416,22 @@ def split_psf_to_fits(psf_file, wcs_format, pars, outfile):
     print("K2int:", K2int)
 
 
-def main(cfgfile):
-    """Drives splitpsf from a configuration file."""
+def main(cfgfile, savezeta=False):
+    """
+    Drives splitpsf from a configuration file.
+
+    Parameters
+    ----------
+    cfgfile : str or str-like
+        The configuration file location.
+    savezeta : bool, optional
+        Additional output, only for testing.
+
+    Returns
+    -------
+    None
+
+    """
 
     # Extract the information we need from the config file
     with open(cfgfile) as f:
@@ -479,7 +493,7 @@ def main(cfgfile):
                     "r_in": r1,
                     "r_out": r2,
                     "eps": epsilon,
-                    "SAVEZETA": False,
+                    "SAVEZETA": savezeta,
                     "oversamp": ovsamp,
                 },
                 outfile,
