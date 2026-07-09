@@ -20,12 +20,16 @@ format_axis
 """
 
 import json
+import os
 from importlib.resources import files
 from time import perf_counter
 
 import numpy as np
 from astropy import units as u
 from astropy.io import fits
+
+JWST = os.environ.get("INSTRUMENT", "WFI") == "NIRCAM"
+# This will be True if the environment variable INSTRUMENT is set to "NIRCAM", and False otherwise.
 
 
 class Timer:
@@ -121,6 +125,56 @@ class Settings:
             [0.342, 0.147],
         ]
     )
+
+    @classmethod
+    def jwst(cls):
+        """
+        Method to modify the Settings object to have JWST NIRCam parameters
+        instead of Roman WFI parameters.
+
+        Note: Currently only includes those attributes that are used in imdestripe.py,
+        but more can be added as needed.
+
+        """
+
+        cls.sca_nside = 2048
+        nircam_short_bands = [
+            "F070W",
+            "F090W",
+            "F115W",
+            "F140M",
+            "F150W",
+            "F150W2",
+            "F162M",
+            "F164N",
+            "F182M",
+            "F187N",
+            "F200W",
+            "F210M",
+            "F212N",
+        ]
+        nircam_long_bands = [
+            "F250M",
+            "F277W",
+            "F300M",
+            "F322W2",
+            "F323N",
+            "F335M",
+            "F356W",
+            "F360M",
+            "F405N",
+            "F410M",
+            "F430M",
+            "F444W",
+            "F460M",
+            "F466N",
+            "F470N",
+            "F480M",
+        ]
+        # KL Leaving "Roman" so we don't have to change as much in the code
+        cls.RomanFilters = nircam_short_bands + nircam_long_bands
+        cls.pixscale_short_native = 0.031 * cls.arcsec
+        cls.pixscale_long_native = 0.062 * cls.arcsec
 
 
 class fpaCoords:
@@ -235,6 +289,8 @@ class Config:
         Terminal interface to build a configuration from scratch.
     to_file
         Save the configuration to a JSON file.
+    to_dict
+        Convert to a dictionary.
 
     """
 
@@ -309,6 +365,9 @@ class Config:
         "cg_maxiter",
         "cg_tol",
         "gaindir",  # SECTION IX
+        "col_pars",
+        "amp_cols",
+        "col_boundary_const",
         "tileschm",
         "rerun",
         "mosaic",  # SECTION X
@@ -511,6 +570,9 @@ class Config:
         self.ds_noisefile = cfg_dict.get("DSNOISEFILE", False)
         self.ds_restart = cfg_dict.get("DSRESTART")
         self.gaindir = cfg_dict.get("GAINDIR", False)
+        self.col_pars = cfg_dict.get("AMPCOLS", [None, 0.0])
+        self.amp_cols = self.col_pars[0]
+        self.col_boundary_const = self.col_pars[1]
 
         # Lagrange multiplier (kappa) information
         # list of kappa/C values, ascending order
@@ -1120,6 +1182,22 @@ class Config:
             cfg_dict.clear()
             del cfg_dict
             return res
+
+    def to_dict(self):
+        """
+        Save the configuration as a dictionary.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        dict
+            Dictionary version of the configuration.
+
+        """
+        return json.loads(self.to_file(None))
 
 
 # Parameters for format_axis.

@@ -10,8 +10,8 @@ HDU_to_bels
 
 """
 
-# may need to add more packages here in the future
 import re
+import warnings
 
 import numpy as np
 
@@ -63,6 +63,20 @@ def HDU_to_bels(inhdu):
         Floating version of the unitstring encoded in the FITS header.
         Returns np.nan if no match or unrecognized.
 
+    Notes
+    -----
+    This function checks whether the sign of the UNIT is consistent with the
+    comment. If the UNIT is positive, but the comment starts with a "-", then
+    it flips it. This allows it to read legacy files that had a sign bug in UNIT.
+
     """
 
-    return UNIT_to_bels(inhdu.header["UNIT"])
+    val = UNIT_to_bels(inhdu.header["UNIT"])
+    with warnings.catch_warnings():
+        warnings.simplefilter("once")
+        if val > 0 and "UNIT" in inhdu.header and inhdu.header.comments["UNIT"][0] == "-":
+            val = -val
+            warnings.warn(
+                "This is a legacy file with an incorrect - sign in the header ... fixing ...", RuntimeWarning
+            )
+    return val

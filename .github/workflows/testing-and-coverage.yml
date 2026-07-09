@@ -16,14 +16,15 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.12', '3.13']
+        python-version: ['3.12', '3.13', '3.14']
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - name: Install TeX Live packages
       run: |
         sudo apt-get update -y
         sudo apt-get install -y \
+          dvipng \
           texlive-base \
           texlive-latex-base \
           texlive-latex-recommended \
@@ -40,15 +41,21 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
+        sudo apt-get install -y libfftw3-dev
         python -m pip install --upgrade pip
         pip install -e .[dev]
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        pip install git+https://github.com/rmjarvis/Piff@main
+        # test with main branch of Piff
+    - name: Numba settings only for one Python version
+      if: matrix.python-version == '3.14'
+      run: |
+        echo "NUMBA_DISABLE_JIT=1" >> $GITHUB_ENV
     - name: Run unit tests with pytest
       run: |
-        NUMBA_DISABLE_JIT=1 python -m pytest --cov=pyimcom --cov-report=xml
-        # njit is disabled so the lines coverage in those functions is tracked 
+        python -m pytest --cov=pyimcom --cov-report=xml
     - name: Upload coverage report to codecov
-      uses: codecov/codecov-action@v5
+      uses: codecov/codecov-action@v7
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         slug: Roman-HLIS-Cosmology-PIT/pyimcom

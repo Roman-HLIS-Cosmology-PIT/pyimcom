@@ -32,6 +32,9 @@ import copy
 import numpy as np
 from astropy.io import fits
 
+# Compression scheme table
+i24_recognized_schemes = ["I24A", "I24B"]
+
 ### Utilities for reorganizing uint8 cubes ###
 
 
@@ -307,7 +310,7 @@ class I24Cube:
         elif d == 3 and inarray.dtype.name == "uint8":
             self.mode = "uint8"
         else:
-            raise Exception("Can't initialize I24Cube: unrecognized data type or dimension.")
+            raise TypeError("Can't initialize I24Cube: unrecognized data type or dimension.")
 
         # extract minimum and maximum (these need to be provided)
         self.vmin = float(pars["VMIN"])
@@ -327,7 +330,7 @@ class I24Cube:
         if "BITKEEP" in pars:
             self.bitkeep = int(pars["BITKEEP"])
             if self.bitkeep >= 24 or self.bitkeep <= 0:
-                raise Exception(f"Can't keep {self.bitkeep:d} bits")
+                raise ValueError(f"Can't keep {self.bitkeep:d} bits")
         else:
             self.bitkeep = 24
         if "REORDER" in pars:
@@ -463,14 +466,14 @@ def i24compress(im, scheme, pars):
 
     """
 
+    if scheme not in i24_recognized_schemes:
+        return im, None  # unrecognized scheme
+
     cube = I24Cube(im, pars)
     if scheme == "I24A":
         cube.to_mode("int32")
     elif scheme == "I24B":
         cube.to_mode("uint8")
-    else:
-        # unrecognized scheme
-        return im, None
 
     return cube.data, cube.overflow
 
@@ -501,11 +504,11 @@ def i24decompress(im, scheme, pars, overflow=None):
 
     """
 
+    if scheme not in i24_recognized_schemes:
+        return im  # unrecognized scheme
+
     cube = I24Cube(im, pars, overflow=overflow)
     if scheme == "I24A" or scheme == "I24B":
         cube.to_mode("float32")
-    else:
-        # unrecognized scheme
-        return im
 
     return cube.data

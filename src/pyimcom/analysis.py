@@ -162,20 +162,24 @@ class OutImage:
                 last_line = line
         return last_line
 
-    def get_time_consump(self) -> None:
+    def get_time_consump(self) -> float:
         """
         Parse terminal output to get time consumption.
 
         Returns
         -------
-        None
+        float
+            Time consumption in seconds (if found), otherwise nan.
 
         """
 
         fname = self.fpath.replace(".fits", ".out")
-        last_line = OutImage.get_last_line(fname)
-        m = re.match("finished at t = ([0-9.]+) s", last_line)
-        return float(m.group(1))
+        try:
+            last_line = OutImage.get_last_line(fname)
+            m = re.match("finished at t = ([0-9.]+) s", last_line)
+            return float(m.group(1))
+        except FileNotFoundError:
+            return np.nan
 
     def _load_or_save_hdu_list(
         self, load_mode: bool = True, save_file: bool = False, auto_to_all: bool = False
@@ -329,7 +333,8 @@ class OutImage:
         T_weightmap = self.get_T_weightmap(j_out=0)  # shape: (n_inimage, n1P, n1P)
         if not padding:
             pad = self.cfg.postage_pad  # shortcut
-            T_weightmap = T_weightmap[:, pad:-pad, pad:-pad]
+            if pad > 0:
+                T_weightmap = T_weightmap[:, pad:-pad, pad:-pad]
 
         mean_coverage = np.mean(np.sum(T_weightmap.astype(bool), axis=0))
         del T_weightmap
@@ -368,7 +373,7 @@ class OutImage:
         if not data_loaded:
             self.hdu_list = ReadFile(self.fpath)
 
-        coef = int(self.hdu_list[outmap].header.comments["UNIT"].partition("*")[0])
+        coef = 1.0 / HDU_to_bels(self.hdu_list[outmap])
         slice_ = np.s_[j_out] if j_out is not None else np.s_[:]
         data = np.power(10.0, self.hdu_list[outmap].data[slice_] / coef).astype(np.float32)
 
@@ -735,6 +740,11 @@ class NoiseAnal:
         -------
         None
 
+        Notes
+        -----
+        If the image side length is not a multiple of 8, the extra pixels (`L` // 8)
+        are clipped.
+
         """
 
         L = self.cfg.NsideP  # side length in px
@@ -746,25 +756,26 @@ class NoiseAnal:
             indata = indata[bdpad:-bdpad, bdpad:-bdpad]
 
         s_out = self.cfg.dtheta * u.degree.to("arcsec")  # in arcsec
-        norm = NoiseAnal.get_norm(self.layer, L, Stn.RomanFilters[self.cfg.use_filter], s_out)
+        Lcut = L // 8 * 8  # "extra" pixels will be trimmed to get a multiple of 8
+        norm = NoiseAnal.get_norm(self.layer, Lcut, Stn.RomanFilters[self.cfg.use_filter], s_out)
 
         # Measure the 2D power spectrum of image.
-        ps = np.empty((L, L), dtype=np.float64)
-        rps = np.square(np.abs(np.fft.fftshift(np.fft.rfft2(indata), 0))) / norm
-        ps[:, L // 2 :] = rps[:, :-1]
-        ps[1:, : L // 2] = rps[L - 1 : 0 : -1, L // 2 : 0 : -1]
-        ps[0, : L // 2] = rps[0, L // 2 : 0 : -1]
-        self.ps2d = np.average(np.reshape(ps, (L // 8, 8, L // 8, 8)), axis=(1, 3))
+        ps = np.empty((Lcut, Lcut), dtype=np.float64)
+        rps = np.square(np.abs(np.fft.fftshift(np.fft.rfft2(indata[:Lcut, :Lcut]), 0))) / norm
+        ps[:, Lcut // 2 :] = rps[:, :-1]
+        ps[1:, : Lcut // 2] = rps[Lcut - 1 : 0 : -1, Lcut // 2 : 0 : -1]
+        ps[0, : Lcut // 2] = rps[0, Lcut // 2 : 0 : -1]
+        self.ps2d = np.average(np.reshape(ps, (Lcut // 8, 8, Lcut // 8, 8)), axis=(1, 3))
         del rps, ps
 
         # Calculate the azimuthally-averaged 1D power spectrum of the image.
         nradbins = (
-            L // 16
+            Lcut // 16
         )  # Number of radial bins is side length div. into 8 from binning and then (floor) div. by 2.
         ps_1d, ps_image_err = NoiseAnal.azimuthal_average(self.ps2d, nradbins, rbin, ridx)
-        # wavenumbers = NoiseAnal._get_wavenumbers(L, nradbins)
+        # wavenumbers = NoiseAnal._get_wavenumbers(Lcut, nradbins)
 
-        self.ps1d = np.zeros((L // 16, 2))
+        self.ps1d = np.zeros((Lcut // 16, 2))
         # self.ps1d[:, 0] = wavenumbers   # powerspectrum.k
         self.ps1d[:, 0] = ps_1d  # powerspectrum.ps_image
         self.ps1d[:, 1] = ps_image_err  # powerspectrum.ps_image_err
@@ -899,8 +910,8 @@ class StarsAnal:
         map_ = f[0].data[0, use_slice, :, :]
         wt = np.sum(np.where(f["INWEIGHT"].data[0, :, :, :] > 0.01, 1, 0), axis=0)
         fmap = (
-            f["FIDELITY"].data[0, :, :].astype(np.float32) * HDU_to_bels(f["FIDELITY"]) / 0.1
-        )  # convert to dB
+            f["FIDELITY"].data[0, :, :].astype(np.float32) * HDU_to_bels(f["FIDELITY"]) / (-0.1)
+        )  # convert to dB, inverse scale
         fmap = np.floor(fmap).astype(np.int16)  # and round to integer
         del f
 
@@ -1166,10 +1177,17 @@ class _BlkGrp:
         """
         Analyze noise power spectra of this mosaic.
 
+        The output noise power spectra are written to ``self.cfg.outstem + "_NoisePS.npz"``. These
+        are in the format:
+
+        * `ps2d_all` = 2D power spectrum, [which_noise_layer, ybin, xbin]
+        * `ps1d_all` = 1D power spectrum, [which_noise_layer, coverage_bin, wavenumber_bin, value_or_err]
+        * `wavenumber` = 1D array of wavenumbers
+
         Parameters
         ----------
         bins : int, optional
-            Number of bins for 1D power spectra.
+            Number of coverage bins for 1D power spectra.
         overwrite : bool, optional
             Whether to overwrite existing results.
 
@@ -1179,12 +1197,12 @@ class _BlkGrp:
 
         """
 
-        fname = self.cfg.outstem + "_NoisePS.npy"
+        fname = self.cfg.outstem + "_NoisePS.npz"
         if not overwrite and exists(fname):
-            with open(fname, "rb") as f:
-                self.ps2d_all = np.load(f)
-                self.ps1d_all = np.load(f)
-                self.wavenumbers = np.load(f)
+            with np.load(fname) as f:
+                self.ps2d_all = f["ps2d_all"]
+                self.ps1d_all = f["ps1d_all"]
+                self.wavenumbers = f["wavenumbers"]
             return
 
         timer = Timer()
@@ -1259,11 +1277,7 @@ class _BlkGrp:
             self.ps1d_all[:, idx, :, :] /= count
         del coverage_idx, counts
 
-        with open(fname, "wb") as f:
-            np.save(f, self.ps2d_all)
-            np.save(f, self.ps1d_all)
-            np.save(f, self.wavenumbers)
-
+        np.savez(fname, ps2d_all=self.ps2d_all, ps1d_all=self.ps1d_all, wavenumbers=self.wavenumbers)
         print(f"finished at t = {timer():.2f} s")
 
     def get_star_catalog(self, layer: str = "gsstar14", overwrite: bool = False) -> None:
@@ -1461,6 +1475,6 @@ class Suite(_BlkGrp):
         self.nrun = nrun
         self.outimages = [None for ib in range(nrun)]
         for ib in range(nrun):
-            ibx, iby = divmod(ib * 691 % cfg.nblock**2, cfg.nblock)
+            ibx, iby = divmod(ib * prime % cfg.nblock**2, cfg.nblock)
             fpath = cfg.outstem + f"_{ibx:02d}_{iby:02d}.fits"
             self.outimages[ib] = OutImage(fpath, cfg, self.hdu_names)

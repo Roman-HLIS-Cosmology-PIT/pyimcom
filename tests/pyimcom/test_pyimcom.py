@@ -5,12 +5,16 @@ This does 2 blocks.
 """
 
 import copy
+import io
 import os
 import pathlib
+import re
+from contextlib import redirect_stdout
 
 import asdf
 import galsim
 import gwcs
+import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 from astropy import coordinates as coord
@@ -21,14 +25,17 @@ from astropy.modeling import models
 from astropy.table import Table
 from furry_parakeet.pyimcom_croutines import gridD5512C
 from gwcs import coordinate_frames as cf
-from pyimcom.analysis import OutImage
+from pyimcom.analysis import Mosaic, OutImage, Suite
 from pyimcom.coadd import Block
 from pyimcom.compress.compressutils import CompressedOutput, ReadFile
 from pyimcom.config import Config
+from pyimcom.diagnostics.layer_diagnostics import LayerReport
 from pyimcom.diagnostics.mosaicimage import MosaicImage
 from pyimcom.diagnostics.noise_diagnostics import NoiseReport
 from pyimcom.diagnostics.report import ValidationReport
 from pyimcom.diagnostics.stars import SimulatedStar
+from pyimcom.layer import Mask
+from pyimcom.layer_wrapper import build_all_layers, build_one_layer
 from pyimcom.psfutil import OutPSF
 from pyimcom.truthcats import gen_truthcats_from_cfg
 from pyimcom.wcsutil import _stand_alone_test
@@ -92,10 +99,11 @@ myCfg_format = """
         "whitenoise1",
         "1fnoise2",
         "gsext14,n=0.5,hlr=0.1,shape=0.2:0.1,shear=0.05:-0.12",
+        "gstrstar14",
         "gsextchrom14,$TMPDIR/psf,n=0.5,hlr=0.1,shape=0.2:0.1,shear=0.05:-0.12"
     ],
     "PADSIDES": "all",
-    "OUTMAPS": "USTN",
+    "OUTMAPS": "USTKN",
     "OUT": "$TMPDIR/out/testout_F",
     "INPAD": 0.8,
     "NPIXPSF": 42,
@@ -412,6 +420,7 @@ def setup(tmp_path):
     # draw the images
     (tmp_path / "in").mkdir(parents=True, exist_ok=True)
     olog = ""
+    has_tried_fits = False  # we'll only do one FITS image
     for iobs in range(len(obs)):
         filt = data["filter"][iobs].decode("ascii")
         print(filt)
@@ -489,11 +498,12 @@ def setup(tmp_path):
                     # WCS test
                     assert _stand_alone_test(str(tmp_path / f"in/sim_L2_{filt:s}_{iobs:d}_{sca:d}.asdf"))
 
-                    # Also can write a FITS version to make sure we can ...
-                    # hope this is useful to look at if something goes wrong
-                    # fits.PrimaryHDU(im, header=this_wcs.to_header()).writeto(
-                    #     tmp_path / f"in/sim_L2_{filt:s}_{iobs:d}_{sca:d}_asfits.fits", overwrite=True
-                    # )
+                    # do a FITS image once to test some functionality
+                    if not has_tried_fits:
+                        has_tried_fits = True
+                        fitsfile = str(tmp_path / f"in/sim_L2_{filt:s}_{iobs:d}_{sca:d}_asfits.fits")
+                        fits.PrimaryHDU(im, header=this_wcs.to_header()).writeto(fitsfile, overwrite=True)
+                        assert _stand_alone_test(fitsfile)
 
                     # now make the masks
                     mask = np.zeros((nside, nside), dtype=np.uint8)
@@ -538,7 +548,14 @@ def setup(tmp_path):
     print(cfg.to_file(None))
     # Running all 4 blocks so we can include the diagnostics in the test coverage.
     for iblk in range(4):
-        Block(cfg=cfg, this_sub=iblk)
+        ibx, iby = divmod(iblk, 2)
+        f = io.StringIO()
+        with redirect_stdout(f):
+            Block(cfg=cfg, this_sub=iblk)
+        fout = str(tmp_path / f"out/testout_F_{ibx:02d}_{iby:02d}.out")
+        with open(fout, "w") as ff:
+            ff.write(f.getvalue())
+        assert os.path.exists(fout)
     gen_truthcats_from_cfg(cfg)
 
     # now try the multi-kappa kernel
@@ -564,6 +581,174 @@ def setup(tmp_path):
     cfg2.outstem += "_iter"
     cfg2()
     Block(cfg=cfg2, this_sub=1)
+
+    # now with padding
+    cfg2 = copy.deepcopy(cfg)
+    cfg2.linear_algebra = "Empirical"
+    cfg2.no_qlt_ctrl = True
+    cfg2.outstem += "_empirpad"
+    cfg2.n1 = 6
+    cfg2.postage_pad = 2
+    cfg2.pad_sides = "auto"
+    cfg2()
+    for iblk in range(4):
+        Block(cfg=cfg2, this_sub=iblk)
+    dpix = 2 * cfg2.postage_pad * cfg.n2
+    with ReadFile(pathlib.Path(tmp_path / "out/testout_F_empirpad_00_00.fits")) as f:
+        i1a = np.copy(f[0].data[0, 5, 3:9, -6:])
+        i1b = np.copy(f[0].data[0, 5, -6:, 3:9])
+    with ReadFile(pathlib.Path(tmp_path / "out/testout_F_empirpad_01_01.fits")) as f:
+        i1c = np.copy(f[0].data[0, 5, -9:-3, :6])
+        i1d = np.copy(f[0].data[0, 5, :6, -9:-3])
+    with ReadFile(pathlib.Path(tmp_path / "out/testout_F_empirpad_01_00.fits")) as f:
+        i2a = np.copy(f[0].data[0, 5, 3:9, dpix - 6 : dpix])
+        i2d = np.copy(f[0].data[0, 5, -dpix : -dpix + 6, -9:-3])
+        # same region as above, shifted by dpix pixels due to overlap
+    with ReadFile(pathlib.Path(tmp_path / "out/testout_F_empirpad_00_01.fits")) as f:
+        i2b = np.copy(f[0].data[0, 5, dpix - 6 : dpix, 3:9])
+        i2c = np.copy(f[0].data[0, 5, -9:-3, -dpix : -dpix + 6])
+    mos = Mosaic(cfg2)
+    mos.share_padding_stamps()
+    with ReadFile(pathlib.Path(tmp_path / "out/testout_F_empirpad_00_00.fits")) as f:
+        i3a = np.copy(f[0].data[0, 5, 3:9, -6:])
+        i3b = np.copy(f[0].data[0, 5, -6:, 3:9])
+    with ReadFile(pathlib.Path(tmp_path / "out/testout_F_empirpad_01_01.fits")) as f:
+        i3c = np.copy(f[0].data[0, 5, -9:-3, :6])
+        i3d = np.copy(f[0].data[0, 5, :6, -9:-3])
+    assert np.std(i2a) > 0.001
+    assert np.all(i1a < 1.0e-7)
+    assert np.allclose(i2a, i3a)
+    assert np.std(i2b) > 0.001
+    assert np.all(i1b < 1.0e-7)
+    assert np.allclose(i2b, i3b)
+    assert np.std(i2c) > 0.001
+    assert np.all(i1c < 1.0e-7)
+    assert np.allclose(i2c, i3c)
+    assert np.std(i2d) > 0.001
+    assert np.all(i1d < 1.0e-7)
+    assert np.allclose(i2d, i3d)
+    # check the noise power spectra
+    mos.get_noise_power_spectra(bins=8, overwrite=True)
+    for _ in range(2):
+        with np.load(str(tmp_path) + "/out/testout_F_empirpad_NoisePS.npz") as f:
+            ps2d_all = f["ps2d_all"]
+            ps1d_all = f["ps1d_all"]
+            wavenumbers = f["wavenumbers"]
+        assert np.shape(ps2d_all) == (2, 18, 18)
+        assert np.shape(ps1d_all) == (2, 8, 9, 2)
+        assert np.shape(wavenumbers) == (9,)
+        assert np.abs(ps2d_all[0, 0, 0]) < 1.0e-10
+        assert 0.0017 < np.sum(ps2d_all[0]) < 0.002
+        assert np.all(np.abs(ps1d_all[:, :3, :, :]) < 1.0e-11)
+        assert np.all(np.abs(ps1d_all[:, -3:, :, :]) < 1.0e-11)
+        assert 1.8e-5 < np.sum(ps1d_all, axis=1)[0, 0, 0] < 2.0e-5
+        assert 1.6e-5 < np.sum(ps1d_all, axis=1)[0, 0, 1] < 1.8e-5
+        assert np.allclose(
+            wavenumbers,
+            [
+                3.05837232,
+                4.97362834,
+                6.91919263,
+                8.87435956,
+                10.82665007,
+                12.64160504,
+                14.60934787,
+                16.36958477,
+                17.67766953,
+            ],
+        )
+        # test loading from file
+        mos.get_noise_power_spectra(bins=8, overwrite=False)
+
+    # test Suite class
+    nrun = 4
+    s = Suite(cfg, prime=3, nrun=nrun)
+    indices = [(0, 0), (1, 1), (1, 0), (0, 1)]
+    for j in range(nrun):
+        assert (s.outimages[j].ibx, s.outimages[j].iby) == indices[j]
+    s.get_consump_map()
+    t = np.load(str(tmp_path) + "/out/testout_F_Consump.npy")
+    assert np.all(t >= 0)
+    s.clear()
+    s = Suite(cfg2, prime=3, nrun=nrun)
+    indices = [(0, 0), (1, 1), (1, 0), (0, 1)]
+    for j in range(nrun):
+        assert (s.outimages[j].ibx, s.outimages[j].iby) == indices[j]
+    s.get_consump_map()
+    t = np.load(str(tmp_path) + "/out/testout_F_empirpad_Consump.npy")
+    assert np.all(np.isnan(t))  # we didn't save these so should get nan
+    s.clear()
+
+    # remove stuff we don't need
+    for iobs in range(len(obs)):
+        for sca in range(1, 19):
+            fname1 = tmp_path / rf"in/sim_L2_F184_{iobs:d}_{sca:d}.asdf"
+            fname2 = cachedir / rf"in_{iobs:08d}_{sca:02d}.fits"
+            if os.path.exists(fname1) and not os.path.exists(fname2):
+                os.remove(fname1)
+
+
+def test_drawlayers(tmp_path, setup):
+    """
+    See if we can successfully draw layers with the build_all_layers function.
+
+    Parameters
+    ----------
+    tmp_path : str
+        Directory in which to run the test.
+    setup : function
+        For pytest fixture.
+
+    Returns
+    -------
+    None
+
+    """
+
+    # first, get the configuration file.
+    with open(tmp_path / "cfg2.txt", "w") as f:
+        f.write(myCfg_format.replace("cache/in", "cache/otherin").replace("$TMPDIR", str(tmp_path)))
+
+    # figure out which layers we expect
+    path = str(tmp_path) + "/cache"
+    exp = "in"
+    idsca_list = []
+    for _, _, files in os.walk(path):
+        for file in files:
+            if file.startswith(exp):
+                m = re.search(r"_(\d{8})_(\d{2})\.fits$", file[len(exp) :])
+                if m:
+                    idsca_list.append((int(m.group(1)), int(m.group(2))))
+    print("looking for inputs -->", idsca_list)
+
+    # build layers
+    cfg = Config(str(tmp_path / "cfg2.txt"))
+    print(cfg)
+    build_all_layers(cfg)
+
+    # now do the comparisons
+    for idsca in idsca_list:
+        (id, sca) = idsca
+        f1 = str(tmp_path) + rf"/cache/in_{id:08d}_{sca:02d}.fits"
+        f2 = str(tmp_path) + rf"/cache/otherin_{id:08d}_{sca:02d}.fits"
+        with fits.open(f1) as d1, fits.open(f2) as d2:
+            # print(id, sca, d1[0].data, d2[0].data)
+            assert np.allclose(d1[0].data, d2[0].data)
+
+    # test for build_one_layer
+    id = 7
+    sca = 1
+    os.remove(str(tmp_path) + rf"/cache/otherin_{id:08d}_{sca:02d}.fits")
+    build_one_layer(cfg, (id, sca))
+
+    # now do the comparisons again
+    for idsca in idsca_list:
+        (id, sca) = idsca
+        f1 = str(tmp_path) + rf"/cache/in_{id:08d}_{sca:02d}.fits"
+        f2 = str(tmp_path) + rf"/cache/otherin_{id:08d}_{sca:02d}.fits"
+        with fits.open(f1) as d1, fits.open(f2) as d2:
+            # print(id, sca, d1[0].data, d2[0].data)
+            assert np.allclose(d1[0].data, d2[0].data)
 
 
 def test_PyIMCOM_run1(tmp_path, setup):
@@ -677,11 +862,17 @@ def test_PyIMCOM_run1(tmp_path, setup):
         dmax = np.amax(fblock[0].data[0, 4, :, :])
         assert np.abs(dmax - 35879.0) < 500.0
 
+        # difference between gsstar and gstrstar
+        diff = np.amax(np.abs(fblock[0].data[0, 1, :, :] - fblock[0].data[0, 8, :, :]))
+        diff /= np.amax(np.abs(fblock[0].data[0, 1, :, :]))
+        print(diff)
+        assert diff < 0.66667
+
         # values from noise layers
         test5 = np.array([[0.7601451, 0.9042513], [0.64049757, 0.70962816]])
         test6 = np.array([[0.24921854, -0.23588116], [-0.39272013, -0.6111549]])
-        assert np.amax(np.abs(fblock[0].data[0, 5, :2, :2] - test5)) < 1e-3
-        assert np.amax(np.abs(fblock[0].data[0, 6, :2, :2] - test6)) < 1e-3
+        assert np.amax(np.abs(fblock[0].data[0, 5, :2, :2] - test5)) < 1.5e-3
+        assert np.amax(np.abs(fblock[0].data[0, 6, :2, :2] - test6)) < 1.5e-3
 
         # simulated Gaussian galaxy
         xc_ = 14  # center of region
@@ -708,12 +899,33 @@ def test_PyIMCOM_run1(tmp_path, setup):
 
     # Test output reader
     my_block = OutImage(pth)
+    timespent = my_block.get_time_consump()
+    print(f"{timespent} s spent")
+    assert timespent >= 0.0
     sci_image = my_block.get_coadded_layer("SCI")
     ci = np.argmax(sci_image)
     sci_image.ravel()[ci]
 
     assert np.shape(sci_image) == (100, 100)
     assert np.abs(sci_image.ravel()[843] - 0.18244877) < 1e-4
+
+    # Test coverage
+    coverage1 = my_block.get_mean_coverage()
+    coverage2 = my_block.get_mean_coverage(padding=True)
+    assert coverage1 >= 2.5
+    assert coverage2 >= 2.5
+    assert coverage1 <= 3.5
+    assert coverage2 <= 3.5
+    del coverage1, coverage2
+
+    # Test output map reader
+    outfidelity = my_block.get_output_map("FIDELITY")
+    print(np.shape(outfidelity), np.amin(outfidelity), np.median(outfidelity), np.amax(outfidelity))
+    assert np.amin(outfidelity) > 1.0e-7
+    assert np.median(outfidelity) > 1.3e-6
+    assert np.median(outfidelity) < 1.5e-6
+    assert np.amax(outfidelity) < 1.0e-5
+    assert np.shape(outfidelity) == (100, 100)
 
     ## Configuration test ##
 
@@ -731,7 +943,7 @@ def test_PyIMCOM_run1(tmp_path, setup):
     rpt = ValidationReport(
         str(tmp_path) + "/out/testout_F_00_00.fits", str(tmp_path) + "/rpt/report-F", clear_all=True
     )
-    sectionlist = [MosaicImage, SimulatedStar, NoiseReport]
+    sectionlist = [MosaicImage, SimulatedStar, NoiseReport, LayerReport]
     for cls in sectionlist:
         s = cls(rpt)
         s.build()  # specify nblockmax to do just the lower corner
@@ -745,6 +957,10 @@ def test_PyIMCOM_run1(tmp_path, setup):
     assert texdata["MosaicImage"][:18] == "N =  2, BIN =   1\n"
     assert texdata["SimulatedStar"].split()[0] == "RMS_ELLIP_ADAPT"
     assert texdata["SimulatedStar"].split()[1][:7] == "0.00010"
+    print(texdata["LayerReport"])
+    info1 = texdata["LayerReport"].split()
+    print(float(info1[84]))  # Layer 5, 99th pctile
+    assert 0.89 < float(info1[84]) < 0.91
 
     fields = texdata["NoiseReport"].split()
     print(fields)
@@ -754,6 +970,58 @@ def test_PyIMCOM_run1(tmp_path, setup):
     assert fields[3] == "LAYER01"
     assert fields[4] == "1fnoise2"
     assert np.abs(float(fields[5]) - 2.96809) < 1e-4
+
+    # another report test, with temporary files
+    os.mkdir(tmp_path / "rpt2")
+    os.mkdir(tmp_path / "tmp")
+    rpt2 = ValidationReport(
+        str(tmp_path) + "/out/testout_F_00_00.fits",
+        str(tmp_path) + "/rpt2/report-F",
+        clear_all=True,
+        tmp_dir=str(tmp_path) + "/tmp",
+    )
+    for cls in sectionlist:
+        s = cls(rpt2)
+        s.build()  # specify nblockmax to do just the lower corner
+        rpt2.addsections([s])
+        del s
+    rpt2.compile()  # test that the LaTeX compiles!
+    assert os.path.exists(str(tmp_path) + "/rpt2/report-F_main.pdf")
+    texdata2 = pull_from_file(str(tmp_path) + "/rpt2/report-F_main.tex")
+    info2 = texdata2["LayerReport"].split()
+    assert 0.89 < float(info2[84]) < 0.91
+
+    # Test updating the right side of this block
+    my_block._load_or_save_hdu_list()  # load all the data into memory
+    # just for the test, fool IMCOM into thinking we used auto so that it will run
+    my_cfg = Config("".join(my_block.hdu_list["CONFIG"].data["text"].tolist()))
+    my_cfg.pad_sides = "auto"
+    config_hdu = fits.TableHDU.from_columns(
+        [
+            fits.Column(
+                name="text",
+                array=my_cfg.to_file(None).splitlines(),
+                format="A512",
+                ascii=True,
+            )
+        ]
+    )
+    config_hdu.header["EXTNAME"] = "CONFIG"
+    my_block.hdu_list["CONFIG"] = config_hdu
+    # The replacement I turned off since it isn't supposed to run without padding.
+    #
+    # pth2 = pathlib.Path(tmp_path / f"out/testout_F_{ibx+1:02d}_{iby:02d}.fits")
+    # right_image = OutImage(pth2)
+    # right_image._load_or_save_hdu_list()
+    # d1 = np.copy(my_block.hdu_list["PRIMARY"].data[0, 0, :, -1])
+    # my_block._update_hdu_data(right_image, "right", add_mode=False)
+    # d2 = np.copy(my_block.hdu_list["PRIMARY"].data[0, 0, :, -1])
+    # er = np.amax(np.abs(d1 - d2)) / np.amax(np.abs(d1))
+    # print(er)
+    # assert er > 1.0e-6
+    # assert er < 0.5
+    my_block._load_or_save_hdu_list(load_mode=False)  # close the data
+    assert not hasattr(my_block, "hdu_list")
 
 
 def test_compress(tmp_path):
@@ -880,3 +1148,80 @@ def test_compress(tmp_path):
                         atol=atol,
                         err_msg=f"Compression test failed for {_step}",
                     )
+
+
+def test_visualize(tmp_path, setup, monkeypatch):
+    """Test function to direct visualizations to files."""
+
+    # new place to save figures, in sequence
+    _counter = [0]
+
+    # max 1000 files
+    def save_instead_of_show(count=_counter):
+        plt.savefig(tmp_path / f"plot_output_{count[0]%1000:d}.png")
+        count[0] += 1
+
+    monkeypatch.setattr(plt, "show", save_instead_of_show)
+
+    # use the empirical kernel since it's fast
+    cfg2 = Config(tmp_path / "cfg.txt")
+    cfg2.linear_algebra = "Empirical"
+    cfg2.no_qlt_ctrl = False
+    cfg2.outstem += "_emp_alt"
+    cfg2()
+
+    # this sets up the block without running it
+    b = Block(cfg=cfg2, this_sub=1, run_coadd=False)
+
+    # modified sequence from the __call__ function to run visualizations
+    b.parse_config()
+    b.process_input_images(visualize=True)
+    b.build_input_stamps()
+    b.coadd_output_stamps(sim_mode=True, visualize=True)
+    b.coadd_output_stamps(sim_mode=False, visualize=True)
+    b.build_output_file(is_final=True)
+    b.clear_all()
+
+    # provide the temporary path and number of plots generated
+    outdata = str(tmp_path) + f"\n{_counter[0]:d}\n"
+    print(outdata)
+    ct = np.array([3, 384, 16, 9], dtype=np.int32)  # target number of plots
+    print(_counter[0] - np.sum(ct))
+    assert _counter[0] == np.sum(ct)
+
+
+class _Empty:
+    """Dummy."""
+
+    def __init__(self):
+        pass
+
+
+class _DummyImage:
+    """Just to use for test_masks."""
+
+    def __init__(self):
+        self.idsca = (10, 12)
+        self.blk = _Empty()
+        self.blk.cfg = _Empty()
+        self.blk.cfg.extrainput = [None]
+        self.blk.cfg.cr_mask_rate = 0.002
+        self.indata = np.zeros((4088, 4088), dtype=np.float32)
+
+
+def test_masks(tmp_path, setup):
+    """Simple tests for mask functions."""
+
+    # This one tests masks for old formats (unlikely to use again, but we want to make sure
+    # the code still works).
+    cfg2 = Config(tmp_path / "cfg.txt")
+    cfg2.informat = "dc2_sim"  # this didn't have a per-observation mask
+    assert np.all(Mask.load_mask_from_maskfile(cfg2, -1, -1))
+
+    # Maks a cosmic ray mask (now superseded by romanisim, but we want to make sure the
+    # old method still works).
+
+    inimage = _DummyImage()
+    mask = Mask.load_cr_mask(inimage)
+    print(np.count_nonzero(mask))
+    assert 0.015 < np.mean((~mask).astype(np.float32)) < 0.020

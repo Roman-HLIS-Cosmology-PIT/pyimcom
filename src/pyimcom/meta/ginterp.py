@@ -12,13 +12,11 @@ test
 
 """
 
-import time
-
 import numpy as np
 import scipy
 
 
-def InterpMatrix(Rsearch, samp, x_out, y_out, Cov, epsilon=1.0e-7, stest=1, verbose=False):
+def InterpMatrix(Rsearch, samp, x_out, y_out, Cov, epsilon=1.0e-7, stest=1):
     """
     Constructs a reconvolution + interpolation matrix.
 
@@ -39,8 +37,6 @@ def InterpMatrix(Rsearch, samp, x_out, y_out, Cov, epsilon=1.0e-7, stest=1, verb
     stest : int, optional
         Computes diagnostics for every stest-th point instead of every point (default is every point).
         Saves time.
-    verbose : bool, optional
-        Print timing information?
 
     Returns
     -------
@@ -61,8 +57,6 @@ def InterpMatrix(Rsearch, samp, x_out, y_out, Cov, epsilon=1.0e-7, stest=1, verb
     matrix" A is the same in all cases so it is much faster than IMCOM.
 
     """
-
-    t0 = time.time()
 
     # extract parameters
     R = np.sqrt(
@@ -183,8 +177,6 @@ def InterpMatrix(Rsearch, samp, x_out, y_out, Cov, epsilon=1.0e-7, stest=1, verb
     # (T@A-2b.T)[i,j] = T[i,k]A[k,j]-2b[j,i]
     # then the sum is sum_j (T@A-2b.T)[i,j] * T[i,j] = sum_j T[i,k]A[k,j]T[i,j] -2 sum_j b[j,i]T[i,j]
 
-    if verbose:
-        print("InterpMatrix time =", time.time() - t0)
     return (
         np.round(posx).astype(np.int16),
         np.round(posy).astype(np.int16),
@@ -208,7 +200,7 @@ def MultiInterp(
     blocksize=393216,
 ):
     """
-    Interpolates from an input array to a regularly spaced output array, including some additional smoothing..
+    Interpolates from an input array to a regularly spaced output array, including some additional smoothing.
 
     Parameters
     ----------
@@ -342,10 +334,7 @@ def MultiInterp(
     for j in range(nlayer):
         out_array[j][out_mask] = 0.0
 
-    if is3D:  # I think it is clearer this way. # noqa: SIM108
-        out_array = out_array.reshape((nlayer, ny, nx))
-    else:
-        out_array = out_array.reshape((ny, nx))
+    out_array = out_array.reshape((nlayer, ny, nx)) if is3D else out_array.reshape((ny, nx))
     out_mask = out_mask.reshape((ny, nx))
 
     return out_array, out_mask, Umax, Smax

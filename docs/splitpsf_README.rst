@@ -34,7 +34,9 @@ An example workflow script, using perl + slurm, is in `writejob_example.pl <../s
 
 7. `Write report <diagnostics_README.rst>`_
 
-The perl script can be run on the Ohio Supercomputer Center using the format::
+The perl script can be run on the Ohio Supercomputer Center using the format:
+
+.. code-block:: bash
 
   perl writejobs_example.pl $ACCOUNT $CONFIGURATION $LOGFILETAG $SCRIPTTAG
   # $ACCOUNT       = the account name you want to use
@@ -89,11 +91,20 @@ Each of these HDUs are a 3D array (Legendre cube), with the number of slices cor
 The iteration step
 ==================
 
-The iteration step can be run as a module::
+The iteration step can be run on a parallel system as:
 
-  python3 -m pyimcom.splitpsf.imsubtract config.json 14
+.. code-block:: python
 
-to run all images from SCA 14. You will need to run this 18 times (once for each SCA) to make sure all the images have been observed.
+  import os
+  from pyimcom.splitpsf.imsubtract_wrapper import run_imsubtract_all
+
+  run_imsubtract_all(config_file, workers=36, fft_workers=4, mmap=os.getenv("TMPDIR"))
+
+where ``config_file`` is passed as a string (file location); ``workers=36`` means that 36 SCAs will be done at once; and ``fft_workers`` means 4 workers are assigned to the 2D FFTs (the most computationally intensive step).
+
+Memory mapping is highly recommended, but you should use the on-node storage on your HPC system; if you are on a system where the on-node storage for your job is given by the ``$TMPDIR`` environment variable, the call listed above will work. If you are on a different system, refer to your HPC system's documentation on how to access a temporary directory unique to your job.
+
+**Note**: This replaces the legacy method of calling `pyimcom.splitpsf.imsubtract` as a module.
 
 The ``pyimcom.splitpsf.imsubtract.run_imsubtract`` function controls all the mechanics of running the code. Its format is::
 
@@ -108,7 +119,9 @@ The "subtracted" images are written to ``f"{cfgdata.inlayercache}_{obsid:08d}_{s
 Re-insertion into PyIMCOM
 =========================
 
-The subtracted images are re-inserted as the cached files by the command::
+The subtracted images are re-inserted as the cached files by the command:
+
+.. code-block:: bash
 
   python3 -m pyimcom.splitpsf.update_cube config.json
 

@@ -15,6 +15,7 @@ make_picture_1band
 """
 
 import os
+import sys
 
 import numpy as np
 from matplotlib import cm
@@ -65,7 +66,7 @@ def resolve_bounds(bounds, nblock):
         if check1(ymin, ymax, xmin, xmax):
             return ymin, ymax, xmin, xmax
         else:
-            raise Exception("genpic.resolve_bounds: Invalid bounds")
+            raise ValueError("genpic.resolve_bounds: Invalid bounds")
 
     # by default, take the whole block
     return 0, nblock, 0, nblock
@@ -148,7 +149,7 @@ def make_picture_1band(
     Parameters
     ----------
     fn : str
-        File stem (without the _DD_DD.fits).
+        File stem (without the _DD_DD.fits or _DD_DD.cpr.fits.gz).
     outfile : str
         Output file name.
     layer : int, optional
@@ -175,7 +176,10 @@ def make_picture_1band(
     bw = cmap is None
 
     # get the configuration
-    cfg = get_config(fn + "_00_00.fits")
+    try:
+        cfg = get_config(fn + "_00_00.fits")
+    except FileNotFoundError:
+        cfg = get_config(fn + "_00_00.cpr.fits.gz")
     nint = cfg.n1 * cfg.n2
     pad = cfg.n2 * cfg.postage_pad
 
@@ -193,9 +197,12 @@ def make_picture_1band(
     for ix in range(xmax - xmin):
         for iy in range(ymax - ymin):
             fname = fn + f"_{ix + xmin:02d}_{iy + ymin:02d}.fits"
+            if not os.path.exists(fname):
+                fname = fname[:-5] + ".cpr.fits.gz"  # try seeing if it is compressed
             if os.path.exists(fname):
-                with ReadFile(fname) as f:
+                with ReadFile(fname, layers=[layer]) as f:
                     print(pad, np.shape(f[0].data), fname)
+                    sys.stdout.flush()
                     sh = np.shape(f[0].data)  # this is needed for trimming correctly if pad=0
                     D = np.mean(
                         f[0]

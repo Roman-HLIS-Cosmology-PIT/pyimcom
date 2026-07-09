@@ -129,20 +129,18 @@ def gen_starcube_nonoise(infile_fcn, outstem, nblockmax=100):
 
             if not exists(infile):
                 continue
-            # get WCS
-            with ReadFile(infile) as f:
+
+            # get WCS and data
+            with ReadFile(infile, layers=[use_slice]) as f:
                 mywcs = wcs.WCS(f[0].header)
                 map = f[0].data[0, use_slice, :, :]
                 wt = np.sum(np.where(f["INWEIGHT"].data[0, :, :, :] > 0.01, 1, 0), axis=0)
                 fmap = (
-                    f["FIDELITY"].data[0, :, :].astype(np.float32) * HDU_to_bels(f["FIDELITY"]) / 0.1
-                )  # convert to dB
+                    f["FIDELITY"].data[0, :, :].astype(np.float32) * HDU_to_bels(f["FIDELITY"]) / (-0.1)
+                )  # convert to dB, inverse scale
                 fmap = np.floor(fmap).astype(np.int16)  # and round to integer
                 for fy in range(81):
                     fhist[fy] += np.count_nonzero(fmap[bdpad:-bdpad, bdpad:-bdpad] == fy)
-
-            print(infile, use_slice, res)
-            sys.stdout.flush()
 
             # extract HEALPix pixels with the stars
             ra_cent, dec_cent = mywcs.all_pix2world(

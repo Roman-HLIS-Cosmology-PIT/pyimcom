@@ -102,6 +102,18 @@ def test_metamosaic(tmp_path):
     # mask a region
     mosaic.mask_caps([9.686], [-44.110], [0.0005])
 
+    # these don't actually apply a cut, but verify we don't break anything
+    mosaic.mask_fidelity_cut(0.0)
+    mosaic.mask_noise_cut(0.0)
+
+    # save to a file
+    mosaic.to_file(tmp_dir + "/mosaic.fits")
+    with fits.open(tmp_dir + "/mosaic.fits") as f_out, fits.open(tmp_dir + "/test_F_02_11.fits") as f_in:
+        a = 36
+        b = 1152
+        assert np.allclose(f_in[0].data[0, :, a:-a, a:-a], f_out[0].data[:, b:-b, b:-b])
+        assert f_out[0].header["SOURCE"] == "pyimcom.meta.distortimage.MetaMosaic.to_file"
+
     rot = 20 * np.pi / 180.0
     im0 = mosaic.shearimage(
         1200,

@@ -60,7 +60,7 @@ def gen_dynrange_data(inpath, outstem, rpix_try=50, nblockmax=100):
     # initialize table of pixel values
     vals = []
     for _ in range(rpix_try):
-        vals += [np.zeros((0,))]
+        vals += [np.zeros((0,), dtype=np.float32)]
 
     is_first = True
 
@@ -132,7 +132,7 @@ def gen_dynrange_data(inpath, outstem, rpix_try=50, nblockmax=100):
                 print("# rs=", rs)
 
             # now we know this file exists
-            with ReadFile(infile) as f:
+            with ReadFile(infile, layers=[framenumber]) as f:
                 n = np.shape(f[0].data)[-1]
                 mywcs = wcs.WCS(f[0].header)
                 starmap = f[0].data[0, framenumber, :, :]
@@ -140,7 +140,7 @@ def gen_dynrange_data(inpath, outstem, rpix_try=50, nblockmax=100):
                 # now extract histogram information
                 try:
                     sigma_ = 10 ** (
-                        -0.5 * HDU_to_bels(f["SIGMA"]) * f["SIGMA"].data[0, bd : n - bd, bd : n - bd]
+                        0.5 * HDU_to_bels(f["SIGMA"]) * f["SIGMA"].data[0, bd : n - bd, bd : n - bd]
                     )  # noise standard deviation in units of input noise
                     for j in range(N_noise):
                         countnoise[j, 1] = countnoise[j, 1] + np.count_nonzero(
@@ -190,7 +190,7 @@ def gen_dynrange_data(inpath, outstem, rpix_try=50, nblockmax=100):
                 yi = yi[grp]
                 npix = len(x)
 
-                print("# read grid postion:", (ibx, iby), n, "number of HEALPix pixels =", npix)
+                print("# read grid position:", (ibx, iby), n, "number of HEALPix pixels =", npix)
                 # complain if it didn't find a star
                 for ipix in range(npix):
                     if starmap[yi[ipix], xi[ipix]] < 1000:
@@ -210,10 +210,24 @@ def gen_dynrange_data(inpath, outstem, rpix_try=50, nblockmax=100):
 
                 # extract profile around each object
                 x_, y_ = np.meshgrid(range(n), range(n))
+                tempvals = [None] * rpix
+                for j in range(rpix):
+                    tempvals[j] = np.zeros((0,), dtype=np.float32)
                 for ipix in range(npix):
-                    r = np.floor(np.sqrt((x_ - x[ipix]) ** 2 + (y_ - y[ipix]) ** 2)).astype(np.int16)
+                    xmin = np.clip(np.floor(x[ipix]).astype(np.int16) - rpix - 1, 0, n)
+                    xmax = np.clip(np.ceil(x[ipix]).astype(np.int16) + rpix + 1, 0, n)
+                    ymin = np.clip(np.floor(y[ipix]).astype(np.int16) - rpix - 1, 0, n)
+                    ymax = np.clip(np.ceil(y[ipix]).astype(np.int16) + rpix + 1, 0, n)
+                    r = np.floor(
+                        np.sqrt(
+                            (x_[ymin:ymax, xmin:xmax] - x[ipix]) ** 2
+                            + (y_[ymin:ymax, xmin:xmax] - y[ipix]) ** 2
+                        )
+                    ).astype(np.int16)
                     for j in range(rpix):
-                        vals[j] = np.concatenate((vals[j], starmap[r == j]))
+                        tempvals[j] = np.concatenate((tempvals[j], starmap[ymin:ymax, xmin:xmax][r == j]))
+                for j in range(rpix):
+                    vals[j] = np.concatenate((vals[j], tempvals[j]))
 
             output["COUNTBLOCK"] += 1
 
@@ -246,12 +260,12 @@ def gen_dynrange_data(inpath, outstem, rpix_try=50, nblockmax=100):
     return output
 
 
-if __name__ == "__main__":
-    """
-    Command line driver.
+"""
+Command line driver.
+Format: python3 -m dynrange <file stem> <output filename>
+"""
 
-    Format: python3 -m dynrange <file stem> <output filename>
-    """
+if __name__ == "__main__":
 
     def fn(ibx, iby):  # noqa: D103
         return sys.argv[1] + f"_{ibx:02d}_{iby:02d}.fits"
