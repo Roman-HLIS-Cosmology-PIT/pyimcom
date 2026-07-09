@@ -47,7 +47,7 @@ def test_interface(tmp_path):
     # PSFSPLIT
     script += "5.5 9.5 0.01 False\n"
     # PORDER_IMSUBTRACT
-    script += "3\n"
+    script += "\n"
 
     # SECTION II
     # PMASK

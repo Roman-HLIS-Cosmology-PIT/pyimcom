@@ -672,7 +672,9 @@ class Config:
 
         print("# PSF splitting order for imsubtract", flush=True)
         self._get_attrs_wrapper(
-            "self.porder_imsubtract = int(input('PORDER_IMSUBTRACT (int) [default: -1]: '))"
+            "PORDER_IMSUBTRACT= input('PORDER_IMSUBTRACT (int) [default: -1]: ')"
+            "\n"
+            "self.porder_imsubtract = int(PORDER_IMSUBTRACT) if PORDER_IMSUBTRACT else -1"
         )
 
         print("### SECTION II: MASKS AND LAYERS ###\n", flush=True)
