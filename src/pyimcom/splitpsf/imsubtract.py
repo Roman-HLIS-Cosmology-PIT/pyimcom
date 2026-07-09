@@ -479,7 +479,10 @@ def run_imsubtract_single(
         print(f"Layer {n+1}", flush=True)
         H_canvas[:, :] = 0.0
         # define other important quantities for convolution
-        Nl = int(np.floor(np.sqrt(Ncoeff + 0.5)))
+        if cfgdata.porder_imsubtract >= 0:
+            Nl = cfgdata.porder_imsubtract 
+        else:
+            Nl = int(np.floor(np.sqrt(Ncoeff + 0.5)))
         KH[:, :] = 0.0
         x_canvas = np.linspace(-I_pad - 0.5 + 0.5 / oversamp, sca_nside + I_pad - 0.5 - 0.5 / oversamp, A)
         u_canvas = (x_canvas - (sca_nside - 1) / 2) / (sca_nside / 2)

@@ -312,6 +312,7 @@ class Config:
         "psfsplit_epsilon",
         "psfsplit_bin2x2",  # SECTION I
         "permanent_mask",
+        "porder_imsubtract",
         "cr_mask_rate",
         "extrainput",
         "n_inframe",
@@ -469,6 +470,7 @@ class Config:
         self.inpsf_path, self.inpsf_format, self.inpsf_oversamp = cfg_dict["INPSF"]
         # if PSF splitting is used
         self.psfsplit = cfg_dict.get("PSFSPLIT", "")
+        self.porder_imsubtract = cfg_dict.get("PORDER_IMSUBTRACT", -1)
 
         ### SECTION II: MASKS AND LAYERS ###
         # permanent mask file
@@ -667,6 +669,9 @@ class Config:
             " self.psfsplit_bin2x2] if"
             " self.psfsplit_r1 else ''"
         )
+        
+        print("# PSF splitting order for imsubtract", flush=True)
+        self._get_attrs_wrapper("self.porder_imsubtract = int(input('PORDER_IMSUBTRACT (int) [default: -1]: '))")
 
         print("### SECTION II: MASKS AND LAYERS ###\n", flush=True)
         # masks and layers: PMASK, CMASK, EXTRAINPUT, LABNOISETHRESHOLD
@@ -1115,6 +1120,7 @@ class Config:
                 self.psfsplit_epsilon,
                 self.psfsplit_bin2x2,
             ]
+        cfg_dict["PORDER_IMSUBTRACT"] = self.porder_imsubtract
 
         ### SECTION II: MASKS AND LAYERS ###
         cfg_dict["PMASK"] = self.permanent_mask
