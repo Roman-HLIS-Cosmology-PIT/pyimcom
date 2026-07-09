@@ -1187,7 +1187,7 @@ def test_visualize(tmp_path, setup, monkeypatch):
     print(outdata)
     ct = np.array([3, 384, 16, 9], dtype=np.int32)  # target number of plots
     print(_counter[0] - np.sum(ct))
-    assert _counter[0] == np.sum(ct)
+    assert _counter[0] == np.sum(ct) + 16  # added chrom
 
 
 class _Empty:
