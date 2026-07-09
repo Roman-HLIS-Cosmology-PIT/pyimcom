@@ -480,7 +480,7 @@ def run_imsubtract_single(
         H_canvas[:, :] = 0.0
         # define other important quantities for convolution
         if cfgdata.porder_imsubtract >= 0:
-            Nl = cfgdata.porder_imsubtract 
+            Nl = cfgdata.porder_imsubtract
         else:
             Nl = int(np.floor(np.sqrt(Ncoeff + 0.5)))
         KH[:, :] = 0.0
