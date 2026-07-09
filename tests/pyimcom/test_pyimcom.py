@@ -99,7 +99,8 @@ myCfg_format = """
         "whitenoise1",
         "1fnoise2",
         "gsext14,n=0.5,hlr=0.1,shape=0.2:0.1,shear=0.05:-0.12",
-        "gstrstar14"
+        "gstrstar14",
+        "gsextchrom14,$TMPDIR/psf,n=0.5,hlr=0.1,shape=0.2:0.1,shear=0.05:-0.12"
     ],
     "PADSIDES": "all",
     "OUTMAPS": "USTKN",
@@ -1186,7 +1187,7 @@ def test_visualize(tmp_path, setup, monkeypatch):
     print(outdata)
     ct = np.array([3, 384, 16, 9], dtype=np.int32)  # target number of plots
     print(_counter[0] - np.sum(ct))
-    assert _counter[0] == np.sum(ct)
+    assert _counter[0] == np.sum(ct) + 16  # added chrom
 
 
 class _Empty:
