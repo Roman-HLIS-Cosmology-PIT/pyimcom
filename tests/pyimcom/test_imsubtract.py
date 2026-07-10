@@ -5,9 +5,10 @@ import subprocess
 import urllib.request
 
 import numpy as np
+import pytest
 from astropy.io import fits
 from pyimcom.config import Config
-from pyimcom.splitpsf.imsubtract import fftconvolve_multi, get_wcs, pltshow, run_imsubtract
+from pyimcom.splitpsf.imsubtract import fftconvolve_multi, get_wcs, pltshow, reinterp, run_imsubtract
 from pyimcom.splitpsf.imsubtract_wrapper import run_imsubtract_all, run_imsubtract_single
 from pyimcom.splitpsf.splitpsf import SplitPSF, split_psf_to_fits
 from pyimcom.splitpsf.splitpsf_wrapper import split_psf_single
@@ -16,6 +17,26 @@ from scipy.signal import fftconvolve
 PSF_FILE = "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/psf_test.fits"
 IMSUBTRACT_CONFIG = "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/imsubtract/test_imsubtract_config.json"
 IMSUBTRACT_INPUT_PATH = "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/imsubtract"
+
+
+def test_reinterp():
+    """Test interpolation function."""
+
+    n = 40
+    u = 2
+    v = 5
+    s_ = np.linspace(0, 2.0 * np.pi * (1 - 1 / n), n)
+    s2_ = np.linspace(2.0 * np.pi * 1.5 / n, 2.0 * np.pi * (1 - 2.5 / n), n // 2 - 1)
+    x, y = np.meshgrid(s_, s_)
+    x2, y2 = np.meshgrid(s2_, s2_)
+    arr = np.cos(u * x + v * y)
+    arr2 = reinterp(arr)
+    arr2_alt = np.sum(arr[1:-1, 1:-1].reshape((n // 2 - 1, 2, n // 2 - 1, 2)), axis=(-3, -1))
+    target = 4 * np.cos(u * x2 + v * y2)
+    er2_alt = np.amax(np.abs(arr2_alt - target))
+    er2 = np.amax(np.abs(arr2 - target))
+    assert er2 < 0.04
+    assert er2 < 0.2 * er2_alt
 
 
 def test_altwcs(tmp_path):
@@ -220,7 +241,7 @@ def test_fftconvolve_multi():
     assert np.allclose(x1, x2)
 
 
-def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
+def _run_imsubtract_all(tmp_path, config_file, test2x2=False):
     """
     Test the run_imsubtract_all function.
     This test runs the imsubtract pipeline on a small set of images specified in the config file,
@@ -298,14 +319,33 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
         display="/dev/null",
         max_layers=1,
         mmap=tmp_mmap,
+        bin2x2=test2x2,
     )
     with fits.open(f"{tmp_imsub}/r1_00013912_17_subI.fits") as f:
         single_run = np.copy(f[0].data[0, :, :])
+    # alt single run with wcs_shortcut turned off
+    run_imsubtract_single(
+        Config(config_file),
+        17,
+        13912,
+        tmp_imsub,
+        "r1_00013912_17.fits",
+        display="/dev/null",
+        wcs_shortcut=False,
+        max_layers=1,
+        mmap=tmp_mmap,
+        bin2x2=test2x2,
+    )
+    with fits.open(f"{tmp_imsub}/r1_00013912_17_subI.fits") as f:
+        single_run_alt = np.copy(f[0].data[0, :, :])
+    p99_single = np.percentile(np.abs(single_run), 99)
+    p99_diff = np.percentile(np.abs(single_run - single_run_alt), 99)
+    assert p99_diff < 0.01 * p99_single  # require the 2 versions to have only a small difference
 
     # full multi run
     # I set the number of workers to 1 (which is kind of silly) to stay within the footprint of
     # the free GitHub runner during tests.
-    run_imsubtract_all(config_file, workers=1, max_imgs=2, display="/dev/null", mmap=tmp_mmap)
+    run_imsubtract_all(config_file, workers=1, max_imgs=2, display="/dev/null", mmap=tmp_mmap, bin2x2=test2x2)
 
     # Check for outputs:
     expected_files = [f"{tmp_imsub}/r1_00013912_17_subI.fits", f"{tmp_imsub}/r1_00000670_12_subI.fits"]
@@ -313,6 +353,7 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
         assert os.path.isfile(fname), f"Expected output file {fname} not found."
 
     # Check that the output files have the expected properties
+    ik = 0
     for fname in expected_files:
         m = re.search(r"r1_(\d{8})_(\d{2})_subI\.fits", fname)
         obsid = int(m.group(1))
@@ -342,11 +383,19 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
             expected_diff_cutout = f[0].data
             ymin, ymax = f[0].header["YSTART"], f[0].header["YSTOP"]
             xmin, xmax = f[0].header["XSTART"], f[0].header["XSTOP"]
+            print(f[0].header)
 
         diff_cutout = diff[ymin:ymax, xmin:xmax]
+        atol = np.array([1.1e-3, 2.0e-2])[ik] if test2x2 else 1.0e-6
         assert np.allclose(
-            diff_cutout, expected_diff_cutout, atol=1e-6
+            diff_cutout, expected_diff_cutout, atol=atol
         ), f"Diff cutout for {fname} does not match expected values."
+        if test2x2:
+            print(np.amax(np.abs(diff_cutout[8:-8, 8:-8] - expected_diff_cutout[8:-8, 8:-8])))
+            assert np.allclose(
+                diff_cutout[8:-8, 8:-8], expected_diff_cutout[8:-8, 8:-8], atol=np.array([9.0e-4, 1.2e-2])[ik]
+            ), f"Diff cutout for {fname} does not match expected values."
+        ik += 1  # noqa: SIM113
 
     # compare "single" to "all" case
     with fits.open(f"{tmp_imsub}/r1_00013912_17_subI.fits") as f:
@@ -356,7 +405,7 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
 
     # original wrapper
     os.remove(str(tmp_imsub) + "/r1_00013912_17_subI.fits")
-    run_imsubtract(config_file, display=f"{tmp_figs}/win", scanum=17, max_layers=1)
+    run_imsubtract(config_file, display=f"{tmp_figs}/win", scanum=17, max_layers=1, bin2x2=test2x2)
     with fits.open(f"{tmp_imsub}/r1_00013912_17_subI.fits") as f:
         assert np.allclose(f[0].data[0, :, :], multi_run, rtol=1.0e-6, atol=1.0e-6)
     fname = f"{tmp_figs}/win_13912_17_35_02.png"
@@ -373,6 +422,16 @@ def test_run_imsubtract_all(tmp_path, config_file=IMSUBTRACT_CONFIG):
     shutil.rmtree(tmp_imsub)
     shutil.rmtree(tmp_mmap)
     shutil.rmtree(tmp_figs)
+
+
+def test_run_imsubtract_all2(tmp_path):
+    """Test with 2x2 bin version."""
+    _run_imsubtract_all(tmp_path, IMSUBTRACT_CONFIG, test2x2=True)
+
+
+def test_run_imsubtract_all(tmp_path):
+    """Basic version of test."""
+    _run_imsubtract_all(tmp_path, IMSUBTRACT_CONFIG)
 
 
 def test_staticmethods():
@@ -412,3 +471,96 @@ def test_pltshow():
     assert plot.calls == 1
     pltshow(plot, "/dev/null")
     assert plot.calls == 1
+
+
+def test_imsubtract_exceptions(tmp_path):
+    """Test that the correct exceptions are raised in imsubtract."""
+
+    tmp_dir = str(tmp_path)
+    tmp_imsub = tmp_dir + "/temp_imsubtract"
+    tmp_mmap = tmp_dir + "/temp_mmap"
+    tmp_figs = tmp_dir + "/temp_figs"
+    # make temp_imsub directory
+    os.makedirs(tmp_imsub, exist_ok=True)
+    os.makedirs(tmp_imsub + "/blocks", exist_ok=True)
+    os.makedirs(tmp_mmap, exist_ok=True)
+    os.makedirs(tmp_figs, exist_ok=True)
+
+    urllib.request.urlretrieve(IMSUBTRACT_CONFIG, tmp_imsub + "/test_imsubtract_config.json")
+    config_file = tmp_imsub + "/test_imsubtract_config.json"
+
+    # read cache files into tmp_imsub
+    cache_files = [
+        "r1_00013912_17.fits.gz",
+        "r1_00000670_12.fits.gz",
+        "r1_00013912_17_wcs.asdf",
+        "r1_00000670_12_wcs.asdf",
+    ]
+    for filename in cache_files:
+        cf_url = IMSUBTRACT_INPUT_PATH + "/cache/" + filename
+        cf_local = os.path.join(tmp_imsub, filename)
+        urllib.request.urlretrieve(cf_url, cf_local)
+        if cf_local[-3:] == ".gz":
+            subprocess.run(["gunzip", cf_local])  # files on wiki were gzipped
+
+    # psf files
+    tmp_psf = tmp_imsub + "/r1.psf"
+    os.makedirs(tmp_psf, exist_ok=True)
+    for filename in ["psf_13912.fits", "psf_670.fits"]:
+        cf_url = IMSUBTRACT_INPUT_PATH + "/cache/r1.psf/" + filename
+        cf_local = os.path.join(tmp_psf, filename)
+        urllib.request.urlretrieve(cf_url, cf_local)
+
+        # now mess with these files to trigger exceptions
+        with fits.open(cf_local, mode="update") as f:
+            print(f[0].header["OVSAMP"])
+            f[0].header["OVSAMP"] = 7
+
+    with open(config_file, "r") as f:
+        cfg_text = f.read()
+    cfg_text = cfg_text.replace("$TMPDIR", tmp_dir)
+    cfg_text = cfg_text.replace("$CACHE", tmp_imsub + "/r1")
+    cfg_text = cfg_text.replace(
+        "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/imsubtract/blocks/im3x2-H1",
+        tmp_imsub + "/blocks/im3x2-H1",
+    )
+    with open(config_file, "w") as f:
+        f.write(cfg_text)
+
+    # single run (this ensures that the codecov tracking works since it doesn't follow subprocesses)
+    with pytest.raises(ValueError, match=r"oversamp, oversamp=7"):
+        run_imsubtract_single(
+            Config(config_file),
+            17,
+            13912,
+            tmp_imsub,
+            "r1_00013912_17.fits",
+            display="/dev/null",
+            max_layers=1,
+            mmap=tmp_mmap,
+            bin2x2=True,
+        )
+
+    # this will raise a different exception
+    for filename in ["psf_13912.fits", "psf_670.fits"]:
+        cf_local = os.path.join(tmp_psf, filename)
+        with fits.open(cf_local, mode="update") as f:
+            print(f[0].header["OVSAMP"])
+            f[0].header["OVSAMP"] = 3
+    with pytest.raises(ValueError, match=r"oversamp=3 is odd, not consistent with bin2x2"):
+        run_imsubtract_single(
+            Config(config_file),
+            17,
+            13912,
+            tmp_imsub,
+            "r1_00013912_17.fits",
+            display="/dev/null",
+            max_layers=1,
+            mmap=tmp_mmap,
+            bin2x2=True,
+        )
+
+    # remove files from this test to save space
+    shutil.rmtree(tmp_imsub)
+    shutil.rmtree(tmp_mmap)
+    shutil.rmtree(tmp_figs)

@@ -19,6 +19,33 @@ class SplitPSF:
     """
     Class for splitting the PSF into short- and long-range parts.
 
+    Parameters
+    ----------
+    psfcube : np.ndarray of float
+        A PSF data cube in Legendre polynomial format. Each slice is a PSF image,
+        that should be multiplied by P_m(u_) P_n(v_) where flatten((n,m)) = range((order+1)**2).
+        Here (u_, v_) are the coordinates on the SCA (scaled to the range -1 to +1).
+    wcs_ : pyimcom.wcsutil.PyIMCOM_WCS, optional
+        The WCS associated with the image. if None, then no distortion.
+    pars : dict
+        The dictionary of parameters. The choices (and defaults if not specified) are:
+
+        - ``ref_pixscale`` = 0.11 (arcsec) -> reference native pixel scale (without distortion)
+        - ``oversamp`` = 8 -> oversampling of PSF relative to native scale
+        - ``tophat_in`` = False -> pixel tophat already included
+        - ``smallstamp_size`` = [side length of psfcube] -> size of small PSF postage stamp, in units of the
+          oversampled pixels
+        - ``nside`` = 4088 -> SCA side length
+        - ``r_in`` = 4.0 -> inner cut radius in native pixels
+        - ``r_out`` = 9.0 -> inner cut radius in native pixels
+        - ``sigmaGamma`` = 1.0 -> 1 sigma scale length of the desired output PSF, in reference input pixels
+        - ``eps`` = 0.02 -> regularization parameter in Gaussian deconvolution of the PSF wings
+        - ``m_trunc`` = 0 -> truncation window width at edge of PSF postage stamp
+          (in units of oversampled pixels)
+
+        A constraint is that PSF input and output sizes are even numbers of oversampled pixels, with (0,0)
+        at the center of the array.
+
     Methods
     -------
     Window_integratedBlackman
@@ -158,68 +185,22 @@ class SplitPSF:
         )
 
     def __init__(self, psfcube, wcs_, pars):
-        """Class constructor to generate a split PSF from a Legendre cube file.
+        """Constructor."""
 
-        Inputs:
-           psfcube = a PSF data cube in Legendre polynomial format. Each slice is a PSF image,
-              that should be multiplied by P_m(u_) P_n(v_) where flatten((n,m)) = range((order+1)**2)
-              where (u_, v_) are the coordinates on the SCA
+        self.ref_pixscale = pars.get("ref_pixscale", 0.11)
+        self.oversamp = pars.get("oversamp", 8)
+        self.tophat_in = pars.get("tophat_in", False)
+        self.largestamp_size = np.shape(psfcube)[1]
+        self.smallstamp_size = pars.get("smallstamp_size", self.largestamp_size)
+        self.nside = pars.get("nside", 4088)
+        self.r_in = pars.get("r_in", 4.0)
+        self.r_out = pars.get("r_out", 9.0)
+        self.sigmaGamma = pars.get("sigmaGamma", 1.0)
+        self.eps = pars.get("eps", 0.02)
+        self.m_trunc = pars.get("m_trunc", 0)
 
-           wcs_ = WCS associated with the image. if None, then no distortion
-
-           pars = dictionary of parameters. The choices (and defaults if not specified) are:
-              ref_pixscale = 0.11 (arcsec) -> reference native pixel scale (without distortion)
-              oversamp = 8 -> oversampling of PSF relative to native scale
-              tophat_in = False -> pixel tophat already included
-              smallstamp_size = [side length of psfcube] -> size of small PSF postage stamp, in units of the
-                                                            oversampled pixels
-              nside = 4088 -> SCA side length
-              r_in = 4.0 -> inner cut radius in native pixels
-              r_out = 9.0 -> inner cut radius in native pixels
-              sigmaGamma = 1.0 -> 1 sigma scale length of the desired output PSF, in reference input pixels
-              eps = 0.02 -> regularization parameter in Gaussian deconvolution of the PSF wings
-              m_trunc = 0 -> truncation window width at edge of PSF postage stamp
-                             (in units of oversampled pixels)
-
-        A constraint is that PSF input and output sizes are even numbers of oversampled pixels, with (0,0)
-        at the center of the array.
-        """
-
-        self.ref_pixscale = 0.11
-        if "ref_pixscale" in pars:
-            self.ref_pixscale = pars["ref_pixscale"]
-        self.oversamp = 8
-        if "oversamp" in pars:
-            self.oversamp = pars["oversamp"]
-        self.tophat_in = False
-        if "tophat_in" in pars:
-            self.tophat_in = pars["tophat_in"]
-        self.smallstamp_size = self.largestamp_size = np.shape(psfcube)[1]
-        if "smallstamp_size" in pars:
-            self.smallstamp_size = pars["smallstamp_size"]
-        self.nside = 4088
-        if "nside" in pars:
-            self.nside = pars["nside"]
-        self.r_in = 4.0
-        if "r_in" in pars:
-            self.r_in = pars["r_in"]
-        self.r_out = 9.0
-        if "r_out" in pars:
-            self.r_out = pars["r_out"]
-        self.sigmaGamma = 1.0
-        if "sigmaGamma" in pars:
-            self.sigmaGamma = pars["sigmaGamma"]
-        self.eps = 0.02
-        if "eps" in pars:
-            self.eps = pars["eps"]
-        self.m_trunc = 0
-        if "m_trunc" in pars:
-            self.m_trunc = pars["m_trunc"]
-
-        if self.tophat_in:
-            self.psfcube = np.copy(psfcube)  # copy ensures the same reference behavior in both casees
-        else:
-            self.psfcube = SplitPSF.tophatfilter(psfcube, self.oversamp)
+        # PSF cube; copy ensures the same reference behavior in both cases
+        self.psfcube = np.copy(psfcube) if self.tophat_in else SplitPSF.tophatfilter(psfcube, self.oversamp)
 
         self.wcs_ = wcs_
 
@@ -416,8 +397,22 @@ def split_psf_to_fits(psf_file, wcs_format, pars, outfile):
     print("K2int:", K2int)
 
 
-def main(cfgfile):
-    """Drives splitpsf from a configuration file."""
+def main(cfgfile, savezeta=False):
+    """
+    Drives splitpsf from a configuration file.
+
+    Parameters
+    ----------
+    cfgfile : str or str-like
+        The configuration file location.
+    savezeta : bool, optional
+        Additional output, only for testing.
+
+    Returns
+    -------
+    None
+
+    """
 
     # Extract the information we need from the config file
     with open(cfgfile) as f:
@@ -453,8 +448,9 @@ def main(cfgfile):
     try:
         os.mkdir(targetdir)
         print("made directory -->", targetdir)
-    except OSError as error:
-        print("Couldn't make directory", targetdir, ":", error)
+    except OSError as e:
+        print("Couldn't make directory", targetdir, ":", e)
+        raise e
 
     use_filter = Settings.RomanFilters[int(cfg_dict["FILTER"])]
 
@@ -479,7 +475,7 @@ def main(cfgfile):
                     "r_in": r1,
                     "r_out": r2,
                     "eps": epsilon,
-                    "SAVEZETA": False,
+                    "SAVEZETA": savezeta,
                     "oversamp": ovsamp,
                 },
                 outfile,

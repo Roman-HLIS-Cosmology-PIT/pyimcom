@@ -68,7 +68,7 @@ myCfg_format = """
 """
 
 
-def test_splitpsf_driver(tmp_path):
+def splitpsf_driver(tmp_path, savezeta):
     """Main test function."""
 
     # first, get the configuration file.
@@ -116,7 +116,7 @@ def test_splitpsf_driver(tmp_path):
     )
 
     # run PSF splitting
-    splitpsf.main(str(tmp_path / "cfg.txt"))
+    splitpsf.main(str(tmp_path / "cfg.txt"), savezeta=savezeta)
 
     # check that we have the files we should have
     assert os.path.exists(str(tmp_path) + "/cache/in.psf/psf_34.fits")
@@ -146,3 +146,13 @@ def test_splitpsf_driver(tmp_path):
             assert 3e-5 < m_s < 8e-5
             print(sca, s_s, m_s)
             assert np.shape(f[sca + 36].data) == (4, 384, 384)
+
+
+def test_splitpsf_driver_withsavezeta(tmp_path):
+    """Test with splitzeta."""
+    splitpsf_driver(tmp_path, True)
+
+
+def test_splitpsf_driver_nosavezeta(tmp_path):
+    """Test with splitzeta."""
+    splitpsf_driver(tmp_path, False)

@@ -8,7 +8,9 @@ There are several options for reading PyIMCOM output files. From "lowest" to "hi
 
 * Compressed files have their non-science layers scrambled. They can be read using the
   ``pyimcom.compress.compressutils.ReadFile`` utility, which can be used just like
-  ``astropy.io.fits.open`` (including the context management)::
+  ``astropy.io.fits.open`` (including the context management):
+
+  .. code-block:: python
 
     from pyimcom.compress.compressutils import ReadFile
     # here fout is the file name that we want to read
@@ -17,19 +19,25 @@ There are several options for reading PyIMCOM output files. From "lowest" to "hi
        ...
 
   ``ReadFile`` also supports regular expression formatting for file names, with the block indices and suffix
-  separated from the format string by the ``^`` character. For example, you may use::
+  separated from the format string by the ``^`` character. For example, you may use:
+
+  .. code-block:: python
 
     # This reads the file "coadds/H158/Row14/prod_H_18_14_map.fits"
     ReadFile("coadds/H158/Row{1:02d}/prod_H_{0:02d}_{1:02d}^_18_14_map.fits")
 
-  It is even possible to read from the Internet via https::
+  It is even possible to read from the Internet via https:
+
+  .. code-block:: python
 
     ReadFile("https://irsa.ipac.caltech.edu/data/theory/openuniverse2024/roman/preview/RomanWAS/images/"
       "coadds/H158/Row14/prod_H_18_14_map.fits")
 
   The other tools listed below are built on top of ``ReadFile``.
 
-* The ``pyimcom.analysis.OutImage`` method builds one output block from the FITS file::
+* The ``pyimcom.analysis.OutImage`` method builds one output block from the FITS file:
+
+  .. code-block:: python
 
     from pyimcom.analysis import OutImage
     # here fout is the file name that we want to read
@@ -40,7 +48,9 @@ There are several options for reading PyIMCOM output files. From "lowest" to "hi
     fidelity_map = my_block.get_output_map('FIDELITY') # options are: 'FIDELITY', 'SIGMA', 'KAPPA', 'INTWTSUM', 'EFFCOVER'
 
 * The ``pyimcom.meta.distortimage.MetaMosaic`` class is the highest-level interface and constructs a sub-mosaic
-  from the 3x3 set of blocks centered on the specified file. It can be subarrayed, sheared, masked, etc.::
+  from the 3x3 set of blocks centered on the specified file. It can be subarrayed, sheared, masked, etc.:
+
+  .. code-block:: python
 
     from pyimcom.meta import distortimage
     # here fout is the file name that we want to read

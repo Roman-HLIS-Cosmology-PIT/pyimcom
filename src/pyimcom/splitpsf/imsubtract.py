@@ -31,7 +31,7 @@ from furry_parakeet import (
     pyimcom_croutines,
 )
 from scipy.fft import irfft2, next_fast_len, rfft2
-from scipy.signal import fftconvolve
+from scipy.signal import convolve, fftconvolve
 from scipy.signal.windows import tukey
 from scipy.special import eval_legendre
 
@@ -238,6 +238,30 @@ def get_wcs_from_infile(infile):
     return block_wcs
 
 
+def reinterp(arr):
+    """
+    Interpolates and rescales an array.
+
+    The array `arr[1:-1, 1:-1]` is interpolated onto a new grid at double the spacing.
+    (This is equivalent to 2x2 binning, except that we don't grow the pixel tophat.)
+
+    Parameters
+    ----------
+    arr : np.ndarray
+        The input array; must be 2D, even size, shape (2*N+2, 2*N+2).
+
+    Returns
+    -------
+    np.ndarray
+        The output array, shape (N, N).
+
+    """
+
+    _f = np.array([-0.125, 1.125, 1.125, -0.125]).astype(np.float32)
+    f2d = np.outer(_f, _f)
+    return convolve(arr, f2d, mode="valid", method="direct")[::2, ::2]
+
+
 def run_imsubtract_single(
     cfgdata,
     scaid,
@@ -250,6 +274,7 @@ def run_imsubtract_single(
     wcs_shortcut=True,
     max_layers=None,
     mmap=None,
+    bin2x2=False,
 ):
     """
     Main routine to run imsubtract on a single image.
@@ -281,6 +306,8 @@ def run_imsubtract_single(
         Maximum number of layers to process. (For testing; default is None, which means no limit.)
     mmap : str or str-like, optional
         Directory to put temporary mmap files.
+    bin2x2 : bool, optional
+        If True, bin the kernel 2x2 for speed.
 
     Notes
     -----
@@ -335,6 +362,26 @@ def run_imsubtract_single(
 
         # get the oversampling factor
         oversamp = hdul2[0].header["OVSAMP"]  # number of kernel pixels / native pixels
+        if axis_num % (2 * oversamp):
+            raise ValueError(f"axis_num={axis_num} must be a multiple of 2*oversamp, oversamp={oversamp}")
+
+        if bin2x2:
+            if oversamp % 2:
+                raise ValueError(f"oversamp={oversamp:d} is odd, not consistent with bin2x2")
+            oversamp //= 2
+            axis_num //= 2
+            if oversamp % 2 and not axis_num // oversamp % 2:
+                # need to trim 1 native pixel so axis_num / oversamp is odd
+                axis_num -= oversamp
+                K = K[:, oversamp - 1 : 1 - oversamp, oversamp - 1 : 1 - oversamp]
+            else:
+                K = np.pad(K, ((0, 0), (1, 1), (1, 1)), mode="edge")
+            for j in range(Ncoeff):
+                Kslice = reinterp(K[j, :, :])
+                if j == 0:
+                    _K = np.zeros((Ncoeff,) + np.shape(Kslice), dtype=np.float32)
+                _K[j, :, :] = Kslice
+            K = _K
 
     # SCA padding
     I_pad = int(np.ceil(axis_num / 2 / oversamp))  # native pixels
@@ -432,9 +479,12 @@ def run_imsubtract_single(
         print(f"Layer {n+1}", flush=True)
         H_canvas[:, :] = 0.0
         # define other important quantities for convolution
-        Nl = int(np.floor(np.sqrt(Ncoeff + 0.5)))
+        if cfgdata.porder_imsubtract >= 0:
+            Nl = cfgdata.porder_imsubtract
+        else:
+            Nl = int(np.floor(np.sqrt(Ncoeff + 0.5)))
         KH[:, :] = 0.0
-        x_canvas = np.linspace(-I_pad - 0.5 + 0.5 / oversamp, sca_nside + I_pad - 0.5 + 0.5 / oversamp, A)
+        x_canvas = np.linspace(-I_pad - 0.5 + 0.5 / oversamp, sca_nside + I_pad - 0.5 - 0.5 / oversamp, A)
         u_canvas = (x_canvas - (sca_nside - 1) / 2) / (sca_nside / 2)
 
         # These will be overwritten if the block is not skipped
@@ -445,10 +495,6 @@ def run_imsubtract_single(
         for ix, iy in block_list:
             if (ix, iy) in skipblocks:
                 continue
-
-            if max_layers is not None and block_count > max_layers:  # Max blocks = 5 when testing
-                print(f"Reached max_blocks={max_layers}, stopping early for testing.")
-                break
 
             print("BLOCK: ", ix, iy)
             print(f"Block count: {block_count}/{max_layers if max_layers is not None else len(block_list)}")
@@ -690,6 +736,7 @@ def run_imsubtract(
     wcs_shortcut=True,
     max_layers=None,
     mmap=None,
+    bin2x2=False,
 ):
     """
     Main routine to run imsubtract.
@@ -719,6 +766,8 @@ def run_imsubtract(
         Maximum number of layers to process. (For testing; default is None, which means no limit.)
     mmap : str or str-like, optional
         Directory to put temporary mmap files.
+    bin2x2 : bool, optional
+        If True, bin the kernel 2x2 for speed even if `config_file` doesn't tell you to.
 
     Notes
     -----
@@ -732,6 +781,7 @@ def run_imsubtract(
 
     # load the file using Config and get information
     cfgdata = Config(config_file)
+    bin2x2 = bin2x2 or getattr(cfgdata, "psfsplit_bin2x2", False)  # possible override of config
 
     # separate the path from the inlayercache info
     m = re.search(r"^(.*)\/(.*)", cfgdata.inlayercache)
@@ -773,6 +823,7 @@ def run_imsubtract(
             wcs_shortcut=wcs_shortcut,
             max_layers=max_layers,
             mmap=mmap,
+            bin2x2=bin2x2,
         )
 
         # exit if we've specified a maximum number of SCAs
