@@ -77,6 +77,14 @@ Here the first 2 entries are the range of pixels (in this case: the "short range
 
 The field (``true``) is optional; if set to true, then the wing subtraction is run at half the resolution (in the case above: 3 subpixels per native pixel). This is faster (especially with lots of layers), and recommended if it meets your accuracy needs.
 
+By default, the kernel subtraction step uses the same polynomial order for spatial variation as is in the input PSF files. This can be changed (for speed-up) by providing an order in the cofiguration, e.g.
+
+.. code-block:: json
+
+  "PORDER_IMSUBTRACT": 1
+
+will use polynomial order 1 (in both x and y) even if the input files have data through higher order.
+
 PSF split format file
 ---------------------
 
