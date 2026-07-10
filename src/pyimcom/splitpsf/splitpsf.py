@@ -448,9 +448,9 @@ def main(cfgfile, savezeta=False):
     try:
         os.mkdir(targetdir)
         print("made directory -->", targetdir)
-    except OSError as error:
-        print("Couldn't make directory", targetdir, ":", error)
-        raise
+    except OSError as e:
+        print("Couldn't make directory", targetdir, ":", e)
+        raise e
 
     use_filter = Settings.RomanFilters[int(cfg_dict["FILTER"])]
 
