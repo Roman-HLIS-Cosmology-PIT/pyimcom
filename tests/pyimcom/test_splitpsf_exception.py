@@ -77,3 +77,14 @@ def test_mainexcept(tmp_path):
 
     with pytest.raises(KeyError, match=r"INLAYERCACHE"):
         splitpsf.main(str(tmp_path / "cfg2.txt"))
+
+    # now, get a nonexistent path
+    with open(tmp_path / "cfg3.txt", "w") as f:
+        f.write(
+            myCfg2_format.replace("$TMPDIR", str(tmp_path) + "/doesntexist/doesntexist/doesntexist")
+            .replace("$KEY", "INLAYERCACHE")
+            .replace("AIRYOBSC", "GAUSSIAN")
+        )
+
+    with pytest.raises(OSError):
+        splitpsf.main(str(tmp_path / "cfg3.txt"))

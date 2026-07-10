@@ -323,6 +323,24 @@ def _run_imsubtract_all(tmp_path, config_file, test2x2=False):
     )
     with fits.open(f"{tmp_imsub}/r1_00013912_17_subI.fits") as f:
         single_run = np.copy(f[0].data[0, :, :])
+    # alt single run with wcs_shortcut turned off
+    run_imsubtract_single(
+        Config(config_file),
+        17,
+        13912,
+        tmp_imsub,
+        "r1_00013912_17.fits",
+        display="/dev/null",
+        wcs_shortcut=False,
+        max_layers=1,
+        mmap=tmp_mmap,
+        bin2x2=test2x2,
+    )
+    with fits.open(f"{tmp_imsub}/r1_00013912_17_subI.fits") as f:
+        single_run_alt = np.copy(f[0].data[0, :, :])
+    p99_single = np.percentile(np.abs(single_run), 99)
+    p99_diff = np.percentile(np.abs(single_run - single_run_alt), 99)
+    assert p99_diff < 0.01 * p99_single  # require the 2 versions to have only a small difference
 
     # full multi run
     # I set the number of workers to 1 (which is kind of silly) to stay within the footprint of
