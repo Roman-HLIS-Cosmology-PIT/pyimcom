@@ -119,6 +119,7 @@ class OutImage:
         if cfg is None:
             with ReadFile(fpath) as hdu_list:
                 self.cfg = Config("".join(hdu_list["CONFIG"].data["text"].tolist()))
+                self.header = hdu_list[0].header
         self.cfg()  # update configuration parameters
 
         self.hdu_names = hdu_names
@@ -534,6 +535,30 @@ class OutImage:
                 my_maps[my_slice] * add_mode + ur_maps[ur_slice], coef, dtype
             )
             del my_maps, ur_maps, my_slice, ur_slice
+
+    def get_weight_map(self, _noise_layer) -> np.array:
+        """
+        Generate inverse variance weight map according to Appendix A of 2607.09849.
+
+        Parameters
+        ----------
+        outmap : str
+            Name of the output map to be extracted.
+        _noise_layer: str
+            Name of the noise layer
+
+        Returns
+        -------
+        data : np.array
+            Inverse variance map. shape is (NsideP, NsideP)
+        """
+        noise_image = self.get_coadded_layer(_noise_layer)
+        Sigma = self.get_output_map("SIGMA")
+        scalefactor = np.sum(np.square(noise_image))
+        # Background-only (correlated) variance — source shot noise excluded.
+        corr_var    = (scalefactor / np.sum(Sigma)) * Sigma
+        wht         = np.where(corr_var > 0, 1.0 / corr_var, 0.)
+        return wht 
 
 
 class NoiseAnal:
