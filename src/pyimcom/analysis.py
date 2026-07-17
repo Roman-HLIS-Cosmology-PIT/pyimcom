@@ -553,7 +553,7 @@ class OutImage:
             Inverse variance map. shape is (NsideP, NsideP)
         """
         noise_image = self.get_coadded_layer(_noise_layer)
-        Sigma = self.get_output_map("SIGMA")
+        Sigma = self.get_output_map("SIGMA") # Sigma is S_\alpha \equiv \sum_i \left(T_\alpha^i\right)^2 defined in A9 of 2607.09849 or the noise amplication map in 2410.05442 
         scalefactor = np.sum(np.square(noise_image))
         # Background-only (correlated) variance — source shot noise excluded.
         corr_var    = (scalefactor / np.sum(Sigma)) * Sigma
