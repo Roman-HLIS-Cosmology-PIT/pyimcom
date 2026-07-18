@@ -542,8 +542,6 @@ class OutImage:
 
         Parameters
         ----------
-        outmap : str
-            Name of the output map to be extracted.
         _noise_layer: str
             Name of the noise layer
 
@@ -552,13 +550,16 @@ class OutImage:
         data : np.array
             Inverse variance map. shape is (NsideP, NsideP)
         """
+
         noise_image = self.get_coadded_layer(_noise_layer)
-        Sigma = self.get_output_map("SIGMA") # Sigma is S_\alpha \equiv \sum_i \left(T_\alpha^i\right)^2 defined in A9 of 2607.09849 or the noise amplication map in 2410.05442 
+        Sigma = self.get_output_map("SIGMA")
+        # Sigma is S_\alpha \equiv \sum_i \left(T_\alpha^i\right)^2 defined in
+        # Eq. (A9) of 2607.09849 or the noise amplication map in 2410.05442
         scalefactor = np.sum(np.square(noise_image))
         # Background-only (correlated) variance — source shot noise excluded.
-        corr_var    = (scalefactor / np.sum(Sigma)) * Sigma
-        wht         = np.where(corr_var > 0, 1.0 / corr_var, 0.)
-        return wht 
+        corr_var = (scalefactor / np.sum(Sigma)) * Sigma
+        wht = np.where(corr_var > 0, 1.0 / corr_var, 0.0)
+        return wht
 
 
 class NoiseAnal:
