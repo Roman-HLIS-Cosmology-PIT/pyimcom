@@ -42,6 +42,7 @@ from .config import Settings as Stn
 from .lakernel import CholKernel, EigenKernel, EmpirKernel, IterKernel
 from .layer import Mask, check_if_idsca_exists, get_all_data
 from .psfutil import PSFGrp, PSFInterpolator, PSFOvl, SysMatA, SysMatB
+from .utils.piffutils import PiffPSFModel
 from .wcsutil import PyIMCOM_WCS
 
 
@@ -513,10 +514,15 @@ class InImage:
             return f"dc2_psf_{obsid:d}.fits"
         if inpsf_format in ["anlsim", "L2_2506"]:
             return f"psf_polyfit_{obsid:d}.fits"
+        if inpsf_format[:4].lower() == "piff":
+            s = inpsf_format[5:] if inpsf_format[4] == ":" else "ffov"
+            return f"{s}_{obsid:d}.piff"
 
         raise AssertionError("psf_filename: should not get here")
 
-    def get_psf_pos(self, psf_compute_point: np.array, use_shortrange: bool = False) -> np.array:
+    def get_psf_pos(
+        self, psf_compute_point: np.array, use_shortrange: bool = False, use_drawpsf: bool = False
+    ) -> np.array:
         """
         Get input PSF array at given position.
 
@@ -524,10 +530,13 @@ class InImage:
 
         Parameters
         ----------
-        psf_compute_point : np.array
+        psf_compute_point : np.ndarray
             Length 2 array, point to compute PSF in RA and Dec.
         use_shortrange : bool, optional
             If True and PSFSPLIT is set in the configuration file, then pulls only the short-range PSF G^(S).
+            (Only used with some INPSF formats.)
+        use_drawpsf : np.ndarray, optional
+            Use the PSF for drawing objects?
 
         Returns
         -------
@@ -599,6 +608,17 @@ class InImage:
                     np.einsum("a,aij->ij", lpoly, self.inpsf_cube), tophatwidth=tophatwidth_use
                 )
                 # L2_2506 and later are per (s_in/ovsamp)**2
+
+        elif self.blk.cfg.inpsf_format[:4].lower() == "piff":
+            if not hasattr(self, "inpsf_piff"):
+                fname = (
+                    self.blk.cfg.inpsf_path
+                    + "/"
+                    + InImage.psf_filename(self.blk.cfg.inpsf_format, self.idsca[0])
+                )
+                assert exists(fname), "Error: input psf does not exist"
+                self.inpsf_piff = PiffPSFModel(fname, self.idsca[1])
+            this_psf = self.inpsf_piff.draw(pixloc[0], pixloc[1], oversamp=self.blk.cfg.inpsf_oversamp)
 
         else:
             raise RuntimeError("Error: input psf does not exist")
