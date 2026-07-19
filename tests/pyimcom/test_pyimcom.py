@@ -116,6 +116,59 @@ myCfg_format = """
 }
 """
 
+myCfg_alt_format = """
+{
+    "OBSFILE": "$TMPDIR/obs.fits",
+    "INDATA": [
+        "$TMPDIR/in",
+        "L2_2506"
+    ],
+    "CTR": [
+	60.0504,
+	-3.8
+    ],
+    "LONPOLE": 240.0,
+    "OUTSIZE": [
+        4,
+	25,
+	0.04
+    ],
+    "BLOCK": 2,
+    "FILTER": 1,
+    "LAKERNEL": "Cholesky",
+    "KAPPAC": [
+         5e-4
+    ],
+    "INPSF": [
+	"$TMPDIR/psf",
+        "L2_2506",
+        6
+    ],
+    "INPSFDRAW": [
+	"$TMPDIR/psfalt",
+        "L2_2506",
+        6
+    ],
+    "EXTRAINPUT": [
+        "gsstar14",
+        "gsext14,seed=100,shear=-.01:0.017320508075688773",
+        "cstar14",
+        "nstar14,2e5,100,256"
+    ],
+    "PADSIDES": "all",
+    "OUTMAPS": "USTKN",
+    "OUT": "$TMPDIR/out/testout_F_alt",
+    "INPAD": 0.8,
+    "NPIXPSF": 42,
+    "FADE": 1,
+    "PAD": 0,
+    "NOUT": 1,
+    "OUTPSF": "GAUSSIAN",
+    "EXTRASMOOTH": 0.9265328730414752,
+    "INLAYERCACHE": "$TMPDIR/cache/in_alt"
+}
+"""
+
 # CD and CRPIX values for linear approximations to the SCA WCSs.
 wcsdata = np.array(
     [
@@ -371,6 +424,8 @@ def setup(tmp_path):
     # first, get the configuration file.
     with open(tmp_path / "cfg.txt", "w") as f:
         f.write(myCfg_format.replace("$TMPDIR", str(tmp_path)))
+    with open(tmp_path / "cfg_alt.txt", "w") as f:
+        f.write(myCfg_alt_format.replace("$TMPDIR", str(tmp_path)))
 
     # now make the observation file
     obs = []
@@ -406,6 +461,17 @@ def setup(tmp_path):
         fits.HDUList(imfits).writeto(tmp_path / f"psf/psf_polyfit_{i:d}.fits", overwrite=True)
     ns_psf = np.shape(psf[-1])[0]
     ctr_psf = (ns_psf - 1) / 2.0
+
+    # alternate PSFs --- this one is smaller by 0.3 pix rms per axis
+    (tmp_path / "psfalt").mkdir(parents=True, exist_ok=True)
+    for i in range(len(obs)):
+        psfalt = OutPSF.psf_cplx_airy(ov * 20, ov * 1.326, sigma=0.0, features=i % 8)
+        psf_cube = np.zeros((4,) + np.shape(psfalt), dtype=np.float32)
+        psf_cube[0, :, :] = psfalt
+        imfits = [fits.PrimaryHDU()]
+        for _ in range(18):
+            imfits.append(fits.ImageHDU(psf_cube))
+        fits.HDUList(imfits).writeto(tmp_path / f"psfalt/psf_polyfit_{i:d}.fits", overwrite=True)
 
     # tophat kernel
     tk = np.ones(ov + 1)
@@ -679,6 +745,10 @@ def setup(tmp_path):
     assert np.all(np.isnan(t))  # we didn't save these so should get nan
     s.clear()
 
+    # Rnow with alternative PSF for drawing (make smaller objects)
+    cfg_alt = Config(tmp_path / "cfg_alt.txt")
+    Block(cfg=cfg_alt, this_sub=1)
+
     # remove stuff we don't need
     for iobs in range(len(obs)):
         for sca in range(1, 19):
@@ -686,6 +756,9 @@ def setup(tmp_path):
             fname2 = cachedir / rf"in_{iobs:08d}_{sca:02d}.fits"
             if os.path.exists(fname1) and not os.path.exists(fname2):
                 os.remove(fname1)
+            fname3 = cachedir / rf"in_alt_{iobs:08d}_{sca:02d}.fits"
+            if os.path.exists(fname3):
+                os.remove(fname3)
 
 
 def test_drawlayers(tmp_path, setup):
@@ -749,6 +822,58 @@ def test_drawlayers(tmp_path, setup):
         with fits.open(f1) as d1, fits.open(f2) as d2:
             # print(id, sca, d1[0].data, d2[0].data)
             assert np.allclose(d1[0].data, d2[0].data)
+
+
+def test_altdrawlayers(tmp_path, setup):
+    """
+    Examine drawlayer with alternate PSF.
+
+    Parameters
+    ----------
+    tmp_path : str
+        Directory in which to run the test.
+    setup : function
+        For pytest fixture.
+
+    Returns
+    -------
+    None
+
+    """
+
+    with fits.open(tmp_path / "out/testout_F_TruthCat.fits") as f_inj:
+        # get the first star in the table --- in this case, it's the only one
+        ibx = f_inj["TRUTH14"].data["ibx"][0]
+        iby = f_inj["TRUTH14"].data["iby"][0]
+        xs = f_inj["TRUTH14"].data["x"][0]
+        ys = f_inj["TRUTH14"].data["y"][0]
+        assert ibx == 0
+        assert iby == 1
+
+    # which region to take
+    xm = int(np.round(xs))
+    ym = int(np.round(ys))
+
+    with fits.open(tmp_path / "out/testout_F_00_01.fits") as fblock:
+        moms = galsim.Image(fblock[0].data[0, 1, ym - 8 : ym + 9, xm - 8 : xm + 9]).FindAdaptiveMom()
+        print(moms)
+    with fits.open(tmp_path / "out/testout_F_alt_00_01.fits") as fblock:
+        momsalt = galsim.Image(fblock[0].data[0, 1, ym - 8 : ym + 9, xm - 8 : xm + 9]).FindAdaptiveMom()
+        print(momsalt)
+
+    # check the object didn't move
+    assert (
+        np.hypot(
+            moms.moments_centroid.x - momsalt.moments_centroid.x,
+            moms.moments_centroid.y - momsalt.moments_centroid.y,
+        )
+        < 0.05
+    )
+    # change in amplitude
+    assert 0.99 < moms.moments_amp / momsalt.moments_amp < 1.01
+    # difference in sigma
+    dsig2 = moms.moments_sigma**2 - momsalt.moments_sigma**2
+    assert 0.08 < dsig2 * sc < 0.1
 
 
 def test_PyIMCOM_run1(tmp_path, setup):
