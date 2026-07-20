@@ -927,6 +927,13 @@ def test_PyIMCOM_run1(tmp_path, setup):
     assert np.amax(outfidelity) < 1.0e-5
     assert np.shape(outfidelity) == (100, 100)
 
+    # Test for get_weight_map
+    wht = my_block.get_weight_map("whitenoise1")
+    assert np.shape(wht) == (100, 100)
+    assert 5.7 < np.amin(wht) < 5.8
+    assert 6.7 < np.amax(wht) < 6.9
+    del wht
+
     ## Configuration test ##
 
     with fits.open(tmp_path / "out/testout_F_00_01.fits") as fblock:
