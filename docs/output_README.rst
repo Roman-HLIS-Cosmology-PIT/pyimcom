@@ -46,6 +46,7 @@ There are several options for reading PyIMCOM output files. From "lowest" to "hi
     sci_image = my_block.get_coadded_layer('SCI')
     # extracts a metadata map
     fidelity_map = my_block.get_output_map('FIDELITY') # options are: 'FIDELITY', 'SIGMA', 'KAPPA', 'INTWTSUM', 'EFFCOVER'
+    # computes an inverse variance map
     weight_map = my_block.get_weight_map("noise,Rz4PbrS2C2") #Generate inverse variance weight map according to Appendix A of 2607.09849.
 
 * The ``pyimcom.meta.distortimage.MetaMosaic`` class is the highest-level interface and constructs a sub-mosaic
