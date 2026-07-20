@@ -758,7 +758,7 @@ def setup(tmp_path):
         cfgdict = json.loads(f.read())
     cfgdict["INPSFDRAW"][1] = "Piff:psf_temp"
     cfgdict["INPSFDRAW"][2] = 4  # 4x4 oversampling
-    cfgdict["OUT"] = str(tmp_path) + "/out/testout_F"
+    cfgdict["OUT"] = str(tmp_path) + "/out/testout_F_piff"
     cfgdict["EXTRAINPUT"] = ["gsstar12", "gsext12,seed=100,shear=-.5,0", "cstar12"]
     with open(tmp_path / "cfg_piff.txt", "w") as f:
         f.write(json.dumps(cfgdict))
@@ -785,8 +785,6 @@ def setup(tmp_path):
     # run one block of Piff
     cfg_piff = Config(tmp_path / "cfg_piff.txt")
     Block(cfg=cfg_piff, this_sub=1)
-    with open("cachedir.txt", "w") as f:
-        f.write(cachedir)
 
     # now clean up everything, including the input files
     for iobs in range(len(obs)):
@@ -916,6 +914,13 @@ def test_altdrawlayers(tmp_path, setup):
         dsig2 = moms.moments_sigma**2 - momsalt.moments_sigma**2
         q = 0.04 if simlayer == 2 else 0.01
         assert 0.09 - q < dsig2 * sc < 0.09 + q
+
+    # test Piff drew a correctly normalized star and galaxy
+    ys, xs = 3014, 3063
+    with fits.open("") as f:
+        for simlayer in range(1, 4):
+            sm = np.sum(f[0].data[simlayer, ys - 16 : ys + 17, xs - 16 : xs + 17])
+            assert 1.02 < sm < 1.2
 
 
 def test_PyIMCOM_run1(tmp_path, setup):

@@ -92,7 +92,7 @@ class PiffPSFModel:
                     chipnum=self.sca - 1, x=x, y=y, center=True, stamp_size=normbox, sca=self.sca
                 ).array
             )
-        return stamp
+        return stamp / oversamp**2  # PyIMCOM expects flux per sample, not per native pixel
 
 
 def piff_to_legendre(
