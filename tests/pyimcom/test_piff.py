@@ -294,4 +294,3 @@ def test_piff_decomposition(tmp_path):
     assert 0.017 < moms.observed_e2 < 0.021
 
     assert np.allclose(arr2, 1.0718 * arr3, atol=1e-5, rtol=1e-3)
-
