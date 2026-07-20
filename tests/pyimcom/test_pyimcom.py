@@ -6,9 +6,11 @@ This does 2 blocks.
 
 import copy
 import io
+import json
 import os
 import pathlib
 import re
+import urllib.request
 from contextlib import redirect_stdout
 
 import asdf
@@ -44,6 +46,8 @@ from scipy.signal import convolve
 EXAMPLE_FILE = (
     "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/compressiontest_F_02_11.fits"
 )
+
+PIFF_FILE = "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/ffov_13906_17.piff"
 
 # constants
 degree = np.pi / 180.0
@@ -749,16 +753,48 @@ def setup(tmp_path):
     cfg_alt = Config(tmp_path / "cfg_alt.txt")
     Block(cfg=cfg_alt, this_sub=1)
 
+    # build config for Piff run
+    with open(str(tmp_path) + "/cfg_alt.txt") as f:
+        cfgdict = json.loads(f.read())
+    cfgdict["INPSFDRAW"][1] = "Piff:psf_temp"
+    cfgdict["INPSFDRAW"][2] = 4  # 4x4 oversampling
+    cfgdict["OUT"] = str(tmp_path) + "/out/testout_F"
+    cfgdict["EXTRAINPUT"] = ["gsstar12", "gsext12,seed=100,shear=-.5,0", "cstar12"]
+    with open(tmp_path / "cfg_piff.txt", "w") as f:
+        f.write(json.dumps(cfgdict))
+    del cfgdict
+    # get Piff files
+    urllib.request.urlretrieve(PIFF_FILE, str(tmp_path) + "/temp.piff")
+
     # remove stuff we don't need
+    hasntremovedanything = False
+    for iobs in range(len(obs)):
+        delpsf = False
+        for sca in range(1, 19):
+            fname3 = cachedir / rf"in_alt_{iobs:08d}_{sca:02d}.fits"
+            if os.path.exists(fname3):
+                os.remove(fname3)
+                delpsf = True
+        # ... including replacing the PSF files
+        if delpsf:
+            os.symlink(str(tmp_path) + "/temp.piff", str(tmp_path) + f"/psfalt/psf_temp_{iobs:d}.piff")
+            if not hasntremovedanything:
+                os.remove(str(tmp_path) + f"/psfalt/psf_polyfit_{iobs:d}.fits")
+                hasntremovedanything = True
+
+    # run one block of Piff
+    cfg_piff = Config(tmp_path / "cfg_piff.txt")
+    Block(cfg=cfg_piff, this_sub=1)
+    with open("cachedir.txt", "w") as f:
+        f.write(cachedir)
+
+    # now clean up everything, including the input files
     for iobs in range(len(obs)):
         for sca in range(1, 19):
             fname1 = tmp_path / rf"in/sim_L2_F184_{iobs:d}_{sca:d}.asdf"
             fname2 = cachedir / rf"in_{iobs:08d}_{sca:02d}.fits"
             if os.path.exists(fname1) and not os.path.exists(fname2):
                 os.remove(fname1)
-            fname3 = cachedir / rf"in_alt_{iobs:08d}_{sca:02d}.fits"
-            if os.path.exists(fname3):
-                os.remove(fname3)
 
 
 def test_drawlayers(tmp_path, setup):
@@ -854,26 +890,32 @@ def test_altdrawlayers(tmp_path, setup):
     xm = int(np.round(xs))
     ym = int(np.round(ys))
 
-    with fits.open(tmp_path / "out/testout_F_00_01.fits") as fblock:
-        moms = galsim.Image(fblock[0].data[0, 1, ym - 8 : ym + 9, xm - 8 : xm + 9]).FindAdaptiveMom()
-        print(moms)
-    with fits.open(tmp_path / "out/testout_F_alt_00_01.fits") as fblock:
-        momsalt = galsim.Image(fblock[0].data[0, 1, ym - 8 : ym + 9, xm - 8 : xm + 9]).FindAdaptiveMom()
-        print(momsalt)
+    for simlayer in range(1, 5):
+        with fits.open(tmp_path / "out/testout_F_00_01.fits") as fblock:
+            moms = galsim.Image(
+                fblock[0].data[0, simlayer, ym - 8 : ym + 9, xm - 8 : xm + 9]
+            ).FindAdaptiveMom()
+            print(moms)
+        with fits.open(tmp_path / "out/testout_F_alt_00_01.fits") as fblock:
+            momsalt = galsim.Image(
+                fblock[0].data[0, simlayer, ym - 8 : ym + 9, xm - 8 : xm + 9]
+            ).FindAdaptiveMom()
+            print(momsalt)
 
-    # check the object didn't move
-    assert (
-        np.hypot(
-            moms.moments_centroid.x - momsalt.moments_centroid.x,
-            moms.moments_centroid.y - momsalt.moments_centroid.y,
+        # check the object didn't move
+        assert (
+            np.hypot(
+                moms.moments_centroid.x - momsalt.moments_centroid.x,
+                moms.moments_centroid.y - momsalt.moments_centroid.y,
+            )
+            < 0.05
         )
-        < 0.05
-    )
-    # change in amplitude
-    assert 0.99 < moms.moments_amp / momsalt.moments_amp < 1.01
-    # difference in sigma
-    dsig2 = moms.moments_sigma**2 - momsalt.moments_sigma**2
-    assert 0.08 < dsig2 * sc < 0.1
+        # change in amplitude
+        assert 0.99 < moms.moments_amp / momsalt.moments_amp < 1.01
+        # difference in sigma
+        dsig2 = moms.moments_sigma**2 - momsalt.moments_sigma**2
+        q = 0.04 if simlayer == 2 else 0.01
+        assert 0.09 - q < dsig2 * sc < 0.09 + q
 
 
 def test_PyIMCOM_run1(tmp_path, setup):

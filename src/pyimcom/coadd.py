@@ -17,6 +17,7 @@ Block
 import datetime
 import gc
 import sys
+import time
 from itertools import combinations, product
 from os.path import exists
 from pathlib import Path
@@ -36,6 +37,8 @@ from astropy.io import fits
 from astropy.table import Table
 from filelock import FileLock, Timeout
 from scipy.special import legendre
+
+import pyimcom  # noqa: F401
 
 from .config import Config, Timer, format_axis, format_axis_pars
 from .config import Settings as Stn
@@ -586,7 +589,11 @@ class InImage:
             )
         # clear if the wrong mode is cached
         if self._mode == (not use_drawpsf):
-            self.clear()
+            if hasattr(self, "inpsf_cube"):
+                del self.inpsf_cube
+            if hasattr(self, "inpsf_piff"):
+                del self.inpsf_piff
+        self._mode = use_drawpsf  # will keep this cached
 
         # now the various options
         if iformat == "dc2_imsim":
@@ -639,7 +646,7 @@ class InImage:
                 fname = ipath + "/" + InImage.psf_filename(iformat, self.idsca[0])
                 assert exists(fname), "Error: input psf does not exist"
                 self.inpsf_piff = PiffPSFModel(fname, self.idsca[1])
-            this_psf = self.inpsf_piff.draw(pixloc[0], pixloc[1], oversamp=ioversamp)
+            this_psf = self.inpsf_piff.draw(pixloc[0], pixloc[1], stamp_size=48, oversamp=ioversamp)
 
         else:
             raise RuntimeError("Error: input psf does not exist")
