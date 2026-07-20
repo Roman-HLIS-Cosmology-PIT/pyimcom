@@ -917,7 +917,7 @@ def test_altdrawlayers(tmp_path, setup):
 
     # test Piff drew a correctly normalized star and galaxy
     ys, xs = 3014, 3063
-    with fits.open("") as f:
+    with fits.open(str(tmp_path) + "/cache/in_alt_00000010_12.fits") as f:
         for simlayer in range(1, 4):
             sm = np.sum(f[0].data[simlayer, ys - 16 : ys + 17, xs - 16 : xs + 17])
             assert 1.02 < sm < 1.2
