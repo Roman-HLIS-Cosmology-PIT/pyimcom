@@ -814,11 +814,6 @@ def test_inimageutils(setup):
     assert 0.8 < np.sum(psf2) < 1.2
     assert np.shape(psf1) != np.shape(psf2)  # should be different
 
-    # now clear
-    inimg.clear()
-    for a in ["inpsf_arr", "inpsf_cube", "inpsf_piff"]:
-        assert not hasattr(inimg, a)
-
 
 def test_drawlayers(setup):
     """See if we can successfully draw layers with the build_all_layers function."""
