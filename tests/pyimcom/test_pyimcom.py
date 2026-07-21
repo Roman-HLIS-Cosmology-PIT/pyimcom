@@ -409,21 +409,11 @@ def make_simple_wcs(ra, dec, pa, sca):
     return outwcs
 
 
-@pytest.fixture
-def setup(tmp_path):
-    """
-    Generates sample input files for a pyimcom run.
+@pytest.fixture(scope="module")
+def setup(tmp_path_factory):
+    """Generates sample input files for a pyimcom run."""
 
-    Parameters
-    ----------
-    tmp_path : str
-        Directory in which to run the test.
-
-    Returns
-    -------
-    None
-
-    """
+    tmp_path = tmp_path_factory.mktemp("pyimcomtests")  # so we can use function scope
 
     # first, get the configuration file.
     with open(tmp_path / "cfg.txt", "w") as f:
@@ -798,23 +788,13 @@ def setup(tmp_path):
             if os.path.exists(fname1) and not os.path.exists(fname2):
                 os.remove(fname1)
 
+    return tmp_path
 
-def test_drawlayers(tmp_path, setup):
-    """
-    See if we can successfully draw layers with the build_all_layers function.
 
-    Parameters
-    ----------
-    tmp_path : str
-        Directory in which to run the test.
-    setup : function
-        For pytest fixture.
+def test_drawlayers(setup):
+    """See if we can successfully draw layers with the build_all_layers function."""
 
-    Returns
-    -------
-    None
-
-    """
+    tmp_path = setup  # get the test directory
 
     # first, get the configuration file.
     with open(tmp_path / "cfg2.txt", "w") as f:
@@ -862,22 +842,10 @@ def test_drawlayers(tmp_path, setup):
             assert np.allclose(d1[0].data, d2[0].data)
 
 
-def test_altdrawlayers(tmp_path, setup):
-    """
-    Examine drawlayer with alternate PSF.
+def test_altdrawlayers(setup):
+    """Examine drawlayer with alternate PSF."""
 
-    Parameters
-    ----------
-    tmp_path : str
-        Directory in which to run the test.
-    setup : function
-        For pytest fixture.
-
-    Returns
-    -------
-    None
-
-    """
+    tmp_path = setup  # get the test directory
 
     with fits.open(tmp_path / "out/testout_F_TruthCat.fits") as f_inj:
         # get the first star in the table --- in this case, it's the only one
@@ -927,22 +895,10 @@ def test_altdrawlayers(tmp_path, setup):
             assert 1.02 < sm < 1.2
 
 
-def test_PyIMCOM_run1(tmp_path, setup):
-    """
-    Examine PyIMCOM outputs.
+def test_PyIMCOM_run1(setup):
+    """Examine PyIMCOM outputs."""
 
-    Parameters
-    ----------
-    tmp_path : str
-        Directory in which to run the test.
-    setup : function
-        For pytest fixture.
-
-    Returns
-    -------
-    None
-
-    """
+    tmp_path = setup  # get the test directory
 
     ## Science star portion ##
 
@@ -1326,8 +1282,10 @@ def test_compress(tmp_path):
                     )
 
 
-def test_visualize(tmp_path, setup, monkeypatch):
+def test_visualize(setup, monkeypatch):
     """Test function to direct visualizations to files."""
+
+    tmp_path = setup  # get the test directory
 
     # new place to save figures, in sequence
     _counter = [0]
@@ -1385,8 +1343,10 @@ class _DummyImage:
         self.indata = np.zeros((4088, 4088), dtype=np.float32)
 
 
-def test_masks(tmp_path, setup):
+def test_masks(setup):
     """Simple tests for mask functions."""
+
+    tmp_path = setup  # get the test directory
 
     # This one tests masks for old formats (unlikely to use again, but we want to make sure
     # the code still works).
