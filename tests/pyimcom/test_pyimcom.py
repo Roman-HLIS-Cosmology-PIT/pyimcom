@@ -759,7 +759,7 @@ def setup(tmp_path):
     cfgdict["INPSFDRAW"][1] = "Piff:psf_temp"
     cfgdict["INPSFDRAW"][2] = 4  # 4x4 oversampling
     cfgdict["OUT"] = str(tmp_path) + "/out/testout_F_piff"
-    cfgdict["EXTRAINPUT"] = ["gsstar12", "gsext12,seed=100,shear=-.5,0", "cstar12"]
+    cfgdict["EXTRAINPUT"] = ["gsstar12", "gsext12,seed=100,shear=-.5,0", "cstar12", "whitenoise1"]
     with open(tmp_path / "cfg_piff.txt", "w") as f:
         f.write(json.dumps(cfgdict))
     del cfgdict
@@ -767,20 +767,24 @@ def setup(tmp_path):
     urllib.request.urlretrieve(PIFF_FILE, str(tmp_path) + "/temp.piff")
 
     # remove stuff we don't need
-    hasntremovedanything = False
     for iobs in range(len(obs)):
         delpsf = False
         for sca in range(1, 19):
             fname3 = cachedir / rf"in_alt_{iobs:08d}_{sca:02d}.fits"
             if os.path.exists(fname3):
-                os.remove(fname3)
                 delpsf = True
         # ... including replacing the PSF files
         if delpsf:
             os.symlink(str(tmp_path) + "/temp.piff", str(tmp_path) + f"/psfalt/psf_temp_{iobs:d}.piff")
-            if not hasntremovedanything:
-                os.remove(str(tmp_path) + f"/psfalt/psf_polyfit_{iobs:d}.fits")
-                hasntremovedanything = True
+            os.remove(str(tmp_path) + f"/psfalt/psf_polyfit_{iobs:d}.fits")
+
+    # this is supposed to just remove one file, and the ancillary files
+    iobs, sca = 10, 12
+    os.remove(cachedir / rf"in_alt_{iobs:08d}_{sca:02d}.fits.lock")
+    os.remove(cachedir / rf"in_alt_{iobs:08d}_{sca:02d}.fits")
+    os.remove(cachedir / rf"in_alt_{iobs:08d}_{sca:02d}_mask.fits.lock")
+    os.remove(cachedir / rf"in_alt_{iobs:08d}_{sca:02d}_mask.fits")
+    os.remove(cachedir / rf"in_alt_{iobs:08d}_{sca:02d}_wcs.asdf")
 
     # run one block of Piff
     cfg_piff = Config(tmp_path / "cfg_piff.txt")
