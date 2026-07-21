@@ -28,7 +28,7 @@ from astropy.table import Table
 from furry_parakeet.pyimcom_croutines import gridD5512C
 from gwcs import coordinate_frames as cf
 from pyimcom.analysis import Mosaic, OutImage, Suite
-from pyimcom.coadd import Block
+from pyimcom.coadd import Block, InImage
 from pyimcom.compress.compressutils import CompressedOutput, ReadFile
 from pyimcom.config import Config
 from pyimcom.diagnostics.layer_diagnostics import LayerReport
@@ -789,6 +789,35 @@ def setup(tmp_path_factory):
                 os.remove(fname1)
 
     return tmp_path
+
+
+def test_inimageutils(setup):
+    """Test InImage utilities that didn't get covered in the main tests."""
+
+    tmp_path = setup  # get the test directory
+
+    # now build an InImage
+    cfg = Config(str(tmp_path / "cfg_piff.txt"))
+    blk = Block(cfg=cfg, this_sub=1, run_coadd=False)
+    blk.parse_config()
+    inimg = InImage(blk, (10, 12))
+    testpoint = (60.05, -3.79)
+
+    # and now draw the PSF 4 times, and we'll check that each time it changes
+    psf1 = inimg.get_psf_pos(testpoint)
+    psf2 = inimg.get_psf_pos(testpoint, use_drawpsf=True)
+    psf3 = inimg.get_psf_pos(testpoint)
+    psf4 = inimg.get_psf_pos(testpoint, use_drawpsf=True)
+    assert np.allclose(psf1, psf3)
+    assert np.allclose(psf2, psf4)
+    assert 0.8 < np.sum(psf1) < 1.2
+    assert 0.8 < np.sum(psf2) < 1.2
+    assert np.shape(psf1) != np.shape(psf2)  # should be different
+
+    # now clear
+    inimg.clear()
+    for a in ["inpsf_arr", "inpsf_cube", "inpsf_piff"]:
+        assert not hasattr(inimg, a)
 
 
 def test_drawlayers(setup):
