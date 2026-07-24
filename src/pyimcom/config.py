@@ -306,6 +306,9 @@ class Config:
         "inpsf_path",
         "inpsf_format",
         "inpsf_oversamp",
+        "inpsfdraw_path",
+        "inpsfdraw_format",
+        "inpsfdraw_oversamp",
         "psfsplit",
         "psfsplit_r1",
         "psfsplit_r2",
@@ -468,6 +471,10 @@ class Config:
         self.use_filter = cfg_dict["FILTER"]
         # input PSF information
         self.inpsf_path, self.inpsf_format, self.inpsf_oversamp = cfg_dict["INPSF"]
+        # separate "draw" PSF, if given
+        self.inpsfdraw_path, self.inpsfdraw_format, self.inpsfdraw_oversamp = cfg_dict.get(
+            "INPSFDRAW", (None, None, None)
+        )
         # if PSF splitting is used
         self.psfsplit = cfg_dict.get("PSFSPLIT", "")
         self.porder_imsubtract = cfg_dict.get("PORDER_IMSUBTRACT", -1)
@@ -658,6 +665,8 @@ class Config:
             "\n"
             "self.inpsf_oversamp = int(OVERSAMP)"
         )
+        # draw not enabled from CLI
+        self.inpsfdraw_path, self.inpsfdraw_format, self.inpsfdraw_oversamp = None, None, None
 
         print("# PSF splitting", flush=True)
         self._get_attrs_wrapper(
@@ -1117,6 +1126,8 @@ class Config:
         cfg_dict["INDATA"] = [self.inpath, self.informat]
         cfg_dict["FILTER"] = self.use_filter
         cfg_dict["INPSF"] = [self.inpsf_path, self.inpsf_format, self.inpsf_oversamp]
+        if self.inpsfdraw_path is not None:
+            cfg_dict["INPSFDRAW"] = [self.inpsfdraw_path, self.inpsfdraw_format, self.inpsfdraw_oversamp]
         if self.psfsplit:
             cfg_dict["PSFSPLIT"] = [
                 self.psfsplit_r1,

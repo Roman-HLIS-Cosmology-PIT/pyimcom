@@ -108,7 +108,7 @@ The current format for the FITS file is that HDU #1 is a binary table with colum
 The coordinate and filter information is needed for PyIMCOM to select the appropriate exposures for use in each block. (It is not used for precision alignment of the images: for that, PyIMCOM uses the WCS provided in the input files.) The date information is not used right now, but it could be used in the future to build co-adds in deep fields that correspond to certain ranges of epochs.
 
 INDATA: The input observations
------------------------------------
+------------------------------
 
 This has two entries containing the directory to find input images and the format:
 
@@ -130,7 +130,7 @@ More input formats will be added as needed to support further simulations and Ro
 
 
 FILTER: Filter choice
----------------------------
+---------------------
 
 This is a simple integer for the filter to coadd:
 
@@ -141,7 +141,7 @@ This is a simple integer for the filter to coadd:
 Convention is 0 (W146), 1 (F184), 2 (H158), 3 (J129), 4 (Y106), 5 (Z087), 6 (R062), and 10 (K213). (7, 8, and 9 are codes for the prism, dark, and grism, and are not supported.)
 
 INPSF: Input PSF files
------------------------------
+----------------------
 
 This is a list containing a directory, PSF format, and oversampling factor:
 
@@ -154,10 +154,19 @@ This is a list containing a directory, PSF format, and oversampling factor:
 
 The above example looks for PSFs in the directory ``/fs/scratch/PCON0003/cond0007/anl-run-in-prod/psf_vlarge``; has PSF format type ``anlsim``; and the PSF is oversampled relative to native pixels by a factor of 8.
 
-The valid PSF formats are the same as the input data formats in the `INDATA <INDATA: The input observations>`_ keyword. Most of the time, you will want to use the same format as in ``INDATA``, but this is not enforced.
+The valid PSF formats are the same as the input data formats in the `INDATA <INDATA: The input observations>`_ keyword. In addition, it is possible to read from a Piff file:
+
+.. code-block:: json
+
+    "INPSF": [
+       "/fs/scratch/PCON0003/cond0007/anl-run-in-prod/",
+       "piff:myfiles",
+       8]
+
+where here, e.g., the PSF file for obsid=2500 would be in ``/fs/scratch/PCON0003/cond0007/anl-run-in-prod/myfiles_2500.piff``. This option is only available if Piff is installed (otherwise you will get a ``ModuleNotFoundError``).
 
 PSFSPLIT: Splitting the PSF\*
--------------------------------
+-----------------------------
 
 This keyword is optional (it defaults to ``None``). If provided, it means that the ``pyimcom.splitpsf`` module has been used to split the PSF into long- and short-range parts, which will (eventually) allow for iterative cleaning of the long-range part of the PSF. An example is:
 

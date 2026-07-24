@@ -8,7 +8,7 @@ import galsim
 import numpy as np
 import pytest
 from astropy.io import fits
-from pyimcom.utils.piffutils import piff_to_legendre, piff_to_legendre_multi
+from pyimcom.utils.piffutils import PiffPSFModel, piff_to_legendre, piff_to_legendre_multi
 
 EXAMPLE_FILE = "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/ffov_13906_17.piff"
 
@@ -276,3 +276,21 @@ def test_piff_decomposition(tmp_path):
             oversamp=4,
             legendre_order=1,
         )
+
+    # now check the PSF point model
+    p = PiffPSFModel(floc, 12)
+    arr1 = p.draw(0, 0, oversamp=6)
+    arr2 = p.draw(0, 4087, oversamp=6)
+    arr3 = p.draw(0, 4087, oversamp=6, normbox=16)
+
+    # Gaussian fit
+    moms = galsim.hsm.FindAdaptiveMom(galsim.Image(arr1))
+    print(moms.moments_sigma)
+    print(moms.moments_centroid.x, moms.moments_centroid.y)
+    print(moms.observed_e1, moms.observed_e2)
+    assert 0.68 < moms.moments_sigma / 6.0 < 0.72
+    assert np.hypot(moms.moments_centroid.x - 384.5, moms.moments_centroid.y - 384.5) < 0.6
+    assert 0.002 < moms.observed_e1 < 0.008
+    assert 0.017 < moms.observed_e2 < 0.021
+
+    assert np.allclose(arr2, 1.0718 * arr3, atol=1e-5, rtol=1e-3)

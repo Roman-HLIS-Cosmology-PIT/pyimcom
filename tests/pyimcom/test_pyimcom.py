@@ -6,9 +6,11 @@ This does 2 blocks.
 
 import copy
 import io
+import json
 import os
 import pathlib
 import re
+import urllib.request
 from contextlib import redirect_stdout
 
 import asdf
@@ -26,7 +28,7 @@ from astropy.table import Table
 from furry_parakeet.pyimcom_croutines import gridD5512C
 from gwcs import coordinate_frames as cf
 from pyimcom.analysis import Mosaic, OutImage, Suite
-from pyimcom.coadd import Block
+from pyimcom.coadd import Block, InImage
 from pyimcom.compress.compressutils import CompressedOutput, ReadFile
 from pyimcom.config import Config
 from pyimcom.diagnostics.layer_diagnostics import LayerReport
@@ -44,6 +46,8 @@ from scipy.signal import convolve
 EXAMPLE_FILE = (
     "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/compressiontest_F_02_11.fits"
 )
+
+PIFF_FILE = "https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/wiki/test-files/ffov_13906_17.piff"
 
 # constants
 degree = np.pi / 180.0
@@ -113,6 +117,59 @@ myCfg_format = """
     "OUTPSF": "GAUSSIAN",
     "EXTRASMOOTH": 0.9265328730414752,
     "INLAYERCACHE": "$TMPDIR/cache/in"
+}
+"""
+
+myCfg_alt_format = """
+{
+    "OBSFILE": "$TMPDIR/obs.fits",
+    "INDATA": [
+        "$TMPDIR/in",
+        "L2_2506"
+    ],
+    "CTR": [
+	60.0504,
+	-3.8
+    ],
+    "LONPOLE": 240.0,
+    "OUTSIZE": [
+        4,
+	25,
+	0.04
+    ],
+    "BLOCK": 2,
+    "FILTER": 1,
+    "LAKERNEL": "Cholesky",
+    "KAPPAC": [
+         5e-4
+    ],
+    "INPSF": [
+	"$TMPDIR/psf",
+        "L2_2506",
+        6
+    ],
+    "INPSFDRAW": [
+	"$TMPDIR/psfalt",
+        "L2_2506",
+        6
+    ],
+    "EXTRAINPUT": [
+        "gsstar14",
+        "gsext14,seed=100,shear=-.01:0.017320508075688773",
+        "cstar14",
+        "nstar14,2e5,100,256"
+    ],
+    "PADSIDES": "all",
+    "OUTMAPS": "USTKN",
+    "OUT": "$TMPDIR/out/testout_F_alt",
+    "INPAD": 0.8,
+    "NPIXPSF": 42,
+    "FADE": 1,
+    "PAD": 0,
+    "NOUT": 1,
+    "OUTPSF": "GAUSSIAN",
+    "EXTRASMOOTH": 0.9265328730414752,
+    "INLAYERCACHE": "$TMPDIR/cache/in_alt"
 }
 """
 
@@ -352,25 +409,17 @@ def make_simple_wcs(ra, dec, pa, sca):
     return outwcs
 
 
-@pytest.fixture
-def setup(tmp_path):
-    """
-    Generates sample input files for a pyimcom run.
+@pytest.fixture(scope="module")
+def setup(tmp_path_factory):
+    """Generates sample input files for a pyimcom run."""
 
-    Parameters
-    ----------
-    tmp_path : str
-        Directory in which to run the test.
-
-    Returns
-    -------
-    None
-
-    """
+    tmp_path = tmp_path_factory.mktemp("pyimcomtests")  # so we can use function scope
 
     # first, get the configuration file.
     with open(tmp_path / "cfg.txt", "w") as f:
         f.write(myCfg_format.replace("$TMPDIR", str(tmp_path)))
+    with open(tmp_path / "cfg_alt.txt", "w") as f:
+        f.write(myCfg_alt_format.replace("$TMPDIR", str(tmp_path)))
 
     # now make the observation file
     obs = []
@@ -406,6 +455,17 @@ def setup(tmp_path):
         fits.HDUList(imfits).writeto(tmp_path / f"psf/psf_polyfit_{i:d}.fits", overwrite=True)
     ns_psf = np.shape(psf[-1])[0]
     ctr_psf = (ns_psf - 1) / 2.0
+
+    # alternate PSFs --- this one is smaller by 0.3 pix rms per axis
+    (tmp_path / "psfalt").mkdir(parents=True, exist_ok=True)
+    for i in range(len(obs)):
+        psfalt = OutPSF.psf_cplx_airy(ov * 20, ov * 1.326, sigma=0.0, features=i % 8)
+        psf_cube = np.zeros((4,) + np.shape(psfalt), dtype=np.float32)
+        psf_cube[0, :, :] = psfalt
+        imfits = [fits.PrimaryHDU()]
+        for _ in range(18):
+            imfits.append(fits.ImageHDU(psf_cube))
+        fits.HDUList(imfits).writeto(tmp_path / f"psfalt/psf_polyfit_{i:d}.fits", overwrite=True)
 
     # tophat kernel
     tk = np.ones(ov + 1)
@@ -679,7 +739,48 @@ def setup(tmp_path):
     assert np.all(np.isnan(t))  # we didn't save these so should get nan
     s.clear()
 
+    # Rnow with alternative PSF for drawing (make smaller objects)
+    cfg_alt = Config(tmp_path / "cfg_alt.txt")
+    Block(cfg=cfg_alt, this_sub=1)
+
+    # build config for Piff run
+    with open(str(tmp_path) + "/cfg_alt.txt") as f:
+        cfgdict = json.loads(f.read())
+    cfgdict["INPSFDRAW"][1] = "Piff:psf_temp"
+    cfgdict["INPSFDRAW"][2] = 4  # 4x4 oversampling
+    cfgdict["OUT"] = str(tmp_path) + "/out/testout_F_piff"
+    cfgdict["EXTRAINPUT"] = ["gsstar12", "gsext12,seed=100,shear=-.5,0", "cstar12", "whitenoise1"]
+    with open(tmp_path / "cfg_piff.txt", "w") as f:
+        f.write(json.dumps(cfgdict))
+    del cfgdict
+    # get Piff files
+    urllib.request.urlretrieve(PIFF_FILE, str(tmp_path) + "/temp.piff")
+
     # remove stuff we don't need
+    for iobs in range(len(obs)):
+        delpsf = False
+        for sca in range(1, 19):
+            fname3 = cachedir / rf"in_alt_{iobs:08d}_{sca:02d}.fits"
+            if os.path.exists(fname3):
+                delpsf = True
+        # ... including replacing the PSF files
+        if delpsf:
+            os.symlink(str(tmp_path) + "/temp.piff", str(tmp_path) + f"/psfalt/psf_temp_{iobs:d}.piff")
+            os.remove(str(tmp_path) + f"/psfalt/psf_polyfit_{iobs:d}.fits")
+
+    # this is supposed to just remove one file, and the ancillary files
+    iobs, sca = 10, 12
+    os.remove(cachedir / rf"in_alt_{iobs:08d}_{sca:02d}.fits.lock")
+    os.remove(cachedir / rf"in_alt_{iobs:08d}_{sca:02d}.fits")
+    os.remove(cachedir / rf"in_alt_{iobs:08d}_{sca:02d}_mask.fits.lock")
+    os.remove(cachedir / rf"in_alt_{iobs:08d}_{sca:02d}_mask.fits")
+    os.remove(cachedir / rf"in_alt_{iobs:08d}_{sca:02d}_wcs.asdf")
+
+    # run one block of Piff
+    cfg_piff = Config(tmp_path / "cfg_piff.txt")
+    Block(cfg=cfg_piff, this_sub=1)
+
+    # now clean up everything, including the input files
     for iobs in range(len(obs)):
         for sca in range(1, 19):
             fname1 = tmp_path / rf"in/sim_L2_F184_{iobs:d}_{sca:d}.asdf"
@@ -687,23 +788,37 @@ def setup(tmp_path):
             if os.path.exists(fname1) and not os.path.exists(fname2):
                 os.remove(fname1)
 
+    return tmp_path
 
-def test_drawlayers(tmp_path, setup):
-    """
-    See if we can successfully draw layers with the build_all_layers function.
 
-    Parameters
-    ----------
-    tmp_path : str
-        Directory in which to run the test.
-    setup : function
-        For pytest fixture.
+def test_inimageutils(setup):
+    """Test InImage utilities that didn't get covered in the main tests."""
 
-    Returns
-    -------
-    None
+    tmp_path = setup  # get the test directory
 
-    """
+    # now build an InImage
+    cfg = Config(str(tmp_path / "cfg_piff.txt"))
+    blk = Block(cfg=cfg, this_sub=1, run_coadd=False)
+    blk.parse_config()
+    inimg = InImage(blk, (10, 12))
+    testpoint = (60.05, -3.79)
+
+    # and now draw the PSF 4 times, and we'll check that each time it changes
+    psf1 = inimg.get_psf_pos(testpoint)
+    psf2 = inimg.get_psf_pos(testpoint, use_drawpsf=True)
+    psf3 = inimg.get_psf_pos(testpoint)
+    psf4 = inimg.get_psf_pos(testpoint, use_drawpsf=True)
+    assert np.allclose(psf1, psf3)
+    assert np.allclose(psf2, psf4)
+    assert 0.8 < np.sum(psf1) < 1.2
+    assert 0.8 < np.sum(psf2) < 1.2
+    assert np.shape(psf1) != np.shape(psf2)  # should be different
+
+
+def test_drawlayers(setup):
+    """See if we can successfully draw layers with the build_all_layers function."""
+
+    tmp_path = setup  # get the test directory
 
     # first, get the configuration file.
     with open(tmp_path / "cfg2.txt", "w") as f:
@@ -751,22 +866,63 @@ def test_drawlayers(tmp_path, setup):
             assert np.allclose(d1[0].data, d2[0].data)
 
 
-def test_PyIMCOM_run1(tmp_path, setup):
-    """
-    Examine PyIMCOM outputs.
+def test_altdrawlayers(setup):
+    """Examine drawlayer with alternate PSF."""
 
-    Parameters
-    ----------
-    tmp_path : str
-        Directory in which to run the test.
-    setup : function
-        For pytest fixture.
+    tmp_path = setup  # get the test directory
 
-    Returns
-    -------
-    None
+    with fits.open(tmp_path / "out/testout_F_TruthCat.fits") as f_inj:
+        # get the first star in the table --- in this case, it's the only one
+        ibx = f_inj["TRUTH14"].data["ibx"][0]
+        iby = f_inj["TRUTH14"].data["iby"][0]
+        xs = f_inj["TRUTH14"].data["x"][0]
+        ys = f_inj["TRUTH14"].data["y"][0]
+        assert ibx == 0
+        assert iby == 1
 
-    """
+    # which region to take
+    xm = int(np.round(xs))
+    ym = int(np.round(ys))
+
+    for simlayer in range(1, 5):
+        with fits.open(tmp_path / "out/testout_F_00_01.fits") as fblock:
+            moms = galsim.Image(
+                fblock[0].data[0, simlayer, ym - 8 : ym + 9, xm - 8 : xm + 9]
+            ).FindAdaptiveMom()
+            print(moms)
+        with fits.open(tmp_path / "out/testout_F_alt_00_01.fits") as fblock:
+            momsalt = galsim.Image(
+                fblock[0].data[0, simlayer, ym - 8 : ym + 9, xm - 8 : xm + 9]
+            ).FindAdaptiveMom()
+            print(momsalt)
+
+        # check the object didn't move
+        assert (
+            np.hypot(
+                moms.moments_centroid.x - momsalt.moments_centroid.x,
+                moms.moments_centroid.y - momsalt.moments_centroid.y,
+            )
+            < 0.05
+        )
+        # change in amplitude
+        assert 0.99 < moms.moments_amp / momsalt.moments_amp < 1.01
+        # difference in sigma
+        dsig2 = moms.moments_sigma**2 - momsalt.moments_sigma**2
+        q = 0.04 if simlayer == 2 else 0.01
+        assert 0.09 - q < dsig2 * sc < 0.09 + q
+
+    # test Piff drew a correctly normalized star and galaxy
+    ys, xs = 3014, 3063
+    with fits.open(str(tmp_path) + "/cache/in_alt_00000010_12.fits") as f:
+        for simlayer in range(1, 4):
+            sm = np.sum(f[0].data[simlayer, ys - 16 : ys + 17, xs - 16 : xs + 17])
+            assert 1.02 < sm < 1.2
+
+
+def test_PyIMCOM_run1(setup):
+    """Examine PyIMCOM outputs."""
+
+    tmp_path = setup  # get the test directory
 
     ## Science star portion ##
 
@@ -1157,8 +1313,10 @@ def test_compress(tmp_path):
                     )
 
 
-def test_visualize(tmp_path, setup, monkeypatch):
+def test_visualize(setup, monkeypatch):
     """Test function to direct visualizations to files."""
+
+    tmp_path = setup  # get the test directory
 
     # new place to save figures, in sequence
     _counter = [0]
@@ -1216,8 +1374,10 @@ class _DummyImage:
         self.indata = np.zeros((4088, 4088), dtype=np.float32)
 
 
-def test_masks(tmp_path, setup):
+def test_masks(setup):
     """Simple tests for mask functions."""
+
+    tmp_path = setup  # get the test directory
 
     # This one tests masks for old formats (unlikely to use again, but we want to make sure
     # the code still works).

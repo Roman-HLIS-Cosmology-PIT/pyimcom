@@ -16,6 +16,85 @@ except ModuleNotFoundError:
     HAS_PIFF = False
 
 
+class PiffPSFModel:
+    """
+    Class to draw a Piff PSF, but keep the file loaded.
+
+    Paramters
+    ---------
+    psf_file : str
+        The path to the PSF file.
+    sca: int
+        The sca number at which to draw the PSF (range: 1 to 18, inclusive).
+
+    Methods
+    -------
+    draw
+        Draws the PSF at the indicated position.
+
+    """
+
+    def __init__(self, psf_file, sca):
+        if not HAS_PIFF:
+            raise ModuleNotFoundError("piff isn't installed. Please install it using 'pip install piff'.")
+
+        # First read the psf via piff from given file
+        self.psf = piff.read(psf_file)
+        self.sca = sca
+
+    def draw(self, x, y, stamp_size=128, oversamp=6, normbox=None):
+        """
+        Draws the PSF at the indicated position.
+
+        Parameters
+        ----------
+        x, y : float
+            The (x, y) position on the chip where we want the PSF.
+        stamp_size: int, optional
+            The size of the PSF stamp. Default is 128.
+        oversamp: int, optional
+            The oversampling factor for the PSF stamp. Default is 6.
+        legendre_order : int, optional
+            Polynomial order for Legendre polynomial expansion. Default is 5.
+        normbox : int, optional
+            If given, normalizes the PSF to integrate to 1 in the specified box size (which may be
+            different from the region size used in Piff; we envision it will be larger if the PSF has
+            far wings that are not re-fit by Piff, e.g., from a physical model or fit to scattered
+            light in stacked bright stars, etc.).
+
+        Returns
+        -------
+        stamp : np.ndarray of shape (stamp_size*oversamp, stamp_size*oversamp)
+            A postage stamp of the PSF.
+
+        """
+
+        stamp = np.zeros((stamp_size * oversamp, stamp_size * oversamp), dtype=np.float32)
+
+        # get sub-PSFs in each region
+        s = np.linspace(-0.5 + 0.5 / oversamp, 0.5 - 0.5 / oversamp, oversamp)
+        for j in range(oversamp):
+            for i in range(oversamp):
+                stamp[j::oversamp, i::oversamp] = self.psf.draw(
+                    chipnum=self.sca - 1,
+                    x=x,
+                    y=y,
+                    center=True,
+                    offset=(-s[i], -s[j]),
+                    stamp_size=stamp_size,
+                    sca=self.sca,
+                ).array
+
+        # normalization
+        if normbox is not None:
+            stamp[:, :] /= np.sum(
+                self.psf.draw(
+                    chipnum=self.sca - 1, x=x, y=y, center=True, stamp_size=normbox, sca=self.sca
+                ).array
+            )
+        return stamp / oversamp**2  # PyIMCOM expects flux per sample, not per native pixel
+
+
 def piff_to_legendre(
     psf_file,
     sca,

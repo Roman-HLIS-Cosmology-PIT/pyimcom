@@ -37,11 +37,14 @@ from astropy.table import Table
 from filelock import FileLock, Timeout
 from scipy.special import legendre
 
+import pyimcom  # noqa: F401
+
 from .config import Config, Timer, format_axis, format_axis_pars
 from .config import Settings as Stn
 from .lakernel import CholKernel, EigenKernel, EmpirKernel, IterKernel
 from .layer import Mask, check_if_idsca_exists, get_all_data
 from .psfutil import PSFGrp, PSFInterpolator, PSFOvl, SysMatA, SysMatB
+from .utils.piffutils import PiffPSFModel
 from .wcsutil import PyIMCOM_WCS
 
 
@@ -81,6 +84,15 @@ class InImage:
     get_psf_pos
         Get input PSF array at given position.
 
+    Notes
+    -----
+    This class stores the loaded PSF data in memory. To enable the ``INPSFDRAW`` option, we
+    have a ``._mode`` attribute that could be:
+
+    - ``None`` (nothing loaded)
+    - ``False`` (coaddition PSF is loaded)
+    - ``True`` (draw PSF is loaded)
+
     """
 
     def __init__(self, blk: "Block", idsca: tuple[int, int]) -> None:
@@ -99,6 +111,8 @@ class InImage:
             if self.infile[-5:] == ".asdf":
                 with asdf.open(self.infile) as f:
                     self.inwcs = PyIMCOM_WCS(f["roman"]["meta"]["wcs"])
+
+        self._mode = None
 
     @staticmethod
     def generate_idx_grid(xs: np.array, ys: np.array) -> np.array:
@@ -410,6 +424,10 @@ class InImage:
             del self.inpsf_arr
         if hasattr(self, "inpsf_cube"):
             del self.inpsf_cube
+        if hasattr(self, "inpsf_piff"):
+            del self.inpsf_piff
+
+        self._mode = None  # nothing loaded anymore
 
     @staticmethod
     def smooth_and_pad(inArray: np.array, tophatwidth: float = 0.0, gaussiansigma: float = 0.0) -> np.array:
@@ -513,10 +531,15 @@ class InImage:
             return f"dc2_psf_{obsid:d}.fits"
         if inpsf_format in ["anlsim", "L2_2506"]:
             return f"psf_polyfit_{obsid:d}.fits"
+        if inpsf_format[:4].lower() == "piff":
+            s = inpsf_format[5:] if inpsf_format[4] == ":" else "ffov"
+            return f"{s}_{obsid:d}.piff"
 
         raise AssertionError("psf_filename: should not get here")
 
-    def get_psf_pos(self, psf_compute_point: np.array, use_shortrange: bool = False) -> np.array:
+    def get_psf_pos(
+        self, psf_compute_point: np.array, use_shortrange: bool = False, use_drawpsf: bool = False
+    ) -> np.array:
         """
         Get input PSF array at given position.
 
@@ -524,10 +547,13 @@ class InImage:
 
         Parameters
         ----------
-        psf_compute_point : np.array
+        psf_compute_point : np.ndarray
             Length 2 array, point to compute PSF in RA and Dec.
         use_shortrange : bool, optional
             If True and PSFSPLIT is set in the configuration file, then pulls only the short-range PSF G^(S).
+            (Only used with some INPSF formats.)
+        use_drawpsf : np.ndarray, optional
+            Use the PSF for drawing objects?
 
         Returns
         -------
@@ -547,13 +573,31 @@ class InImage:
         # pixloc = self.inwcs.all_world2pix(np.array([[*psf_compute_point]]).astype(np.float64), 0)[0]
         pixloc = self.inwcs.all_world2pix(psf_compute_point[0], psf_compute_point[1], 0)
 
-        if self.blk.cfg.inpsf_format == "dc2_imsim":
+        # what to draw
+        use_drawpsf = use_drawpsf and (self.blk.cfg.inpsfdraw_format is not None)
+        iformat, ipath, ioversamp = (
+            self.blk.cfg.inpsf_format,
+            self.blk.cfg.inpsf_path,
+            self.blk.cfg.inpsf_oversamp,
+        )
+        if use_drawpsf:
+            iformat, ipath, ioversamp = (
+                self.blk.cfg.inpsfdraw_format,
+                self.blk.cfg.inpsfdraw_path,
+                self.blk.cfg.inpsfdraw_oversamp,
+            )
+        # clear if the wrong mode is cached
+        if self._mode == (not use_drawpsf):
+            if hasattr(self, "inpsf_cube"):
+                del self.inpsf_cube
+            if hasattr(self, "inpsf_piff"):
+                del self.inpsf_piff
+        self._mode = use_drawpsf  # will keep this cached
+
+        # now the various options
+        if iformat == "dc2_imsim":
             if not hasattr(self, "inpsf_arr"):
-                fname = (
-                    self.blk.cfg.inpsf_path
-                    + "/"
-                    + InImage.psf_filename(self.blk.cfg.inpsf_format, self.idsca[0])
-                )
+                fname = ipath + "/" + InImage.psf_filename(iformat, self.idsca[0])
                 assert exists(fname), "Error: input psf does not exist"
                 with fitsio.FITS(fname) as fileh:
                     self.inpsf_arr = InImage.smooth_and_pad(
@@ -562,13 +606,9 @@ class InImage:
 
             this_psf = self.inpsf_arr
 
-        elif self.blk.cfg.inpsf_format == "anlsim" or self.blk.cfg.inpsf_format == "L2_2506":
+        elif iformat in ["anlsim", "L2_2506"]:
             if not hasattr(self, "inpsf_cube"):
-                fname = (
-                    self.blk.cfg.inpsf_path
-                    + "/"
-                    + InImage.psf_filename(self.blk.cfg.inpsf_format, self.idsca[0])
-                )
+                fname = ipath + "/" + InImage.psf_filename(iformat, self.idsca[0])
                 sskip = 0
                 readskip = False
                 if use_shortrange and self.blk.cfg.psfsplit:
@@ -585,7 +625,7 @@ class InImage:
             lporder = int(np.round(np.sqrt(np.shape(self.inpsf_cube)[0]))) - 1
             lpoly = InImage.LPolyArr(lporder, (pixloc[0] - 2043.5) / 2044.0, (pixloc[1] - 2043.5) / 2044.0)
             # pixels are in C/Python convention since pixloc was set this way
-            if self.blk.cfg.inpsf_format == "anlsim":
+            if iformat == "anlsim":
                 this_psf = (
                     InImage.smooth_and_pad(
                         np.einsum("a,aij->ij", lpoly, self.inpsf_cube), tophatwidth=tophatwidth_use
@@ -600,27 +640,17 @@ class InImage:
                 )
                 # L2_2506 and later are per (s_in/ovsamp)**2
 
+        elif iformat[:4].lower() == "piff":
+            if not hasattr(self, "inpsf_piff"):
+                fname = ipath + "/" + InImage.psf_filename(iformat, self.idsca[0])
+                assert exists(fname), "Error: input psf does not exist"
+                self.inpsf_piff = PiffPSFModel(fname, self.idsca[1])
+            this_psf = self.inpsf_piff.draw(pixloc[0], pixloc[1], stamp_size=48, oversamp=ioversamp)
+
         else:
             raise RuntimeError("Error: input psf does not exist")
 
-        # test of the astrometry, if requested
-        # if np.hypot(pixloc[0]-200, pixloc[1]-3000)<150:
-        #    print(':::', pixloc, psf_compute_point); sys.stdout.flush()
         return this_psf
-
-        # when distort_matrice is not required
-        # if dWdp_out is None: return this_psf
-
-        # get the distortion matrices d[(X,Y)perfect]/d[(X,Y)native]
-        # Note that rotations and magnifications are included in the distortion matrix, as well as shear
-        # Also the distortion is relative to the output grid, not to the tangent plane to the celestial sphere
-        # (although we really don't want the difference to be large ...)
-        # distort_matrice = np.linalg.inv(dWdp_out) \
-        #     @ wcs.utils.local_partial_pixel_derivatives(self.inwcs, pixloc[0], pixloc[1]) \
-        #     * self.blk.cfg.dtheta*Stn.degree/Stn.pixscale_native
-
-        # print(pixloc, self.blk.cfg.inpsf_oversamp, np.shape(this_psf), np.sum(this_psf))
-        # return this_psf, distort_matrice
 
 
 class InStamp:

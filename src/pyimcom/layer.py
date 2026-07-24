@@ -244,7 +244,7 @@ class GalSimInject:
             if angleTransient and (qp[n] + s) % 2 == 1:
                 continue
 
-            psf = inpsf((my_ra[n], my_dec[n]))  # now with PSF variation
+            psf = inpsf((my_ra[n], my_dec[n]), use_drawpsf=True)  # now with PSF variation
             psf_image = galsim.Image(psf, scale=0.11 / inpsf_oversamp)
             # interp_psf = galsim.InterpolatedImage(psf_image, x_interpolant='lanczos32')
             # the first time, get the preferred stepk and maxk
@@ -584,7 +584,7 @@ class GalSimInject:
         t0 = time.time()
         for n in range(num_obj):
             if not chrom:
-                psf = inpsf((my_ra[n], my_dec[n]))  # now with PSF variation
+                psf = inpsf((my_ra[n], my_dec[n]), use_drawpsf=True)  # now with PSF variation
             else:
                 psf = GalSimInject.get_psf_pos(inpsf, mywcs, (my_ra[n], my_dec[n]), inpsf_oversamp)
             psf_image = galsim.Image(psf, scale=0.11 / inpsf_oversamp)
@@ -823,7 +823,7 @@ class GridInject:
         d = 64  # region to draw
 
         for istar in range(len(ipix)):
-            thispsf = inpsf((rapix[istar], decpix[istar]))  # now with PSF variation
+            thispsf = inpsf((rapix[istar], decpix[istar]), use_drawpsf=True)  # now with PSF variation
             this_xmax = min(nside_sca, int(xsca[istar]) + d)
             this_xmin = max(0, int(xsca[istar]) - d)
             this_ymax = min(nside_sca, int(ysca[istar]) + d)
