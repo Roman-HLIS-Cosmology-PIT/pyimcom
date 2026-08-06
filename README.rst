@@ -41,7 +41,7 @@ Pip
 
 .. code-block:: bash
 
-    pip install .
+    pip install pyimcom
 
 Overview of PyIMCOM concepts
 ----------------------------
