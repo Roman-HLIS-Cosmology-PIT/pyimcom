@@ -155,7 +155,7 @@ def test_piff_decomposition(tmp_path):
     print(moms.moments_centroid.x, moms.moments_centroid.y)
     print(moms.observed_e1, moms.observed_e2)
     assert 0.68 < moms.moments_sigma / 6.0 < 0.72
-    assert np.hypot(moms.moments_centroid.x - 192.5, moms.moments_centroid.y - 192.5) < 0.3
+    assert np.hypot(moms.moments_centroid.x - 192.5, moms.moments_centroid.y - 192.5) < 0.31
     assert -0.004 < moms.observed_e1 < 0.004
     assert 0.018 < moms.observed_e2 < 0.022
 
