@@ -1,4 +1,8 @@
-.. image:: https://codecov.io/gh/Roman-HLIS-Cosmology-PIT/pyimcom/graph/badge.svg?token=GLM6LWD3F7
+|badge1| |badge2|
+
+.. |badge1| image:: https://codecov.io/gh/Roman-HLIS-Cosmology-PIT/pyimcom/graph/badge.svg
+
+.. |badge2| image:: https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/actions/workflows/smoke-test.yml/badge.svg
 
 PyIMCOM: Image combination package
 ##################################
@@ -37,7 +41,7 @@ Pip
 
 .. code-block:: bash
 
-    pip install .
+    pip install pyimcom
 
 Overview of PyIMCOM concepts
 ----------------------------

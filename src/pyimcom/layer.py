@@ -1380,7 +1380,11 @@ def get_all_data(inimage):
             )
             print("min/max brightness =", np.amin(brightness), np.amax(brightness))
             sys.stdout.flush()
-            inimage.indata[i, :, :] = rng.poisson(lam=brightness * tot_int + bg) - bg
+            # this construction gives no noise if we are below 0
+            # (which can happen with empirically determined PSFs)
+            lam = brightness * tot_int + bg
+            _lam = np.clip(lam, 0, None)
+            inimage.indata[i, :, :] = rng.poisson(lam=_lam) - _lam + lam - bg
             del rng
 
         # galsim star grid
