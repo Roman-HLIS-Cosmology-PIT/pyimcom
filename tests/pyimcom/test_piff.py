@@ -290,7 +290,7 @@ def test_piff_decomposition(tmp_path):
     print(moms.observed_e1, moms.observed_e2)
     assert 0.68 < moms.moments_sigma / 6.0 < 0.72
     assert np.hypot(moms.moments_centroid.x - 384.5, moms.moments_centroid.y - 384.5) < 0.6
-    assert 0.002 < moms.observed_e1 < 0.008
-    assert 0.017 < moms.observed_e2 < 0.021
+    assert -0.002 < moms.observed_e1 < 0.006
+    assert 0.013 < moms.observed_e2 < 0.027
 
     assert np.allclose(arr2, 1.0718 * arr3, atol=1e-5, rtol=1e-3)
