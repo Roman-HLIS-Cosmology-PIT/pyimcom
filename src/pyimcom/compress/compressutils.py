@@ -113,7 +113,7 @@ class CompressedOutput:
                 self.cfg = Config(fname, inmode="block")
 
             else:
-                raise Exception("unrecognized file type")
+                raise ValueError("unrecognized file type")
 
     @staticmethod
     def compress_2d_image(im, scheme, pars):

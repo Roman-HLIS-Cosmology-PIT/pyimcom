@@ -538,7 +538,7 @@ class InImage:
             s = inpsf_format.split(":")[-1]
             return f"{s}_{obsid:d}.fits"
 
-        raise AssertionError("psf_filename: should not get here")
+        raise ValueError("psf_filename: unknown format")
 
     def get_psf_pos(
         self, psf_compute_point: np.array, use_shortrange: bool = False, use_drawpsf: bool = False
