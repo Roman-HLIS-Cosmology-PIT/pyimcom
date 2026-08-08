@@ -534,6 +534,9 @@ class InImage:
         if inpsf_format[:4].lower() == "piff":
             s = inpsf_format[5:] if inpsf_format[4] == ":" else "ffov"
             return f"{s}_{obsid:d}.piff"
+        if inpsf_format[:17].lower() == "legendre.notophat" or inpsf_format[:15].lower() == "legendre.tophat":
+            s = inpsf_format.split(":")[-1]
+            return f"{s}_{obsid:d}.fits"
 
         raise AssertionError("psf_filename: should not get here")
 
@@ -562,12 +565,6 @@ class InImage:
 
         """
 
-        # The tophat width: in use_shortrange, the psfsplit module has already included this,
-        # so we set it to 0 so as to not double-count this contribution.
-        tophatwidth_use = self.blk.cfg.inpsf_oversamp
-        if use_shortrange and self.blk.cfg.psfsplit:
-            tophatwidth_use = 0
-
         # get the pixel location on the input image
         # (moved this up since some PSF models need it)
         # pixloc = self.inwcs.all_world2pix(np.array([[*psf_compute_point]]).astype(np.float64), 0)[0]
@@ -594,6 +591,14 @@ class InImage:
                 del self.inpsf_piff
         self._mode = use_drawpsf  # will keep this cached
 
+        # The tophat width: in use_shortrange, the psfsplit module has already included this,
+        # so we set it to 0 so as to not double-count this contribution.
+        tophatwidth_use = self.blk.cfg.inpsf_oversamp
+        if use_shortrange and self.blk.cfg.psfsplit:
+            tophatwidth_use = 0
+        if iformat[:15].lower() == "legendre.tophat":
+            tophatwidth_use = 0
+
         # now the various options
         if iformat == "dc2_imsim":
             if not hasattr(self, "inpsf_arr"):
@@ -606,7 +611,7 @@ class InImage:
 
             this_psf = self.inpsf_arr
 
-        elif iformat in ["anlsim", "L2_2506"]:
+        elif iformat in ["anlsim", "L2_2506"] or iformat[:8].lower() == "legendre":
             if not hasattr(self, "inpsf_cube"):
                 fname = ipath + "/" + InImage.psf_filename(iformat, self.idsca[0])
                 sskip = 0

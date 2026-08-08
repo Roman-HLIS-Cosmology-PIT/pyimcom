@@ -756,6 +756,28 @@ def setup(tmp_path_factory):
     # get Piff files
     urllib.request.urlretrieve(PIFF_FILE, str(tmp_path) + "/temp.piff")
 
+    # build config for 1st Legendre run
+    with open(str(tmp_path) + "/cfg.txt") as f:
+        cfgdict = json.loads(f.read())
+    cfgdict["INPSF"][1] = "Legendre.notophat:psf_polyfit"
+    cfgdict["OUT"] = str(tmp_path) + "/out/testout_legendre_notophat"
+    with open(tmp_path / "cfg_notophat.txt", "w") as f:
+        f.write(json.dumps(cfgdict))
+    del cfgdict
+    cfg_notophat = Config(tmp_path / "cfg_notophat.txt")
+    Block(cfg=cfg_notophat, this_sub=1)
+
+    # build config for 2nd Legendre run
+    with open(str(tmp_path) + "/cfg.txt") as f:
+        cfgdict = json.loads(f.read())
+    cfgdict["INPSF"][1] = "Legendre.tophat:psf_polyfit"
+    cfgdict["OUT"] = str(tmp_path) + "/out/testout_legendre_tophat"
+    with open(tmp_path / "cfg_tophat.txt", "w") as f:
+        f.write(json.dumps(cfgdict))
+    del cfgdict
+    cfg_tophat = Config(tmp_path / "cfg_tophat.txt")
+    Block(cfg=cfg_tophat, this_sub=1)
+
     # remove stuff we don't need
     for iobs in range(len(obs)):
         delpsf = False
@@ -864,6 +886,37 @@ def test_drawlayers(setup):
         with fits.open(f1) as d1, fits.open(f2) as d2:
             # print(id, sca, d1[0].data, d2[0].data)
             assert np.allclose(d1[0].data, d2[0].data)
+
+
+def test_tophats(setup):
+    """Test the behavior of the tophat drawing (with & without)."""
+
+    tmp_path = setup  # get the test directory
+
+    with fits.open(tmp_path / "out/testout_F_TruthCat.fits") as f_inj:
+        # get the first star in the table --- in this case, it's the only one
+        ibx = f_inj["TRUTH14"].data["ibx"][0]
+        iby = f_inj["TRUTH14"].data["iby"][0]
+        xs = f_inj["TRUTH14"].data["x"][0]
+        ys = f_inj["TRUTH14"].data["y"][0]
+        assert ibx == 0
+        assert iby == 1
+
+    # which region to take
+    xm = int(np.round(xs))
+    ym = int(np.round(ys))
+
+    with fits.open(tmp_path / "out/testout_legendre_notophat_00_01.fits") as fblock:
+        moms = galsim.Image(fblock[0].data[0, 1, ym - 8 : ym + 9, xm - 8 : xm + 9]).FindAdaptiveMom()
+        sig21 = moms.moments_sigma
+
+    with fits.open(tmp_path / "out/testout_legendre_tophat_00_01.fits") as fblock:
+        moms = galsim.Image(fblock[0].data[0, 1, ym - 8 : ym + 9, xm - 8 : xm + 9]).FindAdaptiveMom()
+        sig20 = moms.moments_sigma
+
+    ratio = (sig20**2 - sig21**2) / ((0.11 / 0.04) ** 2 / 12)
+    print(sig20, sig21, ratio)
+    assert 0.9 < ratio < 1.1
 
 
 def test_altdrawlayers(setup):
@@ -976,6 +1029,15 @@ def test_PyIMCOM_run1(setup):
             print(f"# {mean_diff}, {std_diff} from {np.std(d)}")
             assert std_diff < 2.5e-3
             assert np.abs(mean_diff) < 2e-4
+
+        # Compare to Legendre images
+        with fits.open(tmp_path / "out/testout_legendre_notophat_00_01.fits") as fblock_multik:
+            d_multik = fblock_multik[0].data[0, 0, :, :]
+            mean_diff = np.mean(d - d_multik)
+            std_diff = np.std(d - d_multik)
+            print(f"# {mean_diff}, {std_diff} from {np.std(d)}")
+            assert std_diff < 5e-6
+            assert np.abs(mean_diff) < 1e-6
 
     ## Injected star portion ##
 
