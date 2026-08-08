@@ -1,5 +1,5 @@
 Input format options
-######################
+####################
 
 The PyIMCOM framework supports several input format options. We generally add more when simulations or data products become available in a new format. The current choices are:
 
@@ -12,7 +12,7 @@ The PyIMCOM framework supports several input format options. We generally add mo
 Some more specifications on input files are below. Note that in file names, ``filter`` is a 4-character code (e.g., ``H158``), and ``obsid`` and ``sca`` are integers without leading 0's.
 
 Science images & World Coordinate System
-===========================================
+========================================
 
 The input science images are as specified in the ``INDATA`` configuration keyword. The file names/formats depend on the input format:
 
@@ -37,7 +37,7 @@ The input science images are as specified in the ``INDATA`` configuration keywor
 The file name broker for science images is the ``pyimcom.layer._get_sca_imagefile`` function.
 
 Point spread functions
-==========================
+======================
 
 The PSF format is specified in the ``'INPSF'`` configuration keyword. The file names/format on the input format:
 
@@ -47,18 +47,24 @@ The PSF format is specified in the ``'INPSF'`` configuration keyword. The file n
 
   - Format: N x N 2D FITS images, oversampled, pixel tophat not included. The PSFs at the different SCAs are in different HDUs (1 ... 18). The PSF is centered at the array center (half integer pixel value if N is even). There is no support for spatial variation of the PSF across the SCA in this format.
 
+* ``Legendre.tophat:{fn}`` and ``Legendre.notophat:{fn}``:
+
+  - File name: ``{fn}_{obsid}.fits``
+
+  - Format: Legendre polynomial cube, Ncoef x N x N 3D FITS image, oversampled. The pixel tophat is either already included ("tophat") or not ("notophat"). The PSFs at the different SCAs are in different HDUs (1 ... 18). The PSF is centered at the array center (half integer pixel value if N is even). The spatial variation across the SCA is described in terms of 2D Legendre polynomials; the ``data[i,:,:]`` slice of the image corresponds to the ``i`` th basis function.
+
+    The basis functions are 2D Legendre polynomials are defined in terms of the re-scaled SCA coordinates ``u=(x-2044.5)/2044, v=(y-2044.5)/2044``. There are Ncoef=(p+1)**2 coefficients, in the order ``P_0(u)P_0(v) ... P_p(u)P_0(v), P_0(u)P_1(v) ...P_p(u)P_1(v), ... P_0(u)P_p(v) ... P_p(u)P_p(v)``.
+
 * ``anlsim`` and ``L2_2506``:
 
   - File name: ``psf_polyfit_{obsid}.fits``
 
-  - Format: Legendre polynomial cube, Ncoef x N x N 3D FITS image, oversampled, pixel tophat not included. The PSFs at the different SCAs are in different HDUs (1 ... 18). The PSF is centered at the array center (half integer pixel value if N is even). The spatial variation across the SCA is described in terms of 2D Legendre polynomials; the ``data[i,:,:]`` slice of the image corresponds to the ``i`` th basis function.
-
-    The basis functions are 2D Legendre polynomials are defined in terms of the re-scaled SCA coordinates ``u=(x-2044.5)/2044, v=(y-2044.5)/2044``. There are Ncoef=(p+1)**2 coefficients, in the order ``P_0(u)P_0(v) ... P_p(u)P_0(v), P_0(u)P_1(v) ...P_p(u)P_1(v), ... P_0(u)P_p(v) ... P_p(u)P_p(v)``.
+  - Format: Legendre polynomial cube, Ncoef x N x N 3D FITS image, oversampled, pixel tophat not included. These are synonyms for ``Legendre.notophat:psf_polyfit`` (included for backward compatibility).
 
 Reading PSFs (including selecting the file name and format) occurs in the ``pyimcom.coadd.InImage.psf_filename`` static method.
 
 Laboratory noise realizations
-=================================
+=============================
 
 It is possible to feed laboratory noise images into PyIMCOM as additional layers using the ``'labnoise'`` option in ``EXTRAINPUT``. The file names/format on the input format:
 
@@ -77,7 +83,7 @@ It is possible to feed laboratory noise images into PyIMCOM as additional layers
 The file name broker for lab noise images is the ``pyimcom.layer._get_sca_imagefile`` function.
 
 Simulated noise realizations
-================================
+============================
 
 In the early days of PyIMCOM development, simulated (white and 1/f) noise realizations were generated internally. This is still possible, but it is *also* now possible to feed in noise images from an external simulator (most likely ``romanimpreprocess``). The file names/format on the input format:
 
@@ -90,7 +96,7 @@ In the early days of PyIMCOM development, simulated (white and 1/f) noise realiz
 The file name broker for lab noise images is the ``pyimcom.layer._get_sca_imagefile`` function.
 
 Masks
-==========
+=====
 
 Starting with the summer 2025 run, we are able to pass an externally generated mask into PyIMCOM. The file names/format on the input format:
 
