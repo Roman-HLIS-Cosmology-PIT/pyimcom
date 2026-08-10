@@ -1,17 +1,18 @@
 """File name test functions. Right now tests error handling."""
 
+import pytest
+from pyimcom.coadd import InImage
 from pyimcom.compress.compressutils import CompressedOutput, ReadFile
 
 
 def test_fname_errs():
     """Test exceptions: file name errors."""
 
-    try:
-        c = CompressedOutput("unknown_file")  # noqa: F841
-    except Exception as e:
-        assert str(e) == "unrecognized file type"
+    with pytest.raises(ValueError, match=r"unrecognized file type"):
+        CompressedOutput("unknown_file")
 
-    try:
-        c = ReadFile("notascheme://testonly/test.test")  # noqa: F841
-    except ValueError as e:
-        assert str(e) == "Scheme notascheme not supported"
+    with pytest.raises(ValueError, match=r"Scheme notascheme not supported"):
+        ReadFile("notascheme://testonly/test.test")
+
+    with pytest.raises(ValueError, match=r"psf_filename: unknown format"):
+        InImage.psf_filename("we_dont_have_a_format_called_this", 1989)
