@@ -376,6 +376,10 @@ class Config:
         "tileschm",
         "rerun",
         "mosaic",  # SECTION X
+        "sca_pixscale",
+        "sca_nside",
+        "sca_pixcenter",
+        "sca_sidelength",
     )
 
     def __init__(self, cfg_file: str = "", inmode=None) -> None:
@@ -597,6 +601,10 @@ class Config:
         self.tileschm = cfg_dict.get("TILESCHM", "Not_specified")
         self.rerun = cfg_dict.get("RERUN", "Not_specified")
         self.mosaic = cfg_dict.get("MOSAIC", -1)
+        self.sca_pixscale = Settings.pixscale_native
+        self.sca_nside = Settings.sca_nside
+        self.sca_pixcenter = Settings.sca_ctrpix
+        self.sca_sidelength = Settings.sca_sidelength
 
         cfg_dict.clear()
         del cfg_dict
@@ -1196,6 +1204,10 @@ class Config:
         cfg_dict["TILESCHM"] = self.tileschm
         cfg_dict["RERUN"] = self.rerun
         cfg_dict["MOSAIC"] = self.mosaic
+        cfg_dict["SCA_PIXSCALE"] = self.sca_pixscale
+        cfg_dict["SCA_NSIDE"] = self.sca_nside
+        cfg_dict["SCA_PIXCENTER"] = self.sca_pixcenter
+        cfg_dict["SCA_SIDELENGTH"] = self.sca_sidelength
 
         if fname is not None:
             if fname == "":
