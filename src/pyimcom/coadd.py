@@ -2192,6 +2192,10 @@ class Block:
         config_hdu.header["FILTER"] = (Stn.RomanFilters[self.cfg.use_filter], "Filter code")
         config_hdu.header["BLOCKX"] = self.ibx
         config_hdu.header["BLOCKY"] = self.iby
+        config_hdu.header["SCA_PIXS"] = (self.cfg.sca_pixscale, "sca_pixscale in arcsec")
+        config_hdu.header["SCA_NSID"] = (self.cfg.sca_nside, "sca_nside")
+        config_hdu.header["SCA_PIXC"] = (self.cfg.sca_pixcenter, "sca_pixcenter")
+        config_hdu.header["SCA_SIDE"] = (self.cfg.sca_sidelength, "sca_sidelength in radians")
         if is_final:
             for package in ["numpy", "scipy", "astropy", "fitsio", "asdf", "pyimcom", "furry_parakeet"]:
                 keyword = "V" + package.upper()[:7]

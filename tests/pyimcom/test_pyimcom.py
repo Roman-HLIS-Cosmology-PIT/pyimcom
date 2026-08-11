@@ -1101,6 +1101,10 @@ def test_PyIMCOM_run1(setup):
         assert hdr["FILTER"] == "F184"
         assert hdr["BLOCKX"] == 0
         assert hdr["BLOCKY"] == 1
+        assert np.abs(hdr["SCA_PIXS"] - 5.332950492204896e-07) < 1.0e-11
+        assert np.abs(hdr["SCA_SIDE"] - 0.002180110161213361) < 1.0e-9
+        assert np.abs(hdr["SCA_PIXC"] - 2043.5) < 1.0e-6
+        assert hdr["SCA_NSID"] == 4088
 
     os.mkdir(tmp_path / "rpt")
     rpt = ValidationReport(
