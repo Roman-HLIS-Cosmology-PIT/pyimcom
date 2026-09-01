@@ -1175,7 +1175,7 @@ class PSFOvl:
         return (2 * self.grp1.n_psf - idx1 + 1) * idx1 // 2 + idx2 - idx1
 
     @staticmethod
-    def accel_irfft2_and_extract(ovl_rft: np.array) -> np.array:
+    def accel_irfft2_and_extract(ovl_rft: np.array, force_old: bool = False) -> np.array:
         """
         Accelerated version of irfft2 and extraction (used in FFT-based convolution).
 
@@ -1184,6 +1184,8 @@ class PSFOvl:
         ovl_rft : np.array
             Real Fourier transform of the PSF overlap array we want.
             The shape is (..., PSFGrp.nfft, PSFGrp.nfft//2+1).
+        force_old : bool, optional
+            Force use of the old algorithm (only for testing).
 
         Returns
         -------
@@ -1223,7 +1225,7 @@ class PSFOvl:
         nc = PSFOvl.nc  # shortcut
 
         # if too big, default to irfft2 and ifftshift.
-        if PSFOvl.nsamp >= PSFGrp.nfft // 2:
+        if PSFOvl.nsamp >= PSFGrp.nfft // 2 or force_old:
             return np.roll(numpy_fft.irfft2(ovl_rft), nc, axis=(-2, -1))[:, : 2 * nc + 1, : 2 * nc + 1]
 
         ovl_m2 = np.zeros((n_arr, PSFOvl.nsamp, PSFGrp.nfft // 2 + 1), dtype=np.complex128)
