@@ -1223,7 +1223,7 @@ class PSFOvl:
         nc = PSFOvl.nc  # shortcut
 
         # if too big, default to irfft2 and ifftshift.
-        if PSFOvl.nsamp >= PSFGrp.nfft // 2 * 0:
+        if PSFOvl.nsamp >= PSFGrp.nfft // 2:
             return np.roll(numpy_fft.irfft2(ovl_rft), nc, axis=(-2, -1))[:, : 2 * nc + 1, : 2 * nc + 1]
 
         ovl_m2 = np.zeros((n_arr, PSFOvl.nsamp, PSFGrp.nfft // 2 + 1), dtype=np.complex128)
