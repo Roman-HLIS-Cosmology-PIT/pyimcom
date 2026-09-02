@@ -12,8 +12,12 @@ _parser
     File name parser; only needed for file names with regular expressions.
 ReadFile
     Stand-alone function to read a compressed FITS file.
+cfg_from_hdulist
+    Gets the configuration from a PyIMCOM output HDUList.
 
 """
+
+import json
 import re
 from urllib.parse import urlparse
 
@@ -454,6 +458,11 @@ def ReadFile(fname, layers=None):
         Which layers to de-compress (if given; otherwise de-compresses everything).
         Use only for reading (don't write an instance initialized with `layers` to a file).
 
+    Returns
+    -------
+    hdul : astropy.io.fits.HDUList
+        The HDU List extracted from the compressed file.
+
     Notes
     -----
     This can also be used with the Python context manager, e.g.::
@@ -504,3 +513,25 @@ def ReadFile(fname, layers=None):
     x = CompressedOutput(fname, layers=layers, extraargs=extraargs)
     x.decompress()
     return fits.HDUList(x.hdul)
+
+
+def cfg_from_hdulist(hdul):
+    """
+    Gets the configuration from a PyIMCOM output HDUList.
+
+    Parameters
+    ----------
+    hdul : astropy.io.fits.HDUList
+        The PyIMCOM output HDU List.
+
+    Returns
+    -------
+    dict
+        The configuration file as a nested dictionary.
+
+    """
+
+    config = ""
+    for g in hdul["CONFIG"].data["text"].tolist():
+        config += g + " "
+    return json.loads(config)

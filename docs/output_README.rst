@@ -61,6 +61,21 @@ There are several options for reading PyIMCOM output files. From "lowest" to "hi
 
   Detailed instructions for this class are on the `Meta Readme <meta_README.rst>`_.
 
+Extracting the configurations
+=============================
+
+You can extract the configuration from an HDUList with the ``cfg_from_hdulist`` utility. So if ``fout`` is the path to a PyIMCOM output file, and you want to print the number of blocks on each side of the mosaic:
+
+.. code-block:: python
+
+    from pyimcom.compress.compressutils import ReadFile, cfg_from_hdulist
+
+    with ReadFile(fout) as f:
+        cfgdict = cfg_from_hdulist(f)
+    print(cfgdict["BLOCK"])
+
+(See the `configuration README <config_README.rst>`_ for a complete list of items that may be in the configuration.)
+
 Examples
 ========
 

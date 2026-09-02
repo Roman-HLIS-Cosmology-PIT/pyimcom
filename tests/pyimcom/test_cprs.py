@@ -7,7 +7,7 @@ import urllib.request
 import numpy as np
 import pytest
 from astropy.io import fits
-from pyimcom.compress.compressutils import CompressedOutput, ReadFile
+from pyimcom.compress.compressutils import CompressedOutput, ReadFile, cfg_from_hdulist
 from pyimcom.compress.compressutils_wrapper import compress_all_blocks, compress_one_block
 from pyimcom.compress.i24 import I24Cube, i24compress, i24decompress
 
@@ -80,6 +80,8 @@ def runcprs(tmp_path, allfiles=False):
     # new check the decompression
     with fits.open(floc) as fi, ReadFile(fout) as fo:
         diff = fi[0].data[0, :, :, :] - fo[0].data[0, :, :, :]
+        cf = cfg_from_hdulist(fo)
+        assert cf["NPIXPSF"] == 42  # this just checks it formatted/populated correctly
     maxdiff = np.amax(np.abs(diff), axis=(1, 2))
     maxdiff_ref = np.array([1.0e-6, 1.0e-6, 1.0e-6, 1.0e-6, 1.2e-7, 0.011, 1.2e-7, 0.004, 0.001])
     assert np.all(maxdiff <= maxdiff_ref)
