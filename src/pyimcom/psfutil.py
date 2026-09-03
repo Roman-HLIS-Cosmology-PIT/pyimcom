@@ -18,18 +18,13 @@ SysMatB
 
 import warnings
 
+import galsim
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy.fft
 from scipy.optimize import fsolve
 from scipy.special import jv
-
-try:
-    from mkl_fft import _numpy_fft as numpy_fft
-except ImportError:
-    import numpy.fft as numpy_fft
-
-import galsim
 
 from .config import Settings as Stn
 from .config import format_axis, format_axis_pars
@@ -207,7 +202,7 @@ class OutPSF:
         del y, x, r
 
         # now convolve
-        It = numpy_fft.rfft2(I_)
+        It = scipy.fft.rfft2(I_)
         uxa = np.linspace(0, 1 - 1 / npad, npad)
         uxa[-(npad // 2) :] -= 1
         ux = np.tile(uxa[None, : npad // 2 + 1], (npad, 1))
@@ -217,7 +212,7 @@ class OutPSF:
             * np.sinc(ux * tophat_conv)
             * np.sinc(uy * tophat_conv)
         )
-        I_ = numpy_fft.irfft2(It, s=(npad, npad))
+        I_ = scipy.fft.irfft2(It, s=(npad, npad))
         del It, uxa, ux, uy
 
         return I_[kp:-kp, kp:-kp]
@@ -300,7 +295,7 @@ class OutPSF:
             del Icopy
 
         # now convolve
-        It = numpy_fft.rfft2(I_)
+        It = scipy.fft.rfft2(I_)
         uxa = np.linspace(0, 1 - 1 / npad, npad)
         uxa[-(npad // 2) :] -= 1
         ux = np.tile(uxa[None, : npad // 2 + 1], (npad, 1))
@@ -310,7 +305,7 @@ class OutPSF:
             * np.sinc(ux * tophat_conv)
             * np.sinc(uy * tophat_conv)
         )
-        I_ = numpy_fft.irfft2(It, s=(npad, npad))
+        I_ = scipy.fft.irfft2(It, s=(npad, npad))
         del It, uxa, ux, uy
 
         return I_[kp:-kp, kp:-kp]
@@ -979,8 +974,8 @@ class PSFGrp:
         pad_m2 = np.zeros((n_arr, PSFGrp.nfft, PSFGrp.nfft // 2 + 1), dtype=np.complex128)
 
         pad_m1[:, :, : PSFGrp.nsamp] = psf_arr
-        pad_m2[:, : PSFGrp.nsamp, :] = numpy_fft.rfft(pad_m1, axis=-1)
-        res = numpy_fft.fft(pad_m2, axis=-2)
+        pad_m2[:, : PSFGrp.nsamp, :] = scipy.fft.rfft(pad_m1, axis=-1, overwrite_x=True)
+        res = scipy.fft.fft(pad_m2, axis=-2, overwrite_x=True)
         del pad_m1, pad_m2
 
         return res
@@ -1226,17 +1221,17 @@ class PSFOvl:
 
         # if too big, default to irfft2 and ifftshift.
         if PSFOvl.nsamp >= PSFGrp.nfft // 2 or force_old:
-            return np.roll(numpy_fft.irfft2(ovl_rft), nc, axis=(-2, -1))[:, : 2 * nc + 1, : 2 * nc + 1]
+            return np.roll(scipy.fft.irfft2(ovl_rft), nc, axis=(-2, -1))[:, : 2 * nc + 1, : 2 * nc + 1]
 
         ovl_m2 = np.zeros((n_arr, PSFOvl.nsamp, PSFGrp.nfft // 2 + 1), dtype=np.complex128)
         ovl_m1 = np.zeros((n_arr, PSFOvl.nsamp, PSFOvl.nsamp))
 
-        ift_m2 = numpy_fft.ifft(ovl_rft, axis=-2)
+        ift_m2 = scipy.fft.ifft(ovl_rft, axis=-2)
         ovl_m2[:, :nc, :] = ift_m2[:, -nc:, :]
         ovl_m2[:, nc:, :] = ift_m2[:, : nc + 1, :]
         del ift_m2
 
-        ift_m1 = numpy_fft.irfft(ovl_m2, axis=-1, n=PSFGrp.nfft)
+        ift_m1 = scipy.fft.irfft(ovl_m2, axis=-1, n=PSFGrp.nfft)
         ovl_m1[:, :, :nc] = ift_m1[:, :, -nc:]
         ovl_m1[:, :, nc:] = ift_m1[:, :, : nc + 1]
         del ovl_m2, ift_m1
