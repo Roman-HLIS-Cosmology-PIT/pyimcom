@@ -313,7 +313,8 @@ class Config:
         "psfsplit_r1",
         "psfsplit_r2",
         "psfsplit_epsilon",
-        "psfsplit_bin2x2",  # SECTION I
+        "psfsplit_bin2x2",
+        "psfsplit_bin3x3",  # SECTION I
         "permanent_mask",
         "porder_imsubtract",
         "cr_mask_rate",
@@ -422,6 +423,7 @@ class Config:
             self.psfsplit_r2 = float(self.psfsplit[1])
             self.psfsplit_epsilon = float(self.psfsplit[2])
             self.psfsplit_bin2x2 = len(self.psfsplit) > 3 and bool(self.psfsplit[3])
+            self.psfsplit_bin3x3 = len(self.psfsplit) > 4 and bool(self.psfsplit[4])
 
         ### SECTION II: MASKS AND LAYERS ###
         self.n_inframe = len(self.extrainput)
@@ -678,12 +680,12 @@ class Config:
 
         print("# PSF splitting", flush=True)
         self._get_attrs_wrapper(
-            "self.psfsplit_r1, self.psfsplit_r2, self.psfsplit_epsilon, self.psfsplit_bin2x2 = "
-            "input('PSFSPLIT (float float float bool) "
+            "self.psfsplit_r1, self.psfsplit_r2, self.psfsplit_epsilon, self.psfsplit_bin2x2, "
+            "self.psfsplit_bin3x3 = input('PSFSPLIT (float float float bool bool) "
             "[default: no split]: ').split(' ')"
             "\n"
             "self.psfsplit = [self.psfsplit_r1, self.psfsplit_r2, self.psfsplit_epsilon,"
-            " self.psfsplit_bin2x2] if"
+            " self.psfsplit_bin2x2, self.psfsplit_bin3x3] if"
             " self.psfsplit_r1 else ''"
         )
 
@@ -1142,6 +1144,7 @@ class Config:
                 self.psfsplit_r2,
                 self.psfsplit_epsilon,
                 self.psfsplit_bin2x2,
+                self.psfsplit_bin3x3,
             ]
         cfg_dict["PORDER_IMSUBTRACT"] = self.porder_imsubtract
 
