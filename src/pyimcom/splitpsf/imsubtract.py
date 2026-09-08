@@ -310,7 +310,7 @@ def run_imsubtract_single(
     bin2x2 : bool, optional
         If True, bin the kernel 2x2 for speed.
     bin3x3 : bool, optional
-        If True, bin the kernel 2x2 for speed. Overrides `bin2x2`.
+        If True, bin the kernel 3x3 for speed. Overrides `bin2x2`.
 
     Notes
     -----
