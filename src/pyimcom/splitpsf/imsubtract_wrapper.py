@@ -18,6 +18,7 @@ def run_imsubtract_all(
     local_output=False,
     mmap=None,
     bin2x2=False,
+    bin3x3=False,
 ):
     """
     Main routine to run imsubtract on all images in the cache.
@@ -41,6 +42,9 @@ def run_imsubtract_all(
         Directory to put temporary mmap files.
     bin2x2 : bool, optional
         If True, bin the kernel 2x2 for speed even if `config_file` doesn't tell you to.
+    bin3x3 : bool, optional
+        If True, bin the kernel 3x3 for speed even if `config_file` doesn't tell you to.
+        Overrides `bin2x2`.
 
     """
 
@@ -71,6 +75,8 @@ def run_imsubtract_all(
     # print("List of exposures:", exps)
 
     bin2x2 = bin2x2 or getattr(cfgdata, "psfsplit_bin2x2", False)  # possible override of config
+    bin3x3 = bin3x3 or getattr(cfgdata, "psfsplit_bin3x3", False)  # possible override of config
+    bin2x2 = bin2x2 and not bin3x3
 
     # Run imsubtract on each exposure in parallel using ProcessPoolExecutor
     count = 0
@@ -101,6 +107,7 @@ def run_imsubtract_all(
                         max_layers=max_imgs,
                         mmap=mmap,
                         bin2x2=bin2x2,
+                        bin3x3=bin3x3,
                     )
                 )
                 count += 1

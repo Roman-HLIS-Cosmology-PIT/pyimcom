@@ -275,6 +275,7 @@ def run_imsubtract_single(
     max_layers=None,
     mmap=None,
     bin2x2=False,
+    bin3x3=False,
 ):
     """
     Main routine to run imsubtract on a single image.
@@ -308,6 +309,8 @@ def run_imsubtract_single(
         Directory to put temporary mmap files.
     bin2x2 : bool, optional
         If True, bin the kernel 2x2 for speed.
+    bin3x3 : bool, optional
+        If True, bin the kernel 3x3 for speed. Overrides `bin2x2`.
 
     Notes
     -----
@@ -365,7 +368,8 @@ def run_imsubtract_single(
         if axis_num % (2 * oversamp):
             raise ValueError(f"axis_num={axis_num} must be a multiple of 2*oversamp, oversamp={oversamp}")
 
-        if bin2x2:
+        # 2x2 binning option
+        if bin2x2 and not bin3x3:
             if oversamp % 2:
                 raise ValueError(f"oversamp={oversamp:d} is odd, not consistent with bin2x2")
             oversamp //= 2
@@ -382,6 +386,14 @@ def run_imsubtract_single(
                     _K = np.zeros((Ncoeff,) + np.shape(Kslice), dtype=np.float32)
                 _K[j, :, :] = Kslice
             K = _K
+
+        # 3x3 binning option
+        if bin3x3:
+            if oversamp % 3:
+                raise ValueError(f"oversamp={oversamp:d} is odd, not consistent with bin3x3")
+            oversamp //= 3
+            axis_num //= 3
+            K = K[:, 1::3, 1::3] * 9
 
     # SCA padding
     I_pad = int(np.ceil(axis_num / 2 / oversamp))  # native pixels
@@ -737,6 +749,7 @@ def run_imsubtract(
     max_layers=None,
     mmap=None,
     bin2x2=False,
+    bin3x3=False,
 ):
     """
     Main routine to run imsubtract.
@@ -768,6 +781,9 @@ def run_imsubtract(
         Directory to put temporary mmap files.
     bin2x2 : bool, optional
         If True, bin the kernel 2x2 for speed even if `config_file` doesn't tell you to.
+    bin3x3 : bool, optional
+        If True, bin the kernel 3x3 for speed even if `config_file` doesn't tell you to.
+        Overrides `bin2x2`.
 
     Notes
     -----
@@ -782,6 +798,8 @@ def run_imsubtract(
     # load the file using Config and get information
     cfgdata = Config(config_file)
     bin2x2 = bin2x2 or getattr(cfgdata, "psfsplit_bin2x2", False)  # possible override of config
+    bin3x3 = bin3x3 or getattr(cfgdata, "psfsplit_bin3x3", False)  # possible override of config
+    bin2x2 = bin2x2 and not bin3x3
 
     # separate the path from the inlayercache info
     m = re.search(r"^(.*)\/(.*)", cfgdata.inlayercache)
@@ -824,6 +842,7 @@ def run_imsubtract(
             max_layers=max_layers,
             mmap=mmap,
             bin2x2=bin2x2,
+            bin3x3=bin3x3,
         )
 
         # exit if we've specified a maximum number of SCAs
