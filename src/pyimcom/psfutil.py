@@ -18,18 +18,14 @@ SysMatB
 
 import warnings
 
+import galsim
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy.fft
+from numba import njit
 from scipy.optimize import fsolve
 from scipy.special import jv
-
-try:
-    from mkl_fft import _numpy_fft as numpy_fft
-except ImportError:
-    import numpy.fft as numpy_fft
-
-import galsim
 
 from .config import Settings as Stn
 from .config import format_axis, format_axis_pars
@@ -207,7 +203,7 @@ class OutPSF:
         del y, x, r
 
         # now convolve
-        It = numpy_fft.rfft2(I_)
+        It = scipy.fft.rfft2(I_)
         uxa = np.linspace(0, 1 - 1 / npad, npad)
         uxa[-(npad // 2) :] -= 1
         ux = np.tile(uxa[None, : npad // 2 + 1], (npad, 1))
@@ -217,7 +213,7 @@ class OutPSF:
             * np.sinc(ux * tophat_conv)
             * np.sinc(uy * tophat_conv)
         )
-        I_ = numpy_fft.irfft2(It, s=(npad, npad))
+        I_ = scipy.fft.irfft2(It, s=(npad, npad))
         del It, uxa, ux, uy
 
         return I_[kp:-kp, kp:-kp]
@@ -300,7 +296,7 @@ class OutPSF:
             del Icopy
 
         # now convolve
-        It = numpy_fft.rfft2(I_)
+        It = scipy.fft.rfft2(I_)
         uxa = np.linspace(0, 1 - 1 / npad, npad)
         uxa[-(npad // 2) :] -= 1
         ux = np.tile(uxa[None, : npad // 2 + 1], (npad, 1))
@@ -310,7 +306,7 @@ class OutPSF:
             * np.sinc(ux * tophat_conv)
             * np.sinc(uy * tophat_conv)
         )
-        I_ = numpy_fft.irfft2(It, s=(npad, npad))
+        I_ = scipy.fft.irfft2(It, s=(npad, npad))
         del It, uxa, ux, uy
 
         return I_[kp:-kp, kp:-kp]
@@ -979,8 +975,8 @@ class PSFGrp:
         pad_m2 = np.zeros((n_arr, PSFGrp.nfft, PSFGrp.nfft // 2 + 1), dtype=np.complex128)
 
         pad_m1[:, :, : PSFGrp.nsamp] = psf_arr
-        pad_m2[:, : PSFGrp.nsamp, :] = numpy_fft.rfft(pad_m1, axis=-1)
-        res = numpy_fft.fft(pad_m2, axis=-2)
+        pad_m2[:, : PSFGrp.nsamp, :] = scipy.fft.rfft(pad_m1, axis=-1, overwrite_x=True)
+        res = scipy.fft.fft(pad_m2, axis=-2, overwrite_x=True)
         del pad_m1, pad_m2
 
         return res
@@ -1088,6 +1084,35 @@ class PSFOvl:
         cls.nsamp = 2 * PSFGrp.nsamp + 1 if cls.psfsplit else PSFGrp.nsamp
         cls.nc = cls.nsamp // 2
 
+    @staticmethod
+    @njit
+    def _differences(x1, x2, ds, nc):
+        """
+        Computes differences of the coordinates given, converts units, and applies offsets.
+
+        Parameters
+        ----------
+        x1, x2 : np.ndarray of float
+            1D arrays of the x and y coordinates.
+        ds : float
+            The scale factor for the difference arrays.
+        nc : int
+            The offset (so the 'same point' maps to `nc`).
+
+        Returns
+        -------
+        np.ndarray of float
+            2D arrays of the difference in x-values between the two arrays.
+
+        Notes
+        -----
+        This is a numba-accelerated version of ``(x1/dscale + nc)[:, None] - (x2/dscale)[None, :]``.
+
+        """
+
+        ddx = (x1 / ds + nc)[:, None] - (x2 / ds)[None, :]
+        return ddx
+
     def __init__(
         self, psfgrp1: PSFGrp, psfgrp2: PSFGrp = None, verbose: bool = False, visualize: bool = False
     ) -> None:
@@ -1175,7 +1200,7 @@ class PSFOvl:
         return (2 * self.grp1.n_psf - idx1 + 1) * idx1 // 2 + idx2 - idx1
 
     @staticmethod
-    def accel_irfft2_and_extract(ovl_rft: np.array) -> np.array:
+    def accel_irfft2_and_extract(ovl_rft: np.array, force_old: bool = False) -> np.array:
         """
         Accelerated version of irfft2 and extraction (used in FFT-based convolution).
 
@@ -1184,6 +1209,8 @@ class PSFOvl:
         ovl_rft : np.array
             Real Fourier transform of the PSF overlap array we want.
             The shape is (..., PSFGrp.nfft, PSFGrp.nfft//2+1).
+        force_old : bool, optional
+            Force use of the old algorithm (only for testing).
 
         Returns
         -------
@@ -1223,18 +1250,18 @@ class PSFOvl:
         nc = PSFOvl.nc  # shortcut
 
         # if too big, default to irfft2 and ifftshift.
-        if PSFOvl.nsamp >= PSFGrp.nfft // 2 * 0:
-            return np.roll(numpy_fft.irfft2(ovl_rft), nc, axis=(-2, -1))[:, : 2 * nc + 1, : 2 * nc + 1]
+        if PSFOvl.nsamp >= PSFGrp.nfft // 2 or force_old:
+            return np.roll(scipy.fft.irfft2(ovl_rft), nc, axis=(-2, -1))[:, : 2 * nc + 1, : 2 * nc + 1]
 
         ovl_m2 = np.zeros((n_arr, PSFOvl.nsamp, PSFGrp.nfft // 2 + 1), dtype=np.complex128)
         ovl_m1 = np.zeros((n_arr, PSFOvl.nsamp, PSFOvl.nsamp))
 
-        ift_m2 = numpy_fft.ifft(ovl_rft, axis=-2)
+        ift_m2 = scipy.fft.ifft(ovl_rft, axis=-2)
         ovl_m2[:, :nc, :] = ift_m2[:, -nc:, :]
         ovl_m2[:, nc:, :] = ift_m2[:, : nc + 1, :]
         del ift_m2
 
-        ift_m1 = numpy_fft.irfft(ovl_m2, axis=-1, n=PSFGrp.nfft)
+        ift_m1 = scipy.fft.irfft(ovl_m2, axis=-1, n=PSFGrp.nfft)
         ovl_m1[:, :, :nc] = ift_m1[:, :, -nc:]
         ovl_m1[:, :, nc:] = ift_m1[:, :, : nc + 1]
         del ovl_m2, ift_m1
@@ -1420,12 +1447,10 @@ class PSFOvl:
         """
         with mpl.rc_context(format_axis_pars):
             res = np.zeros((st1.pix_cumsum[-1], st2.pix_cumsum[-1]))
-            ddx = st1.x_val[:, None] - st2.x_val[None, :]
-            ddx /= PSFGrp.dscale
-            ddx += PSFOvl.nc
-            ddy = st1.y_val[:, None] - st2.y_val[None, :]
-            ddy /= PSFGrp.dscale
-            ddy += PSFOvl.nc
+            # get (dx, dy) vectors between each pair of pixels
+            # note that the 6 pixel padding offset is here rather than in the interpolation
+            ddx = PSFOvl._differences(st1.x_val, st2.x_val, PSFGrp.dscale, PSFOvl.nc + 6)
+            ddy = PSFOvl._differences(st1.y_val, st2.y_val, PSFGrp.dscale, PSFOvl.nc + 6)
 
             n_psf1, n_psf2 = self.ovl_arr.shape[:2]
             if visualize:
@@ -1462,7 +1487,10 @@ class PSFOvl:
                         )
                         plt.colorbar(im, ax=ax)
                         ax.scatter(
-                            ddx[slice_][::2, ::2].ravel(), ddy[slice_][::2, ::2].ravel(), c="r", s=0.005
+                            ddx[slice_][::2, ::2].ravel() - 6,
+                            ddy[slice_][::2, ::2].ravel() - 6,
+                            c="r",
+                            s=0.005,
                         )
                         format_axis(ax, False)
 
@@ -1471,12 +1499,21 @@ class PSFOvl:
                         np.pad(
                             self.ovl_arr[self.grp1.idx_blk2grp[j_im], self.grp2.idx_blk2grp[i_im]], 6
                         ).reshape((1, PSFOvl.nsamp + 12, PSFOvl.nsamp + 12)),
-                        ddx[slice_].ravel() + 6,
-                        ddy[slice_].ravel() + 6,
+                        ddx[
+                            st1.pix_cumsum[j_im] : st1.pix_cumsum[j_im + 1],
+                            st2.pix_cumsum[i_im] : st2.pix_cumsum[i_im + 1],
+                        ].ravel(),
+                        ddy[
+                            st1.pix_cumsum[j_im] : st1.pix_cumsum[j_im + 1],
+                            st2.pix_cumsum[i_im] : st2.pix_cumsum[i_im + 1],
+                        ].ravel(),
                         out_arr,
                     )
 
-                    res[slice_] = out_arr.reshape((st1.pix_count[j_im], st2.pix_count[i_im]))
+                    res[
+                        st1.pix_cumsum[j_im] : st1.pix_cumsum[j_im + 1],
+                        st2.pix_cumsum[i_im] : st2.pix_cumsum[i_im + 1],
+                    ] = out_arr.reshape((st1.pix_count[j_im], st2.pix_count[i_im]))
                     del out_arr
 
                     # flat penalty
@@ -1533,12 +1570,8 @@ class PSFOvl:
                 pix_count_ = np.diff(pix_cumsum_)
                 res = np.zeros((self.grp2.n_psf, n_outpix, selection.shape[0]))
 
-            ddx = x_val_[:, None] - st2.yx_val[None, 1, 0, :]
-            ddx /= PSFGrp.dscale
-            ddx += PSFOvl.nc
-            ddy = y_val_[:, None] - st2.yx_val[None, 0, :, 0]
-            ddy /= PSFGrp.dscale
-            ddy += PSFOvl.nc
+            ddx = PSFOvl._differences(x_val_, st2.yx_val[1, 0, :], PSFGrp.dscale, PSFOvl.nc)
+            ddy = PSFOvl._differences(y_val_, st2.yx_val[0, :, 0], PSFGrp.dscale, PSFOvl.nc)
 
             if visualize:
                 n_psf1, n_psf2 = self.ovl_arr.shape[:2]

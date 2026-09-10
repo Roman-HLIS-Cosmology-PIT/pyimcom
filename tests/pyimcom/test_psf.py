@@ -2,7 +2,7 @@
 
 import matplotlib.pyplot as plt
 import numpy as np
-from pyimcom.psfutil import OutPSF, PSFGrp, PSFInterpolator
+from pyimcom.psfutil import OutPSF, PSFGrp, PSFInterpolator, PSFOvl
 
 
 def test_simple_airy(tmp_path, monkeypatch):
@@ -80,3 +80,19 @@ def test_outpsfs():
     max_ao = np.amax(psf)
     assert 0.2 < max_au / max_g < 0.3
     assert 0.8 < max_ao / max_au < 0.9
+
+
+def test_altfft():
+    """Test for both versions of the FFT to agree."""
+
+    PSFGrp.setup(npixpsf=25, oversamp=4, dtheta=0.1)
+    PSFOvl.setup()
+
+    nl = 3
+    im = np.fft.rfft(
+        np.sin(np.linspace(1.0e4, 5.0e4, nl * PSFGrp.nfft**2)).reshape((nl, PSFGrp.nfft, PSFGrp.nfft))
+    )
+    assert np.allclose(
+        PSFOvl.accel_irfft2_and_extract(im, force_old=False),
+        PSFOvl.accel_irfft2_and_extract(im, force_old=True),
+    )
