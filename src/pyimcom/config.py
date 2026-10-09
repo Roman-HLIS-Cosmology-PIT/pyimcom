@@ -364,6 +364,7 @@ class Config:
         "hub_thresh",
         "cg_maxiter",
         "cg_tol",
+        "star_catalog"
         "gaindir",  # SECTION IX
         "col_pars",
         "amp_cols",
@@ -569,6 +570,7 @@ class Config:
         self.ds_obsfile = cfg_dict.get("DSOBSFILE")
         self.ds_noisefile = cfg_dict.get("DSNOISEFILE", False)
         self.ds_restart = cfg_dict.get("DSRESTART")
+        self.star_catalog = cfg_dict.get("STARCATALOG", None)
         self.gaindir = cfg_dict.get("GAINDIR", False)
         self.col_pars = cfg_dict.get("AMPCOLS", [None, 0.0])
         self.amp_cols = self.col_pars[0]
