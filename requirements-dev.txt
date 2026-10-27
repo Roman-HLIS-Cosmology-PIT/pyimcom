@@ -1,4 +1,5 @@
 jupyter # Clears output from Jupyter notebooks
+piff>=1.7.0
 pre-commit # Used to run checks before finalizing a git commit
 pytest
 pytest-cov # Used to report total code coverage
