@@ -45,8 +45,6 @@ jobs:
         python -m pip install --upgrade pip
         pip install -e .[dev]
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        pip install git+https://github.com/rmjarvis/Piff@main
-        # test with main branch of Piff
     - name: Numba settings only for one Python version
       if: matrix.python-version == '3.14'
       run: |
