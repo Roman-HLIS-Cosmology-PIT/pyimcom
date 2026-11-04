@@ -1,0 +1,88 @@
+{
+    "OBSFILE": "/users/PCON0003/cond0007/imcom/pyimcom/anlsim/Roman_WAS_obseq_11_1_23.fits",
+    "INDATA": [
+        "/fs/scratch/PCON0003/cond0007/Jun26/H1/sim/L2_1/",
+        "L2_2506"
+    ],
+    "TILESCHM": "FourSquare-Dec2025",
+    "RERUN": "08",
+    "MOSAIC": 1,
+    "CTR": [
+	9.55,
+	-44.1
+    ],
+    "LONPOLE": 180.0,
+    "OUTSIZE": [
+        60,
+	34,
+	0.049019607843137254
+    ],
+    "BLOCK": 40,
+    "FILTER": 2,
+    "LAKERNEL": "Cholesky",
+    "KAPPAC": [
+         5e-4
+    ],
+    "INPSF": [
+	"/fs/scratch/PCON0003/cond0007/Jun26/psf",
+        "L2_2506",
+        6
+    ],
+    "EXTRAINPUT": [
+        "truth,0.004906087669824225",
+        "gsstar14",
+        "nstar14,2e5,86,3",
+        "gsext14,seed=100",
+        "gsext14,seed=100,shear=0.02:0",
+        "gsext14,seed=100,shear=0:0.02",
+        "gsext14,seed=100,shear=-0.02:0",
+        "gsext14,seed=100,shear=0:-0.02",
+        "gsext14,seed=100,shape=0:0",
+        "gsext14,seed=100,shape=0:0,shear=0.02:0",
+        "gsext14,seed=100,shape=0:0,shear=0:0.02",
+        "gsext14,seed=100,shape=0:0,shear=-0.02:0",
+        "gsext14,seed=100,shape=0:0,shear=0:-0.02",
+        "gsext14,seed=100,hlr=0.2,shape=0:0",
+        "gsext14,seed=100,hlr=0.2,shape=0:0,shear=0.02:0",
+        "gsext14,seed=100,hlr=0.2,shape=0:0,shear=0:0.02",
+        "gsext14,seed=100,hlr=0.2,shape=0:0,shear=-0.02:0",
+        "gsext14,seed=100,hlr=0.2,shape=0:0,shear=0:-0.02",
+        "whitenoise10",
+        "noise,Rz4PbrS2C1",
+        "noise,Rz4PbrS2C2",
+        "noise,Rz4PbrS2C3",
+        "noise,Rz4PbrS2C4",
+        "noise,Rz4OS2C5",
+        "noise,Rz4OS2C6",
+        "noise,Rz4OS2C7",
+        "noise,Rz4OS2C8"
+    ],
+    "PADSIDES": "all",
+    "OUTMAPS": "USTN",
+    "OUT": "/fs/scratch/PCON0003/cond0007/Jun26/H1/coadd/H1-r8",
+    "INPAD": 0.70,
+    "NPIXPSF": 18,
+    "FADE": 1,
+    "PAD": 1,
+    "NOUT": 1,
+    "OUTPSF": "GAUSSIAN",
+    "EXTRASMOOTH": 0.9265328730414752,
+    "TEMPFILE": "/fs/scratch/PCON0003/cond0007/tmp/pyimcomrun_2X",
+    "INLAYERCACHE": "/fs/scratch/PCON0003/cond0007/temp/cache1/r1",
+    "PSFINTERP": "G4460",
+    "PSFSPLIT": [5.25, 8.75, 0.01],
+    "DSMODEL": ["constant",
+        4088],
+    "DSOBSFILE": "/fs/scratch/PCON0003/cond0007/temp/fits-H/tempimage_",
+    "DSOUT": ["/fs/scratch/PCON0003/cond0007/temp/ds-H/",
+        "_ds_out.txt"
+    ],
+    "CGMODEL": ["PR",
+        3,
+        1e-3
+        ],
+    "DSCOST": ["quadratic",
+        0,
+        0
+        ]
+}
