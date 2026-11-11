@@ -3,7 +3,7 @@ Workflow to run PyIMCOM
 
 This is a quick guide for the jobs you will want to submit to build a mosaic in PyIMCOM. To build a mosaic, you will need:
 
-- The configuration file (for production runs, this is usually an external JSON file). See `configuration files <config_README.rst>`_ for the format.
+- The configuration file (for production runs, this is usually an external JSON file). See :doc:`configuration files <config_README>` for the format.
 
 - The input images. The format should be as indicated in the ``INDATA`` keyword in the configuration file.
 
@@ -114,5 +114,5 @@ Here ``outdir/outstem_00_00.fits`` is one of the pyIMCOM output files, and docum
 
 You need to provide a different ``writeupdir/writeupstem`` if you are running a different mosaic **or different band** so as to avoid collisions.
 
-If you want to add more diagnostic reports, see the `instructions <diagnostics_README.rst>`_.
+If you want to add more diagnostic reports, see the :doc:`instructions <diagnostics_README>`.
 

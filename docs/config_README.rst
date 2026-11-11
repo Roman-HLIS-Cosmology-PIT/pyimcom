@@ -107,6 +107,8 @@ The current format for the FITS file is that HDU #1 is a binary table with colum
 
 The coordinate and filter information is needed for PyIMCOM to select the appropriate exposures for use in each block. (It is not used for precision alignment of the images: for that, PyIMCOM uses the WCS provided in the input files.) The date information is not used right now, but it could be used in the future to build co-adds in deep fields that correspond to certain ranges of epochs.
 
+.. _indata:
+
 INDATA: The input observations
 ------------------------------
 
@@ -154,7 +156,7 @@ This is a list containing a directory, PSF format, and oversampling factor:
 
 The above example looks for PSFs in the directory ``/fs/scratch/PCON0003/cond0007/anl-run-in-prod/psf_vlarge``; has PSF format type ``anlsim``; and the PSF is oversampled relative to native pixels by a factor of 8.
 
-The valid PSF formats are the same as the input data formats in the `INDATA <INDATA: The input observations>`_ keyword. In addition, it is possible to read from a Piff file:
+The valid PSF formats are the same as the input data formats in :ref:`indata`. In addition, it is possible to read from a Piff file:
 
 .. code-block:: json
 
