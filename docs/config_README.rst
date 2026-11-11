@@ -285,7 +285,7 @@ The ``pyimcom.layers`` module contains instructions for building each of the dif
 
   - ``n=`` n : the Sersic index (default n=1 is exponential profile).
 
-- ``noise``,str : Looks for a specific noise realization with a code written by ``romanimpreprocess``, e.g.: ``noise,RS2Csky1`` will look for the noise layer named ``'RS2Csky1'`` in the ``*_noise.asdf`` file. See the `romanimpreprocess documentation <https://github.com/Roman-HLIS-Cosmology-PIT/romanimpreprocess/tree/main/L1_to_L2>`_ for how to specify the noise layers.
+- ``noise``,str : Looks for a specific noise realization with a code written by ``romanimpreprocess``, e.g.: ``noise,RS2Csky1`` will look for the noise layer named ``'RS2Csky1'`` in the ``*_noise.asdf`` file. See the `romanimpreprocess documentation <https://romanimpreprocess.readthedocs.io/en/latest/L1_to_L2_README.html>`_ for how to specify the noise layers.
 
 LABNOISETHRESHOLD: Mask based on a laboratory dark\*
 ----------------------------------------------------
