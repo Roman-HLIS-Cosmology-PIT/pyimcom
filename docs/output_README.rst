@@ -59,7 +59,7 @@ There are several options for reading PyIMCOM output files. From "lowest" to "hi
     mosaic = distortimage.MetaMosaic(fout)
     im = mosaic.origimage(4000) # 4000x4000 subarray
 
-  Detailed instructions for this class are on the `Meta Readme <meta_README.rst>`_.
+  Detailed instructions for this class are on the :doc:`Meta Readme <meta_README>`.
 
 Extracting the configurations
 =============================
@@ -74,7 +74,7 @@ You can extract the configuration from an HDUList with the ``cfg_from_hdulist`` 
         cfgdict = cfg_from_hdulist(f)
     print(cfgdict["BLOCK"])
 
-(See the `configuration README <config_README.rst>`_ for a complete list of items that may be in the configuration.)
+(See the :doc:`configuration README <config_README>` for a complete list of items that may be in the configuration.)
 
 Examples
 ========
@@ -82,4 +82,5 @@ Examples
 Some examples incorporating the above ideas:
 
 * `Read a block output from the IPAC OpenUniverse 2024 page, and return both the PyIMCOM output and a
-  sheared version <../examples/read_and_shear_output_from_web.py>`_.
+  sheared version
+  <https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/blob/main/examples/read_and_shear_output_from_web.py>`_.

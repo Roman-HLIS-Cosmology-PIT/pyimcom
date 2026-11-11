@@ -16,7 +16,7 @@ The current implementation only works for output Gaussian PSF (an error will be 
 Quick start: running the workflow
 =================================
 
-An example workflow script, using perl + slurm, is in `writejob_example.pl <../scripts/writejob_example.pl>`_. This carries out the sequence of steps:
+An example workflow script, using perl + slurm, is in `writejob_example.pl <https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/blob/main/scripts/writejob_example.pl>`_. This carries out the sequence of steps:
 
 0. PSF splitting (separates the PSF into short- and long-range pieces)
 
@@ -30,9 +30,9 @@ An example workflow script, using perl + slurm, is in `writejob_example.pl <../s
 
 5. Final run of PyIMCOM (iteration 1)
 
-6. `Compression <compress_README.rst>`_
+6. :doc:`Compression <compress_README>`
 
-7. `Write report <diagnostics_README.rst>`_
+7. :doc:`Write report <diagnostics_README>`
 
 The perl script can be run on the Ohio Supercomputer Center using the format:
 

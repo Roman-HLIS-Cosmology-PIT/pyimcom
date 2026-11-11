@@ -48,4 +48,14 @@ Notes:
 
    Home page <self>
    API Reference <autoapi/index>
-   
+   compress_README
+   config_README
+   destripe_README
+   diagnostics_README
+   hierarchy
+   input_README
+   meta_README
+   output_README
+   report_README
+   run_README
+   splitpsf_README

@@ -3,7 +3,7 @@ Workflow to run PyIMCOM
 
 This is a quick guide for the jobs you will want to submit to build a mosaic in PyIMCOM. To build a mosaic, you will need:
 
-- The configuration file (for production runs, this is usually an external JSON file). See `configuration files <config_README.rst>`_ for the format.
+- The configuration file (for production runs, this is usually an external JSON file). See :doc:`configuration files <config_README>` for the format.
 
 - The input images. The format should be as indicated in the ``INDATA`` keyword in the configuration file.
 
@@ -35,7 +35,7 @@ The input data may be in one of the following formats (more may be added in the 
 
 - ``dc2_sim`` : Roman + Rubin Data Challenge 2 format (`Troxel et al. 2023 <https://ui.adsabs.harvard.edu/abs/2023MNRAS.522.2801T/abstract>`_). The WCS is part of the FITS header for the images, and the PSF images were provided separately.
 
-- ``anlsim`` : OpenUniverse 2024 simulation format (`Open Universe 2024 <https://ui.adsabs.harvard.edu/abs/2025arXiv250105632O/abstract>`_). The WCS is part of the FITS header for the images. The PSF Legendre data cubes have to be constructed separately from the main data release; see instructions `here <../historical/OpenUniverse2024/README.rst>`_.
+- ``anlsim`` : OpenUniverse 2024 simulation format (`Open Universe 2024 <https://ui.adsabs.harvard.edu/abs/2025arXiv250105632O/abstract>`_). The WCS is part of the FITS header for the images. The PSF Legendre data cubes have to be constructed separately from the main data release; see instructions `here <https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/blob/main/historical/OpenUniverse2024/README.rst>`_.
 
   - Science image example: \<indata directory\> ``/simple/Roman_WAS_simple_model_F184_1591_8.fits`` (filter F184, observation ID 1591, SCA 8)
 
@@ -114,5 +114,5 @@ Here ``outdir/outstem_00_00.fits`` is one of the pyIMCOM output files, and docum
 
 You need to provide a different ``writeupdir/writeupstem`` if you are running a different mosaic **or different band** so as to avoid collisions.
 
-If you want to add more diagnostic reports, see the `instructions <diagnostics_README.rst>`_.
+If you want to add more diagnostic reports, see the :doc:`instructions <diagnostics_README>`.
 
