@@ -16,7 +16,7 @@ The current implementation only works for output Gaussian PSF (an error will be 
 Quick start: running the workflow
 =================================
 
-An example workflow script, using perl + slurm, is in `writejob_example.pl <../scripts/writejob_example.pl>`_. This carries out the sequence of steps:
+An example workflow script, using perl + slurm, is in `writejob_example.pl <https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/blob/main/scripts/writejob_example.pl>`_. This carries out the sequence of steps:
 
 0. PSF splitting (separates the PSF into short- and long-range pieces)
 

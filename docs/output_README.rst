@@ -82,4 +82,5 @@ Examples
 Some examples incorporating the above ideas:
 
 * `Read a block output from the IPAC OpenUniverse 2024 page, and return both the PyIMCOM output and a
-  sheared version <../examples/read_and_shear_output_from_web.py>`_.
+  sheared version
+  <https://github.com/Roman-HLIS-Cosmology-PIT/pyimcom/blob/main/examples/read_and_shear_output_from_web.py>`_.
