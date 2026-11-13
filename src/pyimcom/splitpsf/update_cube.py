@@ -132,5 +132,5 @@ def update(cfg_file, proceed=True):
 
 
 # Command line driver
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     update(sys.argv[1], proceed=len(sys.argv) <= 2)
