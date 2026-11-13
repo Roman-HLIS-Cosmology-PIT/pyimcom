@@ -856,7 +856,7 @@ def run_imsubtract(
 python3 -m pyimcom.splitpsf.imsubtract  <config> <sca> [<output images>]
 (uses plt.show() if output stem not specified; output image directory is relative to cache file)
 """
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     # get the SCA (0 for all of them)
     sca = None if int(sys.argv[2]) == 0 else int(sys.argv[2])
     display = sys.argv[3] if len(sys.argv) > 3 else "/dev/null"

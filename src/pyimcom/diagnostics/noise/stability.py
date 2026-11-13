@@ -113,7 +113,7 @@ def plot_row_stability_summary(row_profiles, SCA):
     plt.close()
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     # --- Configuration ---
     directory = sys.argv[1]  # Set this
     output_csv = "stripe_stability.csv"
