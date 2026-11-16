@@ -488,6 +488,6 @@ def main(cfgfile, savezeta=False):
             # if count==1: exit() # <-- for testing: exit after one file
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     # Call with python3 -m pyimcom.splitpsf [config_file]
     main(sys.argv[1])

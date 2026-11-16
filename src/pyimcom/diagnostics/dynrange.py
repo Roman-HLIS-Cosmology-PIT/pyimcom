@@ -265,7 +265,7 @@ Command line driver.
 Format: python3 -m dynrange <file stem> <output filename>
 """
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
 
     def fn(ibx, iby):  # noqa: D103
         return sys.argv[1] + f"_{ibx:02d}_{iby:02d}.fits"
