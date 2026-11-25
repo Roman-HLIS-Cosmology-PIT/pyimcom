@@ -707,7 +707,7 @@ def run_imsubtract_single(
                 arr *= eval_legendre(lu, u_canvas).astype(np.float32)[None, :]
                 arr *= eval_legendre(lv, u_canvas).astype(np.float32)[:, None]
                 fftconvolve_multi(
-                    K[lu + lv * Nl, :, :],
+                    K[lu + lv * int(np.floor(np.sqrt(Ncoeff + 0.5))), :, :],
                     arr,
                     KH,
                     mode="valid",
